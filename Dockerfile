@@ -41,9 +41,9 @@ RUN pecl install memcached-2.2.0 \
 # Configure PHP for the imageboard
 RUN { \
         echo 'short_open_tag = On'; \
-        echo 'display_errors = On'; \
-        echo 'error_reporting = E_ALL'; \
+        echo 'display_errors = Off'; \
         echo 'log_errors = On'; \
+        echo 'error_reporting = E_ALL & ~E_NOTICE & ~E_DEPRECATED & ~E_STRICT'; \
         echo 'memory_limit = 256M'; \
         echo 'upload_max_filesize = 10M'; \
         echo 'post_max_size = 12M'; \
@@ -85,8 +85,9 @@ COPY . /var/www/html/
 # Copy container-specific config
 COPY docker/config/ /var/www/html/config/
 COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
+COPY docker/init-boards.sh /usr/local/bin/init-boards.sh
 
-RUN chmod +x /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh /usr/local/bin/init-boards.sh
 
 # Create required directories & symlink source to yotsuba path
 RUN mkdir -p /www/global \

@@ -57,6 +57,7 @@ CREATE TABLE IF NOT EXISTS `b` (
   `archived` tinyint(1) NOT NULL DEFAULT 0,
   `undead` tinyint(1) NOT NULL DEFAULT 0,
   `since4pass` tinyint(1) NOT NULL DEFAULT 0,
+  `m_img` tinyint(1) NOT NULL DEFAULT 0,
   `upvotes` int(11) NOT NULL DEFAULT 0,
   `downvotes` int(11) NOT NULL DEFAULT 0,
   PRIMARY KEY (`no`),
@@ -177,4 +178,21 @@ CREATE TABLE IF NOT EXISTS `profiling_times` (
   `run` int(11) NOT NULL DEFAULT 0,
   `time` float NOT NULL DEFAULT 0,
   `desc` varchar(64) NOT NULL DEFAULT ''
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Blotter messages (site-wide announcements)
+CREATE TABLE IF NOT EXISTS `blotter_messages` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `date` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `content` text NOT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Contest banners
+CREATE TABLE IF NOT EXISTS `contest_banners` (
+  `file_id` int(11) NOT NULL AUTO_INCREMENT,
+  `file_ext` varchar(8) NOT NULL DEFAULT '',
+  `board` varchar(10) NOT NULL DEFAULT '',
+  `is_live` tinyint(1) NOT NULL DEFAULT 0,
+  PRIMARY KEY (`file_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
