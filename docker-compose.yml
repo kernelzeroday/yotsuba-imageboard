@@ -1,12 +1,10 @@
-version: '3.8'
-
 services:
   # === PHP/Apache web server ===
   web:
     build: .
     container_name: yotsuba-web
     ports:
-      - "8080:80"
+      - "8082:80"
     environment:
       - YOTSUBA_DB_HOST=db
       - YOTSUBA_DB_PORT=3306
