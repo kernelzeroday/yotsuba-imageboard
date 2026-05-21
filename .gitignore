@@ -1,0 +1,29 @@
+# Docker
+.docker/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# PHP
+vendor/
+
+# Logs
+*.log
+querylog.log
+
+# Uploaded content (from lab runtime)
+www/images/
+www/thumbs/
+www/boards/
+
+# Runtime secrets
+config/cloudflare_config.ini
+config/config_db.php

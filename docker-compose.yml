@@ -1,0 +1,86 @@
+version: '3.8'
+
+services:
+  # === PHP/Apache web server ===
+  web:
+    build: .
+    container_name: yotsuba-web
+    ports:
+      - "8080:80"
+    environment:
+      - YOTSUBA_DB_HOST=db
+      - YOTSUBA_DB_PORT=3306
+      - YOTSUBA_DB_USER=yotsuba
+      - YOTSUBA_DB_PASS=yotsuba
+      - YOTSUBA_DB_GLOBAL=yotsuba_global
+      - YOTSUBA_MEMCACHED_HOST=memcached
+      - YOTSUBA_MEMCACHED_PORT=11211
+    depends_on:
+      db:
+        condition: service_healthy
+      memcached:
+        condition: service_started
+    volumes:
+      - uploads_data:/www/4chan.org/web/images
+      - thumbs_data:/www/4chan.org/web/thumbs
+      - boards_data:/www/4chan.org/web/boards
+    networks:
+      - lab-net
+    restart: unless-stopped
+
+  # === MariaDB ===
+  db:
+    image: mariadb:10.1
+    container_name: yotsuba-db
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpass
+      MYSQL_USER: yotsuba
+      MYSQL_PASSWORD: yotsuba
+      MYSQL_DATABASE: yotsuba_global
+    ports:
+      - "3306:3306"
+    volumes:
+      - db_data:/var/lib/mysql
+      - ./docker/init.sql:/docker-entrypoint-initdb.d/01-init.sql
+    networks:
+      - lab-net
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-prootpass"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  # === Memcached ===
+  memcached:
+    image: memcached:1.6-alpine
+    container_name: yotsuba-memcached
+    ports:
+      - "11211:11211"
+    networks:
+      - lab-net
+    restart: unless-stopped
+
+  # === Adminer (optional DB management) ===
+  adminer:
+    image: adminer:4-standalone
+    container_name: yotsuba-adminer
+    ports:
+      - "8081:8080"
+    environment:
+      ADMINER_DEFAULT_SERVER: db
+    depends_on:
+      - db
+    networks:
+      - lab-net
+    restart: unless-stopped
+
+volumes:
+  db_data:
+  uploads_data:
+  thumbs_data:
+  boards_data:
+
+networks:
+  lab-net:
+    driver: bridge
