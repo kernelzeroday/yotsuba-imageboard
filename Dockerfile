@@ -55,6 +55,15 @@ RUN { \
         echo 'date.timezone = UTC'; \
     } > /usr/local/etc/php/conf.d/yotsuba.ini
 
+# Symlink binaries to paths expected by the source code
+RUN ln -sf /usr/bin/jpegtran /usr/local/bin/jpegtran \
+    && ln -sf /usr/bin/gifsicle /usr/local/bin/gifsicle \
+    && ln -sf /usr/bin/gs /usr/local/bin/gs \
+    && ln -sf /usr/bin/optipng /usr/local/bin/optipng \
+    && ln -sf /usr/bin/jhead /usr/local/bin/jhead \
+    && ln -sf /usr/bin/ffmpeg /usr/local/bin/ffmpeg-mp4 \
+    && ln -sf /usr/bin/ffprobe /usr/local/bin/ffprobe-mp4
+
 # Apache modules
 RUN a2enmod rewrite expires headers
 

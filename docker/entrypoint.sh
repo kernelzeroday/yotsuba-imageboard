@@ -33,7 +33,9 @@ PHPEOF
 # ---------------------------------------------------------------------------
 # Patch config loader to pick up config_db.php before checking $use_pdo
 # ---------------------------------------------------------------------------
-sed -i 's|require_once .lib/ini.php.|require_once "lib/ini.php";\nrequire_once "config/config_db.php";|' "$SRC/yotsuba_config.php"
+if ! grep -q 'config_db.php' "$SRC/yotsuba_config.php"; then
+    sed -i "/require_once 'lib\/ini.php'/a require_once 'config\/config_db.php';" "$SRC/yotsuba_config.php"
+fi
 
 # ---------------------------------------------------------------------------
 # Global config overrides for local lab environment
@@ -85,15 +87,52 @@ done
 # PHP source patches (idempotent — skip if already applied)
 # ---------------------------------------------------------------------------
 
-# Allow GET requests to trigger index rebuild (bypass DDOS check)
-sed -i "s|if( \$_SERVER\\['REQUEST_METHOD'\\] == 'GET' \\&\\& !has_level() ) {|if (false) { // lab|" "$SRC/views/imgboard.php"
+# Enable error display for lab debugging
+sed -i 's/display_errors = Off/display_errors = On/' /usr/local/etc/php/conf.d/yotsuba.ini
 
-# Accept any referrer
-sed -i "s|if (!\$strict && (!isset(\$_SERVER\['HTTP_REFERER'\]) || \$_SERVER\['HTTP_REFERER'\] == '')) {|if (true) { // lab: accept any referrer|" "$SRC/imgboard.php"
-sed -i "s|if (!\$strict && (!isset(\$_SERVER\['HTTP_REFERER'\]) || \$_SERVER\['HTTP_REFERER'\] == '')) {|if (true) { // lab: accept any referrer|" "$SRC/imgboard-test.php"
+# Allow GET requests to trigger index rebuild (bypass DDOS check)
+php -- <<'PHPEOF'
+<?php
+$f = '/var/www/html/views/imgboard.php';
+$c = file_get_contents($f);
+if (strpos($c, '// lab') !== false) exit;
+$c = str_replace(
+    "if( \$_SERVER['REQUEST_METHOD'] == 'GET' && !has_level() ) {",
+    "if (false) { // lab",
+    $c, $n
+);
+if ($n) { file_put_contents($f, $c); echo "[entrypoint] Patched DDOS check in views/imgboard.php\n"; }
+PHPEOF
+
+# Accept any referrer — bypass validate_referer()
+php -- <<'PHPEOF'
+<?php
+foreach (['/var/www/html/imgboard.php', '/var/www/html/imgboard-test.php'] as $f) {
+    if (!file_exists($f)) continue;
+    $c = file_get_contents($f);
+    if (strpos($c, '// lab: accept any referrer') !== false) continue;
+    $c = str_replace(
+        "if (!\$strict && (!isset(\$_SERVER['HTTP_REFERER']) || \$_SERVER['HTTP_REFERER'] == '')) {",
+        "if (true) { // lab: accept any referrer",
+        $c, $n
+    );
+    if ($n) { file_put_contents($f, $c); echo "[entrypoint] Patched referrer check in " . basename($f) . "\n"; }
+}
+PHPEOF
 
 # Stub GeoIP2 (MaxMind not installed in lab)
-sed -i 's|return new MaxMind\\Db\\Reader($file);|return false; // GeoIP stubbed for lab|' "$SRC/lib/geoip2.php"
+php -- <<'PHPEOF'
+<?php
+$f = '/var/www/html/lib/geoip2.php';
+$c = file_get_contents($f);
+if (strpos($c, 'GeoIP stubbed') !== false) exit;
+$c = str_replace(
+    'return new MaxMind\\Db\\Reader($file);',
+    'return false; // GeoIP stubbed for lab',
+    $c, $n
+);
+if ($n) { file_put_contents($f, $c); echo "[entrypoint] Stubbed GeoIP2\n"; }
+PHPEOF
 
 # ---------------------------------------------------------------------------
 # Rewrite external URLs to local paths
@@ -425,7 +464,7 @@ echo "ServerName localhost" >> /etc/apache2/apache2.conf
 
 echo "[entrypoint] Boards: $(ls $BOARDS_ROOT | tr '\n' ' ')"
 
-# Start Apache in background for board init, then bring to foreground
+# Start Apache briefly for board init, then restart as PID 1
 echo "[entrypoint] Starting Apache for board initialization..."
 apache2-foreground &
 APACHE_PID=$!
@@ -433,5 +472,9 @@ sleep 3
 
 /usr/local/bin/init-boards.sh
 
-echo "[entrypoint] Initialization complete."
-wait $APACHE_PID
+# Stop the temporary Apache
+kill $APACHE_PID 2>/dev/null
+wait $APACHE_PID 2>/dev/null || true
+
+echo "[entrypoint] Initialization complete. Starting Apache..."
+exec "$@"
