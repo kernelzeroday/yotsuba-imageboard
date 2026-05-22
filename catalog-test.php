@@ -312,7 +312,7 @@ function catalog($catjson) {
     $bottomad .= '<div class="adc-resp-bg" data-ad-bg="' . AD_BIDGEAR_BOTTOM . '"></div>';
   }*/
   else if (defined('ADS_DANBO') && ADS_DANBO)  {
-    $bottomad .= '<div id="danbo-s-b" class="danbo-slot"></div><div class="adl">[<a target="_blank" href="https://www.localhost/advertise">Advertise on 4chan</a>]</div><hr>';
+    $bottomad .= '<div id="danbo-s-b" class="danbo-slot"></div><div class="adl">[<a target="_blank" href="https://www.4channel.org/advertise">Advertise on 4chan</a>]</div><hr>';
   }
 
   $favicon          = FAVICON;
@@ -324,7 +324,7 @@ function catalog($catjson) {
   $body_class = $body_class[0];
   $body_class .= ' is_catalog board_' . BOARD_DIR;
 
-  $canonical = '<link rel="canonical" href="https://boards.localhost/'.BOARD_DIR.'/catalog">';
+  $canonical = '<link rel="canonical" href="https://boards.4chan.org/'.BOARD_DIR.'/catalog">';
   
   $embedearly = EMBEDEARLY;
   $embedlate = EMBEDLATE;
@@ -347,7 +347,7 @@ function catalog($catjson) {
     // Christmas 2021
     if (CSS_EVENT_NAME === 'tomorrow') {
       $js .= <<<JJS
-<script src='/static/js/snow.js'></script>
+<script src='//s.4cdn.org/js/snow.js'></script>
 <script>
   function fc_tomorrow_init() {
     if (window.matchMedia && window.matchMedia('(min-width: 481px)').matches) {
@@ -364,7 +364,7 @@ function catalog($catjson) {
   border-image-width: 40px 0px 0px 0px;
   border-image-outset: 0px 0px 0px 0px;
   border-image-repeat: repeat repeat;
-  border-image-source: url('https:/static/image/temp/garland.png');
+  border-image-source: url('https://s.4cdn.org/image/temp/garland.png');
   border-style: solid;
   padding-top: 50px;
 }

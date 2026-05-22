@@ -613,32 +613,32 @@ HTML;
       $html = '<b style="font-size: 14px">Coin Flip: ' . (mt_rand(0, 1) === 1 ? 'Heads' : 'Tails') . '</b>';
       break;
     case 'party':
-      $html = '<img alt="" width="160" height="160" src="/static/image/partyhat.gif">';
+      $html = '<img alt="" width="160" height="160" src="//s.4cdn.org/image/partyhat.gif">';
       break;
     case 'partyhat':
       $cnt_attrs = ' style="position:absolute"';
-      $html = '<img alt="" style="position:absolute;margin-left:-25px;margin-top:-80px;pointer-events:none;" width="80" height="80" src="/static/image/partyhat.gif">';
+      $html = '<img alt="" style="position:absolute;margin-left:-25px;margin-top:-80px;pointer-events:none;" width="80" height="80" src="//s.4cdn.org/image/partyhat.gif">';
       break;
     case 'pickle':
-      $html = '<img alt="" width="32" height="32" src="/static/image/pckl.png">';
+      $html = '<img alt="" width="32" height="32" src="//s.4cdn.org/image/pckl.png">';
       break;
     case 'nofile':
-      $html = '<img alt="" width="77" height="13" src="/static/image/nofile.png">';
+      $html = '<img alt="" width="77" height="13" src="//s.4cdn.org/image/nofile.png">';
       break;
     case 'trash':
-      $html = '<img alt="" width="32" height="32" src="/static/image/trash@2x.gif">';
+      $html = '<img alt="" width="32" height="32" src="//s.4cdn.org/image/trash@2x.gif">';
       break;
     case 'bricks':
-      $html = '<img alt="" width="60" height="60" src="/static/image/ba.gif">';
+      $html = '<img alt="" width="60" height="60" src="//s.4cdn.org/image/ba.gif">';
       break;
     case 'pig':
       $html = '&#x1F437;';
       break;
     case 'santa':
-      $html = '<img alt="" width="160" height="160" src="/static/image/xmashat.gif">';
+      $html = '<img alt="" width="160" height="160" src="//s.4cdn.org/image/xmashat.gif">';
       break;
     case 'verified':
-      $html = '<div style="text-align:right"><img alt="" width="32" height="32" src="/static/image/temp/verified.png"></div>';
+      $html = '<div style="text-align:right"><img alt="" width="32" height="32" src="//s.4cdn.org/image/temp/verified.png"></div>';
       break;
     case 'joy':
       $html = '&#x1F602;';
@@ -656,11 +656,11 @@ HTML;
       $html = '&#x1F431;';
       break;
     case 'dino':
-      $html = '<img alt="" width="451" height="75" src="/static/image/temp/dinosaur.gif">';
+      $html = '<img alt="" width="451" height="75" src="//s.4cdn.org/image/temp/dinosaur.gif">';
       break;
     case 'spooky':
       $id = mt_rand(1, 23);
-      $html = '<img alt="" src="/static/image/skeletons/' . $id . '.gif">';
+      $html = '<img alt="" src="//s.4cdn.org/image/skeletons/' . $id . '.gif">';
       break;
     default:
       return null;

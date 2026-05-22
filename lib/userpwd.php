@@ -33,7 +33,7 @@ final class UserPwd {
   const IP_CHANGE_MASK_VAL = 3;
   const IP_CHANGE_IP_VAL = 1;
   
-  const COOKIE_NAME = 'localchan_pass';
+  const COOKIE_NAME = '4chan_pass';
   
   const COOKIE_TTL = 31536000; // 1 year
   

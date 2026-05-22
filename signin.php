@@ -36,7 +36,7 @@ class App {
   const TBL_QUEUE = 'email_signins_queue';
   const TBL_BLACKLIST = 'email_signins_blacklist';
   
-  const PWD_DOMAIN = 'localhost';
+  const PWD_DOMAIN = '4chan.org';
   
   const HMAC_KEY_PATH = '/www/keys/2024_key64.key';
   
@@ -76,7 +76,7 @@ class App {
     ERR_BAD_EMAIL_PLUS = 'Email subaddressing is not allowed',
     ERR_CD = 'You have to wait %d more %s before attempting this again.',
     ERR_EMAIL_QUEUED = 'You have to wait a while before attempting this again.',
-    ERR_PASS_USER = 'Email verification is not required for Pass users.',
+    ERR_PASS_USER = 'Email verification is not required for 4chan Pass users.',
     ERR_DB = 'We are currently having database issues. Please try again later.'
   ;
   
@@ -765,8 +765,8 @@ SQL;
     
     $this->validate_rangeban();
     
-    if (isset($_COOKIE['localchan_pass'])) {
-      $pwd = UserPwd::decodePwd($_COOKIE['localchan_pass']);
+    if (isset($_COOKIE['4chan_pass'])) {
+      $pwd = UserPwd::decodePwd($_COOKIE['4chan_pass']);
       
       // Password has a ban, show fake success screen
       if ($pwd && $this->is_pwd_banned($pwd)) {
@@ -924,8 +924,8 @@ SQL;
     
     $userpwd = null;
     
-    if (isset($_COOKIE['localchan_pass'])) {
-      $userpwd = new UserPwd($ip, self::PWD_DOMAIN, $_COOKIE['localchan_pass']);
+    if (isset($_COOKIE['4chan_pass'])) {
+      $userpwd = new UserPwd($ip, self::PWD_DOMAIN, $_COOKIE['4chan_pass']);
       
       if (!$userpwd) {
         $this->error_generic('nup');
@@ -971,8 +971,8 @@ SQL;
     
     $userpwd = null;
     
-    if (isset($_COOKIE['localchan_pass'])) {
-      $userpwd = new UserPwd($_SERVER['REMOTE_ADDR'], self::PWD_DOMAIN, $_COOKIE['localchan_pass']);
+    if (isset($_COOKIE['4chan_pass'])) {
+      $userpwd = new UserPwd($_SERVER['REMOTE_ADDR'], self::PWD_DOMAIN, $_COOKIE['4chan_pass']);
     }
     
     // If already verified, make a brand new pwd
@@ -1004,8 +1004,8 @@ SQL;
     
     $userpwd = null;
     
-    if (isset($_COOKIE['localchan_pass'])) {
-      $userpwd = new UserPwd($_SERVER['REMOTE_ADDR'], self::PWD_DOMAIN, $_COOKIE['localchan_pass']);
+    if (isset($_COOKIE['4chan_pass'])) {
+      $userpwd = new UserPwd($_SERVER['REMOTE_ADDR'], self::PWD_DOMAIN, $_COOKIE['4chan_pass']);
     }
     
     $this->authed = $userpwd && $userpwd->verifiedLevel() > 0;

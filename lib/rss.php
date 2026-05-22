@@ -24,7 +24,7 @@ function rss_dump() {
 	$link = "http:" . SELF_PATH2_ABS;
 	$self = "http:" . DATA_SERVER . BOARD_DIR . '/index.rss';
 	$output = "<?xml version=\"1.0\" encoding=\"UTF-8\" ?>\n<rss version=\"2.0\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\" xmlns:atom=\"http://www.w3.org/2005/Atom\">\n";
-	$output .= "<channel>\n<title>$title</title>\n<link>$link</link>\n<description>Threads on $title at localhost.</description>\n";
+	$output .= "<channel>\n<title>$title</title>\n<link>$link</link>\n<description>Threads on $title at 4chan.org.</description>\n";
 	$output .= "<atom:link href=\"$self\" rel=\"self\" type=\"application/rss+xml\" />";
 	$query = mysql_board_call("SELECT SQL_NO_CACHE * FROM `".SQLLOG."` WHERE archived=0 and resto=0 ORDER BY no DESC LIMIT 20");
 	while($row = mysql_fetch_assoc($query)) {

@@ -1,20 +1,20 @@
 #!/bin/bash
 set -e
 
-echo "[entrypoint] Bootstrapping localchan container..."
+echo "[entrypoint] Bootstrapping Yotsuba container..."
 
 SRC=/var/www/html
-BOARDS_ROOT=/www/localchan/boards
+BOARDS_ROOT=/www/4chan.org/web/boards
 
 # ---------------------------------------------------------------------------
 # Runtime database config (generated from environment variables)
 # ---------------------------------------------------------------------------
 cat > "$SRC/config/config_db.php" <<'PHPEOF'
 <?php
-define('SQLHOST_GLOBAL', getenv('LOCALCHAN_DB_HOST') ?: 'db');
-define('SQLUSER_GLOBAL', getenv('LOCALCHAN_DB_USER') ?: 'localchan');
-define('SQLPASS_GLOBAL', getenv('LOCALCHAN_DB_PASS') ?: 'localchan');
-define('SQLDB_GLOBAL',  getenv('LOCALCHAN_DB_NAME') ?: 'localchan');
+define('SQLHOST_GLOBAL', getenv('YOTSUBA_DB_HOST') ?: 'db');
+define('SQLUSER_GLOBAL', getenv('YOTSUBA_DB_USER') ?: 'yotsuba');
+define('SQLPASS_GLOBAL', getenv('YOTSUBA_DB_PASS') ?: 'yotsuba');
+define('SQLDB_GLOBAL',  getenv('YOTSUBA_DB_NAME') ?: 'yotsuba_global');
 define('SQLHOST', SQLHOST_GLOBAL);
 define('SQLDB', SQLDB_GLOBAL);
 define('SQLUSER', SQLUSER_GLOBAL);
@@ -33,7 +33,7 @@ PHPEOF
 # ---------------------------------------------------------------------------
 # Patch config loader to pick up config_db.php before checking $use_pdo
 # ---------------------------------------------------------------------------
-sed -i 's|require_once .lib/ini.php.|require_once "lib/ini.php";\nrequire_once "config/config_db.php";|' "$SRC/localchan_config.php"
+sed -i 's|require_once .lib/ini.php.|require_once "lib/ini.php";\nrequire_once "config/config_db.php";|' "$SRC/yotsuba_config.php"
 
 # ---------------------------------------------------------------------------
 # Global config overrides for local lab environment
@@ -43,8 +43,8 @@ patch_ini() {
 }
 
 # Memcached
-if [ -n "$LOCALCHAN_MEMCACHED_HOST" ]; then
-    patch_ini MEMCACHED_HOST "$LOCALCHAN_MEMCACHED_HOST"
+if [ -n "$YOTSUBA_MEMCACHED_HOST" ]; then
+    patch_ini MEMCACHED_HOST "$YOTSUBA_MEMCACHED_HOST"
 fi
 
 # Disable captcha
@@ -252,7 +252,7 @@ sed -i "s|private static \$blue = '4chan.org'|private static \$blue = 'localhost
 sed -i "s|private static \$red = '4chan.org'|private static \$red = 'localhost'|" "$SRC/lib/util.php"
 
 # Static assets permissions
-chown -R www-data:www-data /www/localchan/static 2>/dev/null || true
+chown -R www-data:www-data /www/4chan.org/web/static 2>/dev/null || true
 
 # ---------------------------------------------------------------------------
 # Patch updating_index() — serve cached static HTML
@@ -366,7 +366,7 @@ $insert = '
 if (basename($_SERVER["SCRIPT_FILENAME"]) === "catalog.php" || basename($_SERVER["SCRIPT_FILENAME"]) === "catalog-test.php") {
     if (!defined("DATA_ROOT")) {
         $_SERVER["REQUEST_METHOD"] = "GET";
-        require_once "localchan_config.php";
+        require_once "yotsuba_config.php";
     }
     $cat_gz = INDEX_DIR . "catalog.html.gz";
     $cat_html = INDEX_DIR . "catalog.html";
@@ -395,8 +395,8 @@ for board_conf in "$SRC/config/boards/"*.config.ini; do
     board=$(basename "$board_conf" .config.ini)
     board_dir="$BOARDS_ROOT/$board"
     mkdir -p "$board_dir" "$board_dir/thread"
-    mkdir -p "/www/localchan/images/$board"
-    mkdir -p "/www/localchan/thumbs/$board"
+    mkdir -p "/www/4chan.org/web/images/$board"
+    mkdir -p "/www/4chan.org/web/thumbs/$board"
 
     for f in imgboard.php catalog.php json.php rid.php; do
         ln -sf "$SRC/$f" "$board_dir/$f"
@@ -406,7 +406,7 @@ for board_conf in "$SRC/config/boards/"*.config.ini; do
         ln -sf "$SRC/$d" "$board_dir/$d"
     done
 
-    for f in localchan_config.php header.txt footer.txt header-sys.txt header-ws.txt \
+    for f in yotsuba_config.php header.txt footer.txt header-sys.txt header-ws.txt \
              footer-ws.txt footer-test.txt header-test.txt globalmsg.txt \
              boardlist.txt captcha.php captcha-test.php catalog.php catalog-test.php \
              json.php json-test.php admin.php admin-test.php auth.php auth-test.php \
@@ -420,7 +420,7 @@ done
 # Finalize
 # ---------------------------------------------------------------------------
 mkdir -p /www/perhost /www/keys
-chown -R www-data:www-data /www/perhost /www/localchan/images /www/localchan/thumbs /www/localchan/sys /www/localchan/boards
+chown -R www-data:www-data /www/perhost /www/4chan.org/web/images /www/4chan.org/web/thumbs /www/4chan.org/web/sys /www/4chan.org/web/boards
 echo "ServerName localhost" >> /etc/apache2/apache2.conf
 
 echo "[entrypoint] Boards: $(ls $BOARDS_ROOT | tr '\n' ' ')"

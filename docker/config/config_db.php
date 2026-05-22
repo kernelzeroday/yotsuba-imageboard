@@ -1,8 +1,8 @@
 <?php
-define('SQLHOST_GLOBAL', getenv('LOCALCHAN_DB_HOST') ?: 'db');
-define('SQLUSER_GLOBAL', getenv('LOCALCHAN_DB_USER') ?: 'localchan');
-define('SQLPASS_GLOBAL', getenv('LOCALCHAN_DB_PASS') ?: 'localchan');
-define('SQLDB_GLOBAL',  getenv('LOCALCHAN_DB_NAME') ?: 'localchan');
+define('SQLHOST_GLOBAL', getenv('YOTSUBA_DB_HOST') ?: 'db');
+define('SQLUSER_GLOBAL', getenv('YOTSUBA_DB_USER') ?: 'yotsuba');
+define('SQLPASS_GLOBAL', getenv('YOTSUBA_DB_PASS') ?: 'yotsuba');
+define('SQLDB_GLOBAL',  getenv('YOTSUBA_DB_NAME') ?: 'yotsuba_global');
 
 define('SQLUSER', SQLUSER_GLOBAL);
 define('SQLPASS', SQLPASS_GLOBAL);

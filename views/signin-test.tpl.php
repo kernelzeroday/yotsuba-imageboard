@@ -16,7 +16,7 @@
   <?php if ($this->use_recaptcha): ?>
   <script src="https://www.google.com/recaptcha/api.js" async defer></script>
   <?php else: ?>
-  <script src="https:/static/js/tcaptcha.js"></script>
+  <script src="https://s.4cdn.org/js/tcaptcha.js"></script>
   <style type="text/css">
     #t-root {
       background-color: #eee;
@@ -29,12 +29,12 @@
   </style>
   <?php endif ?>
 <?php endif ?>
-  <link rel="stylesheet" type="text/css" href="/static/css/signin.css">
-  <link rel="shortcut icon" href="/static/image/favicon.ico" type="image/x-icon">
+  <link rel="stylesheet" type="text/css" href="//s.4cdn.org/css/signin.css">
+  <link rel="shortcut icon" href="//s.4cdn.org/image/favicon.ico" type="image/x-icon">
 </head>
 <body>
 <header>
-  <img id="logo" alt="4chan" src="/static/image/fp/minileaf-transparent.png" width="46" height="47">
+  <img id="logo" alt="4chan" src="//s.4cdn.org/image/fp/minileaf-transparent.png" width="46" height="47">
 </header>
 <div id="content">
 <?php if ($this->mode === 'index'): ?>
@@ -49,7 +49,7 @@
 <h3 class="msg-success"><?php echo self::ERR_PASS_USER ?></h3>
 <?php else: ?>
 <h1 id="title">Email Verification</h1>
-<div class="protip"><p>A verified email address may be used to bypass<br>anti-spam filters on some boards. If you are having trouble posting, try verifying your email.</p><p>Enter your email below and click <i>Send</i> to receive a verification link.</p><p>Your email address will be stored on our servers only briefly (usually for just a couple of minutes while the verification link is awaiting delivery).</p><p>Email verification is not required for <a href="https://www.localhost/pass">4chan Pass</a> users.</p></div>
+<div class="protip"><p>A verified email address may be used to bypass<br>anti-spam filters on some boards. If you are having trouble posting, try verifying your email.</p><p>Enter your email below and click <i>Send</i> to receive a verification link.</p><p>Your email address will be stored on our servers only briefly (usually for just a couple of minutes while the verification link is awaiting delivery).</p><p>Email verification is not required for <a href="https://www.4chan.org/pass">4chan Pass</a> users.</p></div>
 <form id="auth-form" action="" method="POST">
   <div class="form-line"><div class="g-recaptcha" data-sitekey="<?php echo self::CAPTCHA_MODE === 2 ? HCAPTCHA_API_KEY_PUBLIC : RECAPTCHA_API_KEY_PUBLIC ?>"></div></div>
   <div class="form-line"><label for="email">Email</label><input id="email" <?php if (self::VERIFY_EMAIL_DOMAIN) { echo('pattern="[^@+]+@(' . implode('|', self::$allowed_domains) . ')"'); } ?> name="email" type="email" required><button>Send</button></div>

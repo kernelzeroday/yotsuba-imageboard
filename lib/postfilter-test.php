@@ -1515,7 +1515,7 @@ function spam_filter_format_http_headers($com = null, $country = null, $filename
       if (substr($_h_name, 0, 5) == 'HTTP_') {
         if ($_h_name === 'HTTP_COOKIE') {
           $_cookies = array_keys($_COOKIE);
-          $_cookies = array_intersect($_cookies, ['ws_style', 'nws_style', 'localchan_pass', '_tcs', '_ga', 'cf_clearance' ]);
+          $_cookies = array_intersect($_cookies, ['ws_style', 'nws_style', '4chan_pass', '_tcs', '_ga', 'cf_clearance' ]);
           $_cookie_count = count($_COOKIE);
           $bot_headers .= "HTTP_COOKIE: " . htmlspecialchars(implode(', ', $_cookies)) . " ($_cookie_count in total)\n";
         }
@@ -1546,7 +1546,7 @@ function spam_filter_format_http_headers($com = null, $country = null, $filename
       $bot_headers .= "_TCS: " . htmlspecialchars($_COOKIE['_tcs']) . "\n";
     }
     
-    if (isset($_COOKIE['localchan_pass'])) {
+    if (isset($_COOKIE['4chan_pass'])) {
       $userpwd = UserPwd::getSession();
       
       if ($userpwd) {
@@ -1721,7 +1721,7 @@ function spam_filter_is_bad_actor() {
   if ($no_lang && isset($_SERVER['HTTP_REFERER'])) {
     $ref = $_SERVER['HTTP_REFERER'];
     
-    if (strpos($ref, 'sys.localhost') !== false || strpos($ref, '/thread/') !== false) {
+    if (strpos($ref, 'sys.4chan.org') !== false || strpos($ref, '/thread/') !== false) {
       $cache = true;
       return true;
     }
@@ -1792,7 +1792,7 @@ function spam_filter_get_threat_score($country = null, $is_op = false, $multipar
   $is_webview = strpos($ua, '; wv') !== false;
   $is_mobile_app = !$accept_header && !$accept_lang && ($is_webview || strpos($referer_header, '/thread/') !== false);
   
-  if (!$is_mobile_app && !$accept_header && $accept_lang && strpos($referer_header, 'sys.localhost') !== false) {
+  if (!$is_mobile_app && !$accept_header && $accept_lang && strpos($referer_header, 'sys.4chan.org') !== false) {
     $is_mobile_app = true;
   }
   
@@ -2022,7 +2022,7 @@ function spam_filter_get_threat_score($country = null, $is_op = false, $multipar
   }
   
   // Referer is set but is empty
-  if (isset($_SERVER['HTTP_REFERER']) && strpos($_SERVER['HTTP_REFERER'], 'localhost') === false) {
+  if (isset($_SERVER['HTTP_REFERER']) && strpos($_SERVER['HTTP_REFERER'], '4chan.org') === false) {
     $increase[] = 0.1;
     //$log[] = 'BAD_REFERER';
   }

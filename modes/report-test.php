@@ -362,7 +362,7 @@ SQL;
         if (isIPRangeBannedReport($longip, $asn, BOARD_DIR, $userpwd)) {
           fancydie('Reporting from this IP range has been blocked due to abuse. [<a href="//www.' .
             L::d(BOARD_DIR) .
-            '/faq#blocked" target="_blank">More Info</a>]<br>4chan Pass users can bypass this block. [<a href="https://www.localhost/pass" target="_blank">Learn More</a>]');
+            '/faq#blocked" target="_blank">More Info</a>]<br>4chan Pass users can bypass this block. [<a href="https://www.4chan.org/pass" target="_blank">Learn More</a>]');
         }
       }
     }

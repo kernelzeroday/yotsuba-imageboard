@@ -4,8 +4,8 @@
 final class L {
   static $nws = array('aco'=>true,'b'=>true,'bant'=>true,'d'=>true,'e'=>true,'f'=>true,'gif'=>true,'h'=>true,'hc'=>true,'hm'=>true,'hr'=>true,'i'=>true,'ic'=>true,'pol'=>true,'r'=>true,'r9k'=>true,'s'=>true,'s4s'=>true,'soc'=>true,'t'=>true,'trash'=>true,'u'=>true,'wg'=>true,'y'=>true);
   
-  private static $blue = 'localhost';
-  private static $red = 'localhost';
+  private static $blue = '4chan.org'; // Domain for worksafe boards
+  private static $red = '4chan.org'; // Domain for nws boards
   
   static public function d($board) {
     return isset(self::$nws[$board]) ? self::$red : self::$blue;
@@ -63,7 +63,7 @@ function quick_log_to( $f, $s, $do_bt=false )
 
 function post_filter_get($base)
 {
-	$path = "/www/global/localchan/filters/";
+	$path = "/www/global/yotsuba/filters/";
 
 	$strs = @file("$path$base.txt", FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
 	$res  = @file("$path$base-re.txt", FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);

@@ -1,6 +1,6 @@
-# localchan
+# 4chan Yotsuba
 
-A self-contained imageboard for local security research and testing. Built from the Yotsuba PHP imageboard engine, containerized with Docker.
+The original 4chan imageboard source code (Yotsuba engine), containerized with Docker for local security research and testing.
 
 ## Quick Start
 
@@ -31,7 +31,7 @@ docker/
   config/config_db.php      # Database credentials (build-time defaults)
   static/                   # CSS, JS, images baked into the image
 
-localchan_config.php        # Configuration engine (loads INI, connects DB)
+yotsuba_config.php          # Configuration engine (loads INI files, connects DB)
 config/
   global_config.ini         # Global settings (limits, features, paths)
   global_strings.ini        # UI strings and error messages
@@ -71,10 +71,10 @@ The entrypoint patches the codebase for local use:
 
 ## Default Credentials
 
-| Resource | User      | Password  |
-|----------|-----------|-----------|
-| Database | localchan | localchan |
-| DB root  | root      | rootpass  |
+| Resource | User     | Password |
+|----------|----------|----------|
+| Database | yotsuba  | yotsuba  |
+| DB root  | root     | rootpass |
 | Admin    | (via ADMIN_PASS in global_config.ini) | DISHSIS |
 
 ## Adding Boards

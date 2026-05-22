@@ -20,7 +20,7 @@ header('Content-Type: application/json');
 require_once 'lib/db.php';
 require_once 'lib/userpwd.php';
 
-define('XA_DOMAIN', 'localhost');
+define('XA_DOMAIN', ($_SERVER['HTTP_HOST'] === 'sys.4chan.org') ? '4chan.org' : '4channel.org');
 define('XA_PWD_TTL', 3600); // 1h
 define('XA_COOKIE_TTL', 172800); // 48h
 
@@ -301,8 +301,8 @@ function xa_start_session() {
   // Create new session
   $data = [];
   
-  if (isset($_COOKIE['localchan_pass'])) {
-    $userpwd = new UserPwd($ip, XA_DOMAIN, $_COOKIE['localchan_pass']);
+  if (isset($_COOKIE['4chan_pass'])) {
+    $userpwd = new UserPwd($ip, XA_DOMAIN, $_COOKIE['4chan_pass']);
     
     if ($userpwd->maskLifetime() >= XA_PWD_TTL) {
       $balance = 100;
@@ -640,7 +640,7 @@ if (!isset($_POST['action'])) {
 }
 
 if (isset($_SERVER['HTTP_REFERER']) && $_SERVER['HTTP_REFERER'] != ''
-  && !preg_match('/^https?:\/\/([_a-z0-9]+)\.(localhost)\.org(\/|$)/', $_SERVER['HTTP_REFERER'])) {
+  && !preg_match('/^https?:\/\/([_a-z0-9]+)\.(4chan|4channel)\.org(\/|$)/', $_SERVER['HTTP_REFERER'])) {
   xa_error(ERR_BAD_REQ . '(xr1)');
 }
 

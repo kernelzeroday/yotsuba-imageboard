@@ -3,8 +3,8 @@
 $INI_PATTERN = '/^[ \t]*([A-Z0-9_-]+)[ \t]*=[ \t]*((?:[^\r\n]|(?<=\\\\)[\r\n]{1,2})*)/m';
 
 // Global config dir absolute folder (no trailing slash)
-$configdir = '/www/global/localchan/config';
-$yconfgdir = '/www/global/localchan/config';
+$configdir = '/www/global/yotsuba/config';
+$yconfgdir = '/www/global/yotsuba/config';
 
 function parse_ini( $filename )
 {

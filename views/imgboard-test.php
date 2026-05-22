@@ -275,7 +275,7 @@ function form( &$dat, $resno, $admin = '', $isreptemp = false, $stripm = false )
       $dat .= '<div class="adc-resp-bg" data-ad-bg="' . AD_BIDGEAR_TOP . '"><hr></div>';
     }*/
 	  else if (defined('ADS_DANBO') && ADS_DANBO)  {
-	    $dat .= '<hr><div id="danbo-s-t" class="danbo-slot"></div><div class="adl">[<a target="_blank" href="https://www.localhost/advertise">Advertise on 4chan</a>]</div>';
+	    $dat .= '<hr><div id="danbo-s-t" class="danbo-slot"></div><div class="adl">[<a target="_blank" href="https://www.4chan.org/advertise">Advertise on 4chan</a>]</div>';
 	  }
   }
   // Not catalog
@@ -289,7 +289,7 @@ function form( &$dat, $resno, $admin = '', $isreptemp = false, $stripm = false )
     $dat .= '<div class="adc-resp-bg" data-ad-bg="' . AD_BIDGEAR_TOP . '"><hr></div>';
   }*/
   else if (defined('ADS_DANBO') && ADS_DANBO)  {
-    $dat .= '<hr><div id="danbo-s-t" class="danbo-slot"></div><div class="adl">[<a target="_blank" href="https://www.localhost/advertise">Advertise on 4chan</a>]</div>';
+    $dat .= '<hr><div id="danbo-s-t" class="danbo-slot"></div><div class="adl">[<a target="_blank" href="https://www.4chan.org/advertise">Advertise on 4chan</a>]</div>';
   }
   
 	if ($resno) {
@@ -582,7 +582,7 @@ function updatelog_real( $resno = 0, $noidx = 0, $lazy_rebuild = false )
     }
     */
     else if (defined('ADS_DANBO') && ADS_DANBO)  {
-      $dat .= '<div id="danbo-s-b" class="danbo-slot"></div><div class="adl">[<a target="_blank" href="https://www.localhost/advertise">Advertise on 4chan</a>]</div><hr>';
+      $dat .= '<div id="danbo-s-b" class="danbo-slot"></div><div class="adl">[<a target="_blank" href="https://www.4chan.org/advertise">Advertise on 4chan</a>]</div><hr>';
     }
     
 		if( $resno ) {

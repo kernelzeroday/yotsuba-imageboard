@@ -100,7 +100,7 @@ function form_ads(&$dat) {
 	$error = false; // unused, errors have ads too
 	$dat .= "<div style='position:relative'>";
 	/*if(!$error && FIXED_AD == 1) {
-	$dat.='<a href="'.FIXED_LINK.'" target="_blank"><img src="//static.localhost/support/'.FIXED_IMG.'" width="120" height="240" border="0" style="position: absolute; top: '.$gtop.'px; right: 20px"></a>';
+	$dat.='<a href="'.FIXED_LINK.'" target="_blank"><img src="//static.4chan.org/support/'.FIXED_IMG.'" width="120" height="240" border="0" style="position: absolute; top: '.$gtop.'px; right: 20px"></a>';
 	}*/
 	if(FIXED_LEFT_AD == 1) {
 			if(defined('FIXED_LEFT_TXT') && FIXED_LEFT_TXT) {

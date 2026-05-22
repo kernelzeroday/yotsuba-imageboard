@@ -17,7 +17,7 @@ function rpc_start_request_with_options($url, $options)
 		
 		CURLOPT_CONNECTTIMEOUT => 2,
 		CURLOPT_TIMEOUT    => $internal ? $rpc_internal_timeout : $rpc_external_timeout,
-		CURLOPT_USERAGENT  => "localhost",
+		CURLOPT_USERAGENT  => "4chan.org",
 	);
 	
 	$curlopts = $options + $curlopts;
@@ -277,7 +277,7 @@ function rpc_send_request($host, $url, $request, &$error, $internal=true) {
 	$proto = 'tcp://';
 	$internal_network = preg_match( '#\.int$#', $host ) || strpos( $host, '10.0' ) === 0;
 
-	if(strpos($host, "localhost") !== false || $internal_network ) {
+	if(strpos($host, "4chan.org") !== false || $internal_network ) {
 		if( strpos( $url, 'imgboard.php' ) !== false || strpos( $url, 'admin.php' ) !== false || strpos( $host, 'www.' ) !== false || $internal_network ) {
 			$proto = 'ssl://';
 			$port = 443;
@@ -307,7 +307,7 @@ function rpc_send_request($host, $url, $request, &$error, $internal=true) {
 	$header .= "Host: $host\r\n";
 	$header .= "Content-Type: application/x-www-form-urlencoded\r\n";
 	$header .= "Content-Length: ". strlen($postbody) . "\r\n";
-	$header .= "User-Agent: localhost\r\n";
+	$header .= "User-Agent: 4chan.org\r\n";
 	if ($cookie && $internal) $header .= "Cookie: $cookie\r\n";
 	$header .= "Connection: close\r\n";
 	$header .= "\r\n";
@@ -378,7 +378,7 @@ function rpc_find_real_url($short) {
 	curl_setopt($cu, CURLOPT_MAXREDIRS, 4);
 	curl_setopt($cu, CURLOPT_NOBODY, true);
 	curl_setopt($cu, CURLOPT_TIMEOUT, 10);
-	curl_setopt($cu, CURLOPT_USERAGENT, "localhost");
+	curl_setopt($cu, CURLOPT_USERAGENT, "4chan.org");
 
 	if (curl_exec($cu)) {
 		$ret = curl_getinfo($cu, CURLINFO_EFFECTIVE_URL);

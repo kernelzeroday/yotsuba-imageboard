@@ -20,6 +20,6 @@ $dir = str_replace( '/image', '', $dir );
 
 $protocol = $_SERVER['SERVER_PORT'] == 443 ? "https" : "http";
 
-header("Location: ".$protocol.":/static/image" . $dir ."/" . $names[rand(0, count($names)-1)]);
+header("Location: ".$protocol."://s.4cdn.org/image" . $dir ."/" . $names[rand(0, count($names)-1)]);
 
 ?>

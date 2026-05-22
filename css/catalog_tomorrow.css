@@ -619,22 +619,22 @@ img.bottomad, .bottomad > div, .bottomad a img {
 }
 
 .closeIcon {
-	background-image: url('/static/image/buttons/tomorrow/cross.png');
+	background-image: url('//s.4cdn.org/image/buttons/tomorrow/cross.png');
 	right: 5px;
 }
 
 .helpIcon {
-	background-image: url('/static/image/buttons/tomorrow/question.png');
+	background-image: url('//s.4cdn.org/image/buttons/tomorrow/question.png');
 	right: 23px;
 }
 
 .expandIcon {
-	background-image: url('/static/image/buttons/tomorrow/post_expand_plus.png');
+	background-image: url('//s.4cdn.org/image/buttons/tomorrow/post_expand_plus.png');
 	right: 23px;
 }
 
 .collapseIcon {
-	background-image: url('/static/image/buttons/tomorrow/post_expand_minus.png');
+	background-image: url('//s.4cdn.org/image/buttons/tomorrow/post_expand_minus.png');
 	right: 23px;
 }
 
@@ -648,11 +648,11 @@ img.bottomad, .bottomad > div, .bottomad a img {
 }
 
 .watchIcon {
-	background-image: url('/static/image/buttons/tomorrow/watch_thread_off.png');
+	background-image: url('//s.4cdn.org/image/buttons/tomorrow/watch_thread_off.png');
 }
 
 .unwatchIcon {
-	background-image: url('/static/image/buttons/tomorrow/watch_thread_on.png');
+	background-image: url('//s.4cdn.org/image/buttons/tomorrow/watch_thread_on.png');
 }
 
 .thread:hover .watchIcon,
@@ -676,31 +676,31 @@ img.bottomad, .bottomad > div, .bottomad a img {
 }
 
 .stickyIcon {
-	background-image: url('/static/image/sticky.gif');
+	background-image: url('//s.4cdn.org/image/sticky.gif');
 }
 
 .closedIcon {
-	background-image: url('/static/image/closed.gif');
+	background-image: url('//s.4cdn.org/image/closed.gif');
 }
 
 .adminIcon {
-	background-image: url('/static/image/adminicon.gif');
+	background-image: url('//s.4cdn.org/image/adminicon.gif');
 }
 
 .founderIcon {
-	background-image: url('/static/image/foundericon.gif');
+	background-image: url('//s.4cdn.org/image/foundericon.gif');
 }
 
 .modIcon {
-	background-image: url('/static/image/modicon.gif');
+	background-image: url('//s.4cdn.org/image/modicon.gif');
 }
 
 .developerIcon {
-	background-image: url('/static/image/developericon.gif');
+	background-image: url('//s.4cdn.org/image/developericon.gif');
 }
 
 .managerIcon {
-	background-image: url('/static/image/managericon.gif');
+	background-image: url('//s.4cdn.org/image/managericon.gif');
 }
 
 .imgdel {
@@ -716,11 +716,11 @@ img.bottomad, .bottomad > div, .bottomad a img {
 }
 
 .refreshIcon {
-	background-image: url('/static/image/buttons/tomorrow/refresh.png');
+	background-image: url('//s.4cdn.org/image/buttons/tomorrow/refresh.png');
 }
 
 .rotateIcon {
-	background-image: url('/static/image/buttons/tomorrow/post_expand_rotate.gif');
+	background-image: url('//s.4cdn.org/image/buttons/tomorrow/post_expand_rotate.gif');
 }
 
 @media (-webkit-min-device-pixel-ratio: 2.0),
@@ -728,70 +728,70 @@ img.bottomad, .bottomad > div, .bottomad a img {
   (min-resolution: 2dppx)
   {
 	.closeIcon {
-		background-image: url('/static/image/buttons/tomorrow/cross@2x.png');
+		background-image: url('//s.4cdn.org/image/buttons/tomorrow/cross@2x.png');
 	}
 
 	.helpIcon {
-		background-image: url('/static/image/buttons/tomorrow/question@2x.png');
+		background-image: url('//s.4cdn.org/image/buttons/tomorrow/question@2x.png');
 	}
 
 	.expandIcon {
-		background-image: url('/static/image/buttons/tomorrow/post_expand_plus@2x.png');
+		background-image: url('//s.4cdn.org/image/buttons/tomorrow/post_expand_plus@2x.png');
 		background-size: 100%;
 	}
 
 	.collapseIcon {
-		background-image: url('/static/image/buttons/tomorrow/post_expand_minus@2x.png');
+		background-image: url('//s.4cdn.org/image/buttons/tomorrow/post_expand_minus@2x.png');
 		background-size: 100%;
 	}
 
 	.stickyIcon {
-		background-image: url('/static/image/sticky@2x.gif');
+		background-image: url('//s.4cdn.org/image/sticky@2x.gif');
 		background-size: 100%;
 	}
 
 	.closedIcon {
-		background-image: url('/static/image/closed@2x.gif');
+		background-image: url('//s.4cdn.org/image/closed@2x.gif');
 		background-size: 100%;
 	}
   
   .adminIcon {
-  	background-image: url('/static/image/adminicon@2x.gif');
+  	background-image: url('//s.4cdn.org/image/adminicon@2x.gif');
 		background-size: 100%;
   }
   
   .modIcon {
-  	background-image: url('/static/image/modicon@2x.gif');
+  	background-image: url('//s.4cdn.org/image/modicon@2x.gif');
 		background-size: 100%;
   }
   
   .developerIcon {
-  	background-image: url('/static/image/developericon@2x.gif');
+  	background-image: url('//s.4cdn.org/image/developericon@2x.gif');
 		background-size: 100%;
   }
   
   .managerIcon {
-    background-image: url('/static/image/managericon@2x.gif');
+    background-image: url('//s.4cdn.org/image/managericon@2x.gif');
     background-size: 100%;
   }
   
 	.refreshIcon {
-		background-image: url('/static/image/buttons/tomorrow/refresh@2x.png');
+		background-image: url('//s.4cdn.org/image/buttons/tomorrow/refresh@2x.png');
 		background-size: 100%;
 	}
 
 	.rotateIcon {
-		background-image: url('/static/image/buttons/tomorrow/post_expand_rotate@2x.gif');
+		background-image: url('//s.4cdn.org/image/buttons/tomorrow/post_expand_rotate@2x.gif');
 		background-size: 100%;
 	}
 
 	.watchIcon {
-		background-image: url('/static/image/buttons/tomorrow/watch_thread_off@2x.png');
+		background-image: url('//s.4cdn.org/image/buttons/tomorrow/watch_thread_off@2x.png');
 		background-size: 100%;
 	}
 
 	.unwatchIcon {
-		background-image: url('/static/image/buttons/tomorrow/watch_thread_on@2x.png');
+		background-image: url('//s.4cdn.org/image/buttons/tomorrow/watch_thread_on@2x.png');
 		background-size: 100%;
 	}
 

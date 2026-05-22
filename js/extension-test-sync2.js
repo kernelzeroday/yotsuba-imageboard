@@ -114,7 +114,7 @@ Parser.init = function() {
     this.needMsg = true;
   }
   
-  staticPath = '//localhost/static/image/';
+  staticPath = '//s.4cdn.org/image/';
   
   tail = window.devicePixelRatio >= 2 ? '@2x.gif' : '.gif';
   
@@ -291,7 +291,7 @@ Parser.buildHTMLFromJSON = function(data, board, standalone, fromQuote) {
     
     i, q, href, quotes,
     
-    imgDir = '//localhost/images/' + board;
+    imgDir = '//i.4cdn.org/' + board;
   
   if (data.resto == 0) {
     isOP = true;
@@ -378,7 +378,7 @@ Parser.buildHTMLFromJSON = function(data, board, standalone, fromQuote) {
   
   if (data.country) {
     if (board == 'pol') {
-      flag = ' <img src="//localhost/static/image/country/troll/'
+      flag = ' <img src="//s.4cdn.org/image/country/troll/'
         + data.country.toLowerCase() + '.gif" alt="'
         + data.country + '" title="' + data.country_name + '" class="countryFlag">';
     }
@@ -428,7 +428,7 @@ Parser.buildHTMLFromJSON = function(data, board, standalone, fromQuote) {
         fileSpoilerTip = '" title="' + longFile + '"';
         fileClass = ' imgspoiler';
         
-        fileThumb = '//localhost/static/image/spoiler'
+        fileThumb = '//s.4cdn.org/image/spoiler'
           + (Parser.customSpoiler[board] || '') + '.png';
         data.tn_w = 100;
         data.tn_h = 100;
@@ -444,7 +444,7 @@ Parser.buildHTMLFromJSON = function(data, board, standalone, fromQuote) {
     }
     
     if (!fileThumb) {
-      fileThumb = '//0.t.localhost/' + board + '/' + data.tim + 's.jpg';
+      fileThumb = '//0.t.4cdn.org/' + board + '/' + data.tim + 's.jpg';
     }
     
     fileDims = data.ext == '.pdf' ? 'PDF' : data.w + 'x' + data.h;
@@ -893,7 +893,7 @@ Parser.parsePost = function(pid, tid) {
       img.removeAttribute('style');
       isOP = $.hasClass(pi.parentNode, 'op');
       img.style.maxWidth = img.style.maxHeight = isOP ? '250px' : '125px';
-      img.src = '//0.t.localhost'
+      img.src = '//0.t.4cdn.org'
         + (file.pathname.replace(/([0-9]+).+$/, '/$1s.jpg'));
       
       filename = file.previousElementSibling;
@@ -1039,7 +1039,7 @@ Parser.buildSummary = function(tid, oRep, oImg) {
  * Sync
  */
 var UserSync = {
-  url: 'https://sylocalhost/static/sync',
+  url: 'https://sys.4chan.org/sync',
   timeout: null,
   processing: false,
   maxDelay: 3600000,
@@ -1050,11 +1050,11 @@ UserSync.onEnable = function() {
   var tkn = Math.random().toString(16).substring(2)
     + Math.random().toString(16).substring(2);
   
-  Main.setCookie('sync', tkn, 'localhost');
+  Main.setCookie('sync', tkn, '4chan.org');
 };
 
 UserSync.onDisable = function() {
-  Main.removeCookie('sync', 'localhost');
+  Main.removeCookie('sync', '4chan.org');
   localStorage.removeItem('4chan-sync-ts');
 };
 
@@ -1376,7 +1376,7 @@ PostMenu.open = function(btn) {
         href = el.href;
       }
       else {
-        href = 'http://0.t.localhost/' + Main.board + '/'
+        href = 'http://0.t.4cdn.org/' + Main.board + '/'
           + el.href.match(/\/([0-9]+)\..+$/)[1] + 's.jpg';
       }
       
@@ -1729,7 +1729,7 @@ Depager.depage = function() {
   
   Depager.isLoading = true;
   
-  $.get('//a.localhost/' + Main.board + '/catalog.json', {
+  $.get('//a.4cdn.org/' + Main.board + '/catalog.json', {
     onload: Depager.onLoad,
     onerror: Depager.onError
   });
@@ -1907,7 +1907,7 @@ QuoteInline.inlineRemote = function(link, board, tid, pid) {
   
   link.setAttribute('data-loading', '1');
   
-  $.get('//a.localhost/' + board + '/thread/' + tid + '.json',
+  $.get('//a.4cdn.org/' + board + '/thread/' + tid + '.json',
     {
       onload: onload,
       onerror: onerror
@@ -2094,7 +2094,7 @@ QuotePreview.showRemote = function(link, board, tid, pid) {
     link.style.cursor = '';
   };
   
-  $.get('//a.localhost/' + board + '/thread/' + tid + '.json',
+  $.get('//a.4cdn.org/' + board + '/thread/' + tid + '.json',
     {
       onload: onload,
       onerror: onerror
@@ -3695,7 +3695,7 @@ ThreadHiding.purge = function() {
   }
   
   if (!lastPurged || lastPurged < Date.now() - this.threshold) {
-    $.get('//a.localhost/' + Main.board + '/threads.json',
+    $.get('//a.4cdn.org/' + Main.board + '/threads.json',
     {
       onload: function() {
         var i, j, t, p, pages, threads, alive;
@@ -4270,7 +4270,7 @@ ThreadWatcher.fetch = function(key, img) {
   if (img) {
     xhr.onerror = xhr.onload;
   }
-  xhr.open('GET', '//a.localhost/' + tuid[1] + '/thread/' + tuid[0] + '.json');
+  xhr.open('GET', '//a.4cdn.org/' + tuid[1] + '/thread/' + tuid[0] + '.json');
   xhr.send(null);
 };
 
@@ -4296,7 +4296,7 @@ ThreadExpansion.expandComment = function(link) {
   abbr = link.parentNode;
   abbr.textContent = 'Loading...';
   
-  $.get('//a.localhost/' + Main.board + '/thread/' + tid + '.json',
+  $.get('//a.4cdn.org/' + Main.board + '/thread/' + tid + '.json',
     {
       onload: function() {
         var i, msg, com, post, posts;
@@ -4389,7 +4389,7 @@ ThreadExpansion.toggle = function(tid) {
 };
 
 ThreadExpansion.fetch = function(tid) {
-  $.get('//a.localhost/' + Main.board + '/thread/' + tid + '.json',
+  $.get('//a.4cdn.org/' + Main.board + '/thread/' + tid + '.json',
     {
       onload: function() {
         var i, p, n, frag, thread, tail, posts, count, msg, metacap,
@@ -4507,7 +4507,7 @@ ThreadUpdater.init = function() {
   this.lastReply = null;
   
   this.currentIcon = null;
-  this.iconPath = '//localhost/static/image/';
+  this.iconPath = '//s.4cdn.org/image/';
   this.iconNode = document.head.querySelector('link[rel="shortcut icon"]');
   this.iconNode.type = 'image/x-icon';
   this.defaultIcon = this.iconNode.getAttribute('href').replace(this.iconPath, '');
@@ -4517,7 +4517,7 @@ ThreadUpdater.init = function() {
   if (Config.updaterSound) {
     this.audioEnabled = false;
     this.audio = document.createElement('audio');
-    this.audio.src = '//localhost/static/media/beep.ogg';
+    this.audio.src = '//s.4cdn.org/media/beep.ogg';
   }
   
   this.hidden = 'hidden';
@@ -4806,7 +4806,7 @@ ThreadUpdater.update = function() {
   
   self.setStatus('Updating...');
   
-  $.get('//a.localhost/' + Main.board + '/thread/' + Main.tid + '.json',
+  $.get('//a.4cdn.org/' + Main.board + '/thread/' + Main.tid + '.json',
     {
       onload: self.onload,
       onerror: self.onerror
@@ -5212,7 +5212,7 @@ ThreadStats.update = function(replies, images, isBumpFull, isImageFull) {
 };
 
 ThreadStats.updatePageNumber = function() {
-  $.get('//a.localhost/' + Main.board + '/threads.json',
+  $.get('//a.4cdn.org/' + Main.board + '/threads.json',
     {
       onload: ThreadStats.onCatalogLoad,
       onerror: ThreadStats.onCatalogError
@@ -6558,7 +6558,7 @@ var Report = {
 Report.onMessage = function(e) {
   var id;
   
-  if (e.origin === 'https://sylocalhost/static' && /^done-report/.test(e.data)) {
+  if (e.origin === 'https://sys.4chan.org' && /^done-report/.test(e.data)) {
     id = e.data.split('-')[2];
     
     if (Config.threadHiding && $.id('t' + id)) {
@@ -6582,7 +6582,7 @@ Report.onMessage = function(e) {
 };
 
 Report.open = function(pid, board) {
-  window.open('https://sylocalhost/static/'
+  window.open('https://sys.4chan.org/'
     + (board || Main.board) + '/imgboard.php?mode=report&no=' + pid
     , Date.now(),
     "toolbar=0,scrollbars=0,location=0,status=1,menubar=0,resizable=1,width=600,height=170");
@@ -6631,7 +6631,7 @@ CustomMenu.apply = function(str) {
     }
     el = document.createElement('a');
     el.textContent = board;
-    el.href = '//boardlocalhost/static/' + board + '/';
+    el.href = '//boards.4chan.org/' + board + '/';
     cnt.appendChild(el);
   }
   
@@ -7361,7 +7361,7 @@ Main.initPersistentNav = function() {
     el.className = 'pageJump';
     el.innerHTML = '<a href="#bottom">&#9660;</a>'
       + '<a href="javascript:void(0);" id="settingsWindowLinkClassic">Settings</a>'
-      + '<a href="//www.localhost" target="_top">Home</a></div>';
+      + '<a href="//www.4chan.org" target="_top">Home</a></div>';
     
     top.appendChild(el);
     
@@ -7602,7 +7602,7 @@ Main.initIcons = function() {
     photon: 'photon/'
   };
   
-  url = '//localhost/static/image/'
+  url = '//s.4cdn.org/image/'
   
   if (window.devicePixelRatio >= 2) {
     for (key in Main.icons) {
@@ -7751,13 +7751,13 @@ Main.setCookie = function(name, value) {
   
   document.cookie = name + '=' + value
     + '; expires=' + date.toGMTString()
-    + '; path=/; domain=boardlocalhost/static';
+    + '; path=/; domain=boards.4chan.org';
 };
 
 Main.removeCookie = function(name) {
   document.cookie = name + '='
     + '; expires=Thu, 01 Jan 1970 00:00:01 GMT;'
-    + '; path=/; domain=boardlocalhost/static';
+    + '; path=/; domain=boards.4chan.org';
 };
 
 Main.onclick = function(e) {

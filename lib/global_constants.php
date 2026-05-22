@@ -3,4 +3,4 @@
 if( defined( 'CAPTCHA' ) ) return;
 define( 'ONLY_PARSE_INI', true );
 
-require_once 'localchan_config.php';
+require_once 'yotsuba_config.php';

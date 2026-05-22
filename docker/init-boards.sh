@@ -25,7 +25,7 @@ echo "[init] Pre-generating board indexes..."
 for board in $BOARDS; do
     HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "$BASE_URL/$board/" 2>&1)
 
-    INDEX_FILE="/www/localchan/boards/$board/imgboard.html"
+    INDEX_FILE="/www/4chan.org/web/boards/$board/imgboard.html"
     GZ_FILE="${INDEX_FILE}.gz"
     if [ -f "$GZ_FILE" ]; then
         SIZE=$(stat -c%s "$GZ_FILE" 2>/dev/null || stat -f%z "$GZ_FILE" 2>/dev/null)

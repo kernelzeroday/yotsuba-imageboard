@@ -3,7 +3,7 @@
 function json_for_post($board, $post) {
 	global $in_imgboard;
 	$in_imgboard = true;
-	include_once "/www/global/localchan/json.php";
+	include_once "/www/global/yotsuba/json.php";
 	
 	$extra = array();
 	

@@ -1,6 +1,6 @@
--- localchan imageboard schema
+-- 4chan Yotsuba imageboard schema
 
-USE localchan;
+USE yotsuba_global;
 
 -- Board directory
 CREATE TABLE IF NOT EXISTS `boardlist` (

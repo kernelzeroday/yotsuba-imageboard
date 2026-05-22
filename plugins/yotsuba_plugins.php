@@ -1,6 +1,6 @@
 <?
 
-	// localchan plugin API
+	// yotsuba plugin API
 
 	// add a function $function to the list of callbacks named by $hook.
 	function register_callback($hook, $function) {

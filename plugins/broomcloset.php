@@ -149,8 +149,8 @@ function broomcloset_head( $dat )
 require_once 'lib/admin.php';
 require_once 'lib/auth.php';
 
-header('Content-Security-Policy: connect-src *.localhost *.localhost');
-header('X-Content-Security-Policy: connect-src *.localhost *.localhost');
+header('Content-Security-Policy: connect-src *.4chan.org *.4cdn.org');
+header('X-Content-Security-Policy: connect-src *.4chan.org *.4cdn.org');
 
 auth_user();
 

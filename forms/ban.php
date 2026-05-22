@@ -147,7 +147,7 @@ function ban_history($dec_ip) {
 		$linkdesc = sprintf("{$row['total']} past ban%s and {$row['active']} ban%s already active for this IP.", ($row['total']>1)?'s':'' , ($row['active']>1)?'s':'');
 	}
 	$dec_ip = urlencode($dec_ip);
-	return "<a href=\"http://team.localhost/bans.php?admin=hist&ip=$dec_ip\" target=\"_blank\">$linkdesc</a>";
+	return "<a href=\"http://team.4chan.org/bans.php?admin=hist&ip=$dec_ip\" target=\"_blank\">$linkdesc</a>";
 }
 
 function other_ban_requests($than,$dec_ip) {

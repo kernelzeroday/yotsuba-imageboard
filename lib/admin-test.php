@@ -94,7 +94,7 @@ function get_random_string( $len = 16 )
 }
 
 function derefer_url($url) {
-  return 'https://www.localhost/derefer?url=' . rawurlencode($url);
+  return 'https://www.4chan.org/derefer?url=' . rawurlencode($url);
 }
 
 function access_check()
@@ -341,21 +341,21 @@ function remote_delete_things( $board, $nos, $tool = null )
 
 function clear_cookies()
 {
-	if( strstr( $_SERVER["HTTP_HOST"], ".localhost" ) ) {
-		setcookie( "4chan_auser", "", time() - 3600, "/", ".localhost", true );
-		setcookie( "4chan_apass", "", time() - 3600, "/", ".localhost", true );
-		setcookie( "4chan_aflags", "", time() - 3600, "/", ".localhost", true );
+	if( strstr( $_SERVER["HTTP_HOST"], ".4chan.org" ) ) {
+		setcookie( "4chan_auser", "", time() - 3600, "/", ".4chan.org", true );
+		setcookie( "4chan_apass", "", time() - 3600, "/", ".4chan.org", true );
+		setcookie( "4chan_aflags", "", time() - 3600, "/", ".4chan.org", true );
 
-	} elseif( strstr( $_SERVER["HTTP_HOST"], ".localhost" ) ) {
-		setcookie( "4chan_auser", "", time() - 24 * 3600, "/", ".localhost", true );
-		setcookie( "4chan_apass", "", time() - 24 * 3600, "/", ".localhost", true );
+	} elseif( strstr( $_SERVER["HTTP_HOST"], ".4channel.org" ) ) {
+		setcookie( "4chan_auser", "", time() - 24 * 3600, "/", ".4channel.org", true );
+		setcookie( "4chan_apass", "", time() - 24 * 3600, "/", ".4channel.org", true );
 	} else {
 		setcookie( "4chan_auser", "", time() - 24 * 3600, "/", true );
 		setcookie( "4chan_apass", "", time() - 24 * 3600, "/", true );
 		setcookie( "4chan_aflags", "", time() - 24 * 3600, "/", true );
 	}
 
-	setcookie( 'extra_path', '', 1, '/', '.localhost' );
+	setcookie( 'extra_path', '', 1, '/', '.4chan.org' );
 }
 
 // record and autoban failed logins. assumes admin or imgboard.php as caller
@@ -606,7 +606,7 @@ function cloudflare_purge_by_basename($board, $basename) {
 	$tim = $m[1];
 	$ext = $m[2];
 	
-	cloudflare_purge_url("https:/images/$board/$tim.$ext", true);
-	cloudflare_purge_url("https:/images/$board/${tim}s.jpg", true);
-	cloudflare_purge_url("https:/images/$board/${tim}m.jpg", true);
+	cloudflare_purge_url("https://i.4cdn.org/$board/$tim.$ext", true);
+	cloudflare_purge_url("https://i.4cdn.org/$board/${tim}s.jpg", true);
+	cloudflare_purge_url("https://i.4cdn.org/$board/${tim}m.jpg", true);
 }

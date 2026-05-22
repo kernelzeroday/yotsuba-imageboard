@@ -4,7 +4,7 @@
   height: 11px;
   position: relative;
   top: 1px;
-  background: url('/static/image/flags.8.png') no-repeat;
+  background: url('//s.4cdn.org/image/flags.8.png') no-repeat;
 }
 
 .flag-ad { background-position: 0 0 }
