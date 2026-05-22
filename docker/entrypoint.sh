@@ -53,6 +53,9 @@ fi
 patch_ini CAPTCHA no
 patch_ini CAPTCHA_TWISTER no
 
+# Disable NSFW inference (no external service available)
+patch_ini TENSORCHAN_MODE 0
+
 # Local asset serving
 patch_ini STATIC_SERVER "/static/"
 patch_ini DATA_SERVER "/"
@@ -262,6 +265,13 @@ foreach ($files as $file) {
     }
 }
 PHPEOF
+
+# Category config overrides
+for cat_conf in "$SRC/config/categories/"*.config.ini; do
+    [ -f "$cat_conf" ] || continue
+    sed -i 's|^TENSORCHAN_MODE = .*|TENSORCHAN_MODE = 0|' "$cat_conf"
+    sed -i 's|^TENSORCHAN_LOG_ONLY = .*|TENSORCHAN_LOG_ONLY = yes|' "$cat_conf"
+done
 
 # Board config ini files
 for board_conf in "$SRC/config/boards/"*.config.ini; do

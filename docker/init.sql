@@ -18,13 +18,105 @@ CREATE TABLE IF NOT EXISTS `boardlist` (
   UNIQUE KEY `dir` (`dir`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- Seed a test board
-INSERT INTO `boardlist` (`dir`, `name`, `db`, `title`, `description`) VALUES
-('b', 'Random', 1, 'Random', 'Anime/Random');
+-- All boards (INSERT IGNORE so reruns are safe)
+INSERT IGNORE INTO `boardlist` (`dir`, `name`, `db`, `section`, `hidden`) VALUES
+-- Section 1: Japanese Culture
+('3',   '3DCG',                  1, 1, 0),
+('a',   'Anime & Manga',         1, 1, 0),
+('c',   'Anime/Cute',            1, 1, 0),
+('w',   'Anime/Wallpapers',      1, 1, 0),
+('m',   'Mecha',                 1, 1, 0),
+('cgl', 'Cosplay & EGL',         1, 1, 0),
+('cm',  'Cute/Male',             1, 1, 0),
+('f',   'Flash',                 1, 1, 0),
+('n',   'Transportation',        1, 1, 0),
+('jp',  'Otaku Culture',         1, 1, 0),
+('vp',  'Pokemon',               1, 1, 0),
+-- Section 2: Video Games
+('v',    'Video Games',               1, 2, 0),
+('vg',   'Video Game Generals',       1, 2, 0),
+('vr',   'Retro Games',               1, 2, 0),
+('vrpg', 'Video Games/RPG',           1, 2, 0),
+('vst',  'Video Games/Strategy',      1, 2, 0),
+('vm',   'Video Games/Multiplayer',   1, 2, 0),
+('vmg',  'Video Games/Mobile',        1, 2, 0),
+-- Section 3: Interests
+('co',   'Comics & Cartoons',         1, 3, 0),
+('g',    'Technology',                1, 3, 0),
+('tv',   'Television & Film',         1, 3, 0),
+('k',    'Weapons',                   1, 3, 0),
+('o',    'Auto',                      1, 3, 0),
+('an',   'Animals & Nature',          1, 3, 0),
+('tg',   'Traditional Games',         1, 3, 0),
+('sp',   'Sports',                    1, 3, 0),
+('xs',   'Extreme Sports',            1, 3, 0),
+('pw',   'Professional Wrestling',    1, 3, 0),
+('sci',  'Science & Math',            1, 3, 0),
+('his',  'History & Humanities',      1, 3, 0),
+('int',  'International',             1, 3, 0),
+('out',  'Outdoors',                  1, 3, 0),
+('toy',  'Toys',                      1, 3, 0),
+('biz',  'Business & Finance',        1, 3, 0),
+('trv',  'Travel',                    1, 3, 0),
+('fit',  'Fitness',                   1, 3, 0),
+('news', 'Current News',              1, 3, 0),
+('wsg',  'Worksafe GIF',              1, 3, 0),
+('qst',  'Quests',                    1, 3, 0),
+('diy',  'Do It Yourself',            1, 3, 0),
+('wsr',  'Worksafe Requests',         1, 3, 0),
+('vt',   'Virtual YouTubers',         1, 3, 0),
+('adv',  'Advice',                    1, 3, 0),
+('po',   'Papercraft & Origami',      1, 3, 0),
+('p',    'Photo',                     1, 3, 0),
+('ck',   'Food & Cooking',            1, 3, 0),
+('ic',   'Artwork/Critique',          1, 3, 0),
+('gd',   'Graphic Design',            1, 3, 0),
+('lit',  'Literature',                1, 3, 0),
+('mu',   'Music',                     1, 3, 0),
+('fa',   'Fashion',                   1, 3, 0),
+('i',    'Oekaki',                    1, 3, 0),
+-- Section 5: Other
+('b',    'Random',                    1, 5, 0),
+('r9k',  'ROBOT9001',                 1, 5, 0),
+('pol',  'Politically Incorrect',     1, 5, 0),
+('bant', 'International/Random',      1, 5, 0),
+('soc',  'Cams & Meetups',            1, 5, 0),
+('s4s',  'Shit 4chan Says',           1, 5, 0),
+('vip',  'Very Important Posts',      1, 5, 0),
+('qa',   'Question & Answer',         1, 5, 0),
+('trash','Off-Topic',                 1, 5, 0),
+-- Section 6: Misc
+('mlp',  'Pony',                      1, 6, 0),
+('x',    'Paranormal',                1, 6, 0),
+('wg',   'Wallpapers/General',        1, 6, 0),
+-- Section 7: Adult
+('s',    'Sexy Beautiful Women',      1, 7, 0),
+('hc',   'Hardcore',                  1, 7, 0),
+('hm',   'Handsome Men',              1, 7, 0),
+('h',    'Hentai',                    1, 7, 0),
+('e',    'Ecchi',                     1, 7, 0),
+('u',    'Yuri',                      1, 7, 0),
+('d',    'Hentai/Alternative',        1, 7, 0),
+('y',    'Yaoi',                      1, 7, 0),
+('t',    'Torrents',                  1, 7, 0),
+('hr',   'High Resolution',           1, 7, 0),
+('gif',  'Adult GIF',                 1, 7, 0),
+('aco',  'Adult Cartoons',            1, 7, 0),
+('r',    'Adult Requests',            1, 7, 0),
+-- Section 8: LGBT
+('lgbt', 'LGBT',                      1, 8, 0),
+-- Hidden boards
+('j',    'Janitor',                   1, 0, 1),
+('test', 'Testing',                   1, 0, 1),
+('asp',  'Alternative Sports',        1, 0, 1),
+('qb',   'QB',                        1, 0, 1);
 
--- Per-board post table (named after board dir, e.g. 'b')
--- Posts for board 'b'
-CREATE TABLE IF NOT EXISTS `b` (
+-- ============================================================
+-- Per-board post tables
+-- ============================================================
+
+-- Board: /a/ - Anime & Manga
+CREATE TABLE IF NOT EXISTS `a` (
   `no` int(11) NOT NULL AUTO_INCREMENT,
   `resto` int(11) NOT NULL DEFAULT 0,
   `root` int(11) NOT NULL DEFAULT 0,
@@ -72,6 +164,253 @@ CREATE TABLE IF NOT EXISTS `b` (
   KEY `filedeleted` (`filedeleted`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- Board: /3/ - 3DCG
+CREATE TABLE IF NOT EXISTS `3` LIKE `a`;
+
+-- Board: /b/ - Random
+CREATE TABLE IF NOT EXISTS `b` LIKE `a`;
+
+-- Board: /c/ - Anime/Cute
+CREATE TABLE IF NOT EXISTS `c` LIKE `a`;
+
+-- Board: /w/ - Anime/Wallpapers
+CREATE TABLE IF NOT EXISTS `w` LIKE `a`;
+
+-- Board: /m/ - Mecha
+CREATE TABLE IF NOT EXISTS `m` LIKE `a`;
+
+-- Board: /cgl/ - Cosplay & EGL
+CREATE TABLE IF NOT EXISTS `cgl` LIKE `a`;
+
+-- Board: /cm/ - Cute/Male
+CREATE TABLE IF NOT EXISTS `cm` LIKE `a`;
+
+-- Board: /f/ - Flash
+CREATE TABLE IF NOT EXISTS `f` LIKE `a`;
+
+-- Board: /n/ - Transportation
+CREATE TABLE IF NOT EXISTS `n` LIKE `a`;
+
+-- Board: /jp/ - Otaku Culture
+CREATE TABLE IF NOT EXISTS `jp` LIKE `a`;
+
+-- Board: /vp/ - Pokemon
+CREATE TABLE IF NOT EXISTS `vp` LIKE `a`;
+
+-- Board: /v/ - Video Games
+CREATE TABLE IF NOT EXISTS `v` LIKE `a`;
+
+-- Board: /vg/ - Video Game Generals
+CREATE TABLE IF NOT EXISTS `vg` LIKE `a`;
+
+-- Board: /vr/ - Retro Games
+CREATE TABLE IF NOT EXISTS `vr` LIKE `a`;
+
+-- Board: /vrpg/ - Video Games/RPG
+CREATE TABLE IF NOT EXISTS `vrpg` LIKE `a`;
+
+-- Board: /vst/ - Video Games/Strategy
+CREATE TABLE IF NOT EXISTS `vst` LIKE `a`;
+
+-- Board: /vm/ - Video Games/Multiplayer
+CREATE TABLE IF NOT EXISTS `vm` LIKE `a`;
+
+-- Board: /vmg/ - Video Games/Mobile
+CREATE TABLE IF NOT EXISTS `vmg` LIKE `a`;
+
+-- Board: /co/ - Comics & Cartoons
+CREATE TABLE IF NOT EXISTS `co` LIKE `a`;
+
+-- Board: /g/ - Technology
+CREATE TABLE IF NOT EXISTS `g` LIKE `a`;
+
+-- Board: /tv/ - Television & Film
+CREATE TABLE IF NOT EXISTS `tv` LIKE `a`;
+
+-- Board: /k/ - Weapons
+CREATE TABLE IF NOT EXISTS `k` LIKE `a`;
+
+-- Board: /o/ - Auto
+CREATE TABLE IF NOT EXISTS `o` LIKE `a`;
+
+-- Board: /an/ - Animals & Nature
+CREATE TABLE IF NOT EXISTS `an` LIKE `a`;
+
+-- Board: /tg/ - Traditional Games
+CREATE TABLE IF NOT EXISTS `tg` LIKE `a`;
+
+-- Board: /sp/ - Sports
+CREATE TABLE IF NOT EXISTS `sp` LIKE `a`;
+
+-- Board: /xs/ - Extreme Sports
+CREATE TABLE IF NOT EXISTS `xs` LIKE `a`;
+
+-- Board: /pw/ - Professional Wrestling
+CREATE TABLE IF NOT EXISTS `pw` LIKE `a`;
+
+-- Board: /sci/ - Science & Math
+CREATE TABLE IF NOT EXISTS `sci` LIKE `a`;
+
+-- Board: /his/ - History & Humanities
+CREATE TABLE IF NOT EXISTS `his` LIKE `a`;
+
+-- Board: /int/ - International
+CREATE TABLE IF NOT EXISTS `int` LIKE `a`;
+
+-- Board: /out/ - Outdoors
+CREATE TABLE IF NOT EXISTS `out` LIKE `a`;
+
+-- Board: /toy/ - Toys
+CREATE TABLE IF NOT EXISTS `toy` LIKE `a`;
+
+-- Board: /biz/ - Business & Finance
+CREATE TABLE IF NOT EXISTS `biz` LIKE `a`;
+
+-- Board: /trv/ - Travel
+CREATE TABLE IF NOT EXISTS `trv` LIKE `a`;
+
+-- Board: /fit/ - Fitness
+CREATE TABLE IF NOT EXISTS `fit` LIKE `a`;
+
+-- Board: /news/ - Current News
+CREATE TABLE IF NOT EXISTS `news` LIKE `a`;
+
+-- Board: /wsg/ - Worksafe GIF
+CREATE TABLE IF NOT EXISTS `wsg` LIKE `a`;
+
+-- Board: /qst/ - Quests
+CREATE TABLE IF NOT EXISTS `qst` LIKE `a`;
+
+-- Board: /diy/ - Do It Yourself
+CREATE TABLE IF NOT EXISTS `diy` LIKE `a`;
+
+-- Board: /wsr/ - Worksafe Requests
+CREATE TABLE IF NOT EXISTS `wsr` LIKE `a`;
+
+-- Board: /vt/ - Virtual YouTubers
+CREATE TABLE IF NOT EXISTS `vt` LIKE `a`;
+
+-- Board: /adv/ - Advice
+CREATE TABLE IF NOT EXISTS `adv` LIKE `a`;
+
+-- Board: /po/ - Papercraft & Origami
+CREATE TABLE IF NOT EXISTS `po` LIKE `a`;
+
+-- Board: /p/ - Photo
+CREATE TABLE IF NOT EXISTS `p` LIKE `a`;
+
+-- Board: /ck/ - Food & Cooking
+CREATE TABLE IF NOT EXISTS `ck` LIKE `a`;
+
+-- Board: /ic/ - Artwork/Critique
+CREATE TABLE IF NOT EXISTS `ic` LIKE `a`;
+
+-- Board: /gd/ - Graphic Design
+CREATE TABLE IF NOT EXISTS `gd` LIKE `a`;
+
+-- Board: /lit/ - Literature
+CREATE TABLE IF NOT EXISTS `lit` LIKE `a`;
+
+-- Board: /mu/ - Music
+CREATE TABLE IF NOT EXISTS `mu` LIKE `a`;
+
+-- Board: /fa/ - Fashion
+CREATE TABLE IF NOT EXISTS `fa` LIKE `a`;
+
+-- Board: /i/ - Oekaki
+CREATE TABLE IF NOT EXISTS `i` LIKE `a`;
+
+-- Board: /r9k/ - ROBOT9001
+CREATE TABLE IF NOT EXISTS `r9k` LIKE `a`;
+
+-- Board: /pol/ - Politically Incorrect
+CREATE TABLE IF NOT EXISTS `pol` LIKE `a`;
+
+-- Board: /bant/ - International/Random
+CREATE TABLE IF NOT EXISTS `bant` LIKE `a`;
+
+-- Board: /soc/ - Cams & Meetups
+CREATE TABLE IF NOT EXISTS `soc` LIKE `a`;
+
+-- Board: /s4s/ - Shit 4chan Says
+CREATE TABLE IF NOT EXISTS `s4s` LIKE `a`;
+
+-- Board: /vip/ - Very Important Posts
+CREATE TABLE IF NOT EXISTS `vip` LIKE `a`;
+
+-- Board: /qa/ - Question & Answer
+CREATE TABLE IF NOT EXISTS `qa` LIKE `a`;
+
+-- Board: /trash/ - Off-Topic
+CREATE TABLE IF NOT EXISTS `trash` LIKE `a`;
+
+-- Board: /mlp/ - Pony
+CREATE TABLE IF NOT EXISTS `mlp` LIKE `a`;
+
+-- Board: /x/ - Paranormal
+CREATE TABLE IF NOT EXISTS `x` LIKE `a`;
+
+-- Board: /wg/ - Wallpapers/General
+CREATE TABLE IF NOT EXISTS `wg` LIKE `a`;
+
+-- Board: /s/ - Sexy Beautiful Women
+CREATE TABLE IF NOT EXISTS `s` LIKE `a`;
+
+-- Board: /hc/ - Hardcore
+CREATE TABLE IF NOT EXISTS `hc` LIKE `a`;
+
+-- Board: /hm/ - Handsome Men
+CREATE TABLE IF NOT EXISTS `hm` LIKE `a`;
+
+-- Board: /h/ - Hentai
+CREATE TABLE IF NOT EXISTS `h` LIKE `a`;
+
+-- Board: /e/ - Ecchi
+CREATE TABLE IF NOT EXISTS `e` LIKE `a`;
+
+-- Board: /u/ - Yuri
+CREATE TABLE IF NOT EXISTS `u` LIKE `a`;
+
+-- Board: /d/ - Hentai/Alternative
+CREATE TABLE IF NOT EXISTS `d` LIKE `a`;
+
+-- Board: /y/ - Yaoi
+CREATE TABLE IF NOT EXISTS `y` LIKE `a`;
+
+-- Board: /t/ - Torrents
+CREATE TABLE IF NOT EXISTS `t` LIKE `a`;
+
+-- Board: /hr/ - High Resolution
+CREATE TABLE IF NOT EXISTS `hr` LIKE `a`;
+
+-- Board: /gif/ - Adult GIF
+CREATE TABLE IF NOT EXISTS `gif` LIKE `a`;
+
+-- Board: /aco/ - Adult Cartoons
+CREATE TABLE IF NOT EXISTS `aco` LIKE `a`;
+
+-- Board: /r/ - Adult Requests
+CREATE TABLE IF NOT EXISTS `r` LIKE `a`;
+
+-- Board: /lgbt/ - LGBT
+CREATE TABLE IF NOT EXISTS `lgbt` LIKE `a`;
+
+-- Board: /j/ - Janitor (hidden)
+CREATE TABLE IF NOT EXISTS `j` LIKE `a`;
+
+-- Board: /test/ - Testing (hidden)
+CREATE TABLE IF NOT EXISTS `test` LIKE `a`;
+
+-- Board: /asp/ - Alternative Sports (hidden)
+CREATE TABLE IF NOT EXISTS `asp` LIKE `a`;
+
+-- Board: /qb/ - QB (hidden)
+CREATE TABLE IF NOT EXISTS `qb` LIKE `a`;
+
+-- ============================================================
+-- Staff / moderation tables
+-- ============================================================
+
 -- Mod / staff users
 CREATE TABLE IF NOT EXISTS `mod_users` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
@@ -85,6 +424,10 @@ CREATE TABLE IF NOT EXISTS `mod_users` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `username` (`username`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Default admin user
+INSERT IGNORE INTO `mod_users` (`username`, `password`, `level`, `allow`) VALUES
+('admin', 'DISHSIS', 99, 1);
 
 -- Banned users
 CREATE TABLE IF NOT EXISTS `banned_users` (
@@ -194,6 +537,10 @@ CREATE TABLE IF NOT EXISTS `blotter_messages` (
   `content` text NOT NULL,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Welcome blotter message
+INSERT IGNORE INTO `blotter_messages` (`content`) VALUES
+('Welcome to 4chan - local security testing lab');
 
 -- Contest banners
 CREATE TABLE IF NOT EXISTS `contest_banners` (
@@ -323,6 +670,28 @@ CREATE TABLE IF NOT EXISTS `blacklist` (
   PRIMARY KEY (`id`),
   KEY `field` (`field`),
   KEY `contents` (`contents`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Event log (moderation/security events)
+CREATE TABLE IF NOT EXISTS `event_log` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `type` varchar(64) NOT NULL DEFAULT '',
+  `ip` varchar(64) NOT NULL DEFAULT '',
+  `board` varchar(10) NOT NULL DEFAULT '',
+  `thread_id` int(11) NOT NULL DEFAULT 0,
+  `post_id` int(11) NOT NULL DEFAULT 0,
+  `arg_num` int(11) NOT NULL DEFAULT 0,
+  `arg_str` varchar(255) NOT NULL DEFAULT '',
+  `pwd` varchar(32) NOT NULL DEFAULT '',
+  `req_sig` varchar(64) NOT NULL DEFAULT '',
+  `ua_sig` varchar(64) NOT NULL DEFAULT '',
+  `meta` text NOT NULL,
+  `created` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `type` (`type`),
+  KEY `ip` (`ip`),
+  KEY `board` (`board`),
+  KEY `created` (`created`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Post filter hit tracking
