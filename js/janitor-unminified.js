@@ -57,11 +57,11 @@ AdminTools.init = function() {
   html = '<div class="drag" id="atHeader">Janitor Tools'
     + '<img alt="Refresh" title="Refresh" src="' + Main.icons.refresh
     + '" id="atRefresh" data-cmd="at-refresh" class="pointer right"></div>'
-    + '<h4><a href="https://' + J.reportsSubDomain + '.4chan.org/" target="_blank">Reports</a>: '
+    + '<h4><a href="https://' + J.reportsSubDomain + '.localhost/" target="_blank">Reports</a>: '
     + '<span title="Total" id="at-total">?</span> ('
     + '<span title="Illegal" id="at-illegal">?</span>)</h4>'
     + '<h4 id="at-msg-cnt"><a data-cmd="at-msg" href="https://' + J.reportsSubDomain
-      + '.4chan.org/?action=staffmessages" target="_blank">Messages</a>: <span id="at-msg">?</span></h4>';
+      + '.localhost/?action=staffmessages" target="_blank">Messages</a>: <span id="at-msg">?</span></h4>';
 
   cnt.innerHTML = html;
   document.body.appendChild(cnt);
@@ -104,7 +104,7 @@ AdminTools.refreshReportCount = function(force) {
   
   xhr = new XMLHttpRequest();
   
-  xhr.open('GET', 'https://' + J.reportsSubDomain + '.4chan.org/H429f6uIsUqU.php', true);
+  xhr.open('GET', 'https://' + J.reportsSubDomain + '.localhost/H429f6uIsUqU.php', true);
   
   xhr.withCredentials = true;
   
@@ -215,7 +215,7 @@ J.initIconsCatalog = function() {
     photon: 'photon/'
   };
   
-  url = '//s.4cdn.org/image/';
+  url = '//s.localhost/image/';
   
   if (window.devicePixelRatio >= 2) {
     for (key in Main.icons) {
@@ -316,7 +316,7 @@ J.deletePost = function(btn, imageOnly) {
         else {
           el = $.id('f' + id);
           el.innerHTML = '<span class="fileThumb"><img alt="File deleted."'
-            + ' src="//s.4cdn.org/image/filedeleted' + (isOp ? '' : '-res') + '.gif"></span>';
+            + ' src="//s.localhost/image/filedeleted' + (isOp ? '' : '-res') + '.gif"></span>';
         }
 
         J.closeDeletePrompt();
@@ -649,7 +649,7 @@ J.refreshJCount = function() {
   
   if (!stored || (Date.now() - stored.time) >= 10000) {
     xhr = new XMLHttpRequest();
-    xhr.open('GET', 'https://sys.4chan.org/j/1mcQTXbjW5WO.php?&' + Date.now());
+    xhr.open('GET', 'https://sys.localhost/j/1mcQTXbjW5WO.php?&' + Date.now());
     xhr.withCredentials = true;
     xhr.onloadend = function() {
       var data, obj, delta;
@@ -723,7 +723,7 @@ J.initIcons = function() {
     photon: 'photon/'
   };
 
-  url = '//s.4cdn.org/image/buttons/' + paths[Main.stylesheet];
+  url = '//s.localhost/image/buttons/' + paths[Main.stylesheet];
 
   if (window.devicePixelRatio >= 2) {
     for (key in J.icons) {
@@ -745,7 +745,7 @@ J.initNavLinks = function() {
   // [j] link
   el = document.createElement('span');
   el.id = 'j-link';
-  el.innerHTML = '[<a href="https://sys.4chan.org/j/" title="Janitor &amp; Moderator Discussion">j</a>]';
+  el.innerHTML = '[<a href="https://sys.localhost/j/" title="Janitor &amp; Moderator Discussion">j</a>]';
   el.firstElementChild.addEventListener('mouseup', J.clearJCount, false);
   nav.parentNode.insertBefore(el, nav);
 
@@ -870,7 +870,7 @@ J.onFileSpoilerLoad = function() {
     if (!Config.revealSpoilers) {
       el = $.tag('img', el)[0];
       el.style.width = el.style.height = '100px';
-      el.src = '//s.4cdn.org/image/spoiler-' + Main.board + '.png';
+      el.src = '//s.localhost/image/spoiler-' + Main.board + '.png';
     }
   }
   else {

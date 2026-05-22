@@ -1,40 +1,38 @@
 services:
-  # === PHP/Apache web server ===
   web:
     build: .
-    container_name: yotsuba-web
+    container_name: localchan-web
     ports:
       - "8082:80"
     environment:
-      - YOTSUBA_DB_HOST=db
-      - YOTSUBA_DB_PORT=3306
-      - YOTSUBA_DB_USER=yotsuba
-      - YOTSUBA_DB_PASS=yotsuba
-      - YOTSUBA_DB_GLOBAL=yotsuba_global
-      - YOTSUBA_MEMCACHED_HOST=memcached
-      - YOTSUBA_MEMCACHED_PORT=11211
+      - LOCALCHAN_DB_HOST=db
+      - LOCALCHAN_DB_PORT=3306
+      - LOCALCHAN_DB_USER=localchan
+      - LOCALCHAN_DB_PASS=localchan
+      - LOCALCHAN_DB_NAME=localchan
+      - LOCALCHAN_MEMCACHED_HOST=memcached
+      - LOCALCHAN_MEMCACHED_PORT=11211
     depends_on:
       db:
         condition: service_healthy
       memcached:
         condition: service_started
     volumes:
-      - uploads_data:/www/4chan.org/web/images
-      - thumbs_data:/www/4chan.org/web/thumbs
-      - boards_data:/www/4chan.org/web/boards
+      - uploads_data:/www/localchan/images
+      - thumbs_data:/www/localchan/thumbs
+      - boards_data:/www/localchan/boards
     networks:
       - lab-net
     restart: unless-stopped
 
-  # === MariaDB ===
   db:
     image: mariadb:10.1
-    container_name: yotsuba-db
+    container_name: localchan-db
     environment:
       MYSQL_ROOT_PASSWORD: rootpass
-      MYSQL_USER: yotsuba
-      MYSQL_PASSWORD: yotsuba
-      MYSQL_DATABASE: yotsuba_global
+      MYSQL_USER: localchan
+      MYSQL_PASSWORD: localchan
+      MYSQL_DATABASE: localchan
     ports:
       - "3306:3306"
     volumes:
@@ -49,20 +47,18 @@ services:
       retries: 20
     restart: unless-stopped
 
-  # === Memcached ===
   memcached:
     image: memcached:1.6-alpine
-    container_name: yotsuba-memcached
+    container_name: localchan-memcached
     ports:
       - "11211:11211"
     networks:
       - lab-net
     restart: unless-stopped
 
-  # === Adminer (optional DB management) ===
   adminer:
     image: adminer:4-standalone
-    container_name: yotsuba-adminer
+    container_name: localchan-adminer
     ports:
       - "8081:8080"
     environment:

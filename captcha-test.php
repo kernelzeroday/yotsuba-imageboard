@@ -95,13 +95,13 @@ define('TWISTER_MEMCACHED_PORT', 11211);
 
 // ---
 
-define('TWISTER_DOMAIN', ($_SERVER['HTTP_HOST'] === 'sys.4chan.org') ? '4chan.org' : '4channel.org');
+define('TWISTER_DOMAIN', ($_SERVER['HTTP_HOST'] === 'sys.localhost') ? 'localhost' : 'localhost');
 
 define('TWISTER_ERR_GENERIC', 'Internal Server Error');
 define('TWISTER_ERR_COOLDOWN', 'You have to wait a while before doing this again');
 define('TWISTER_ERR_PCD_THREAD', 'Please wait a while before making a thread');
 define('TWISTER_ERR_PCD_REPLY', 'Please wait a while before making a post');
-define('TWISTER_ERR_PCD_SIGNIN', 'Please wait for the timer<br>or verify your email address before making a post.<br><br><a href="https://sys.4chan.org/signin">Click here</a> for more information<br>or to verify your email.');
+define('TWISTER_ERR_PCD_SIGNIN', 'Please wait for the timer<br>or verify your email address before making a post.<br><br><a href="https://sys.localhost/signin">Click here</a> for more information<br>or to verify your email.');
 
 // ---
 
@@ -144,7 +144,7 @@ function twister_captcha_get_ticket_captcha_response() {
 }
 
 function twister_captcha_get_hcaptcha_private_key() {
-  $path = '/www/global/yotsuba/config/captcha_config.ini';
+  $path = '/www/global/localchan/config/captcha_config.ini';
   
   $cfg = file_get_contents($path);
   
@@ -312,7 +312,7 @@ function twister_captcha_is_req_suspicious() {
   if ($no_lang && isset($_SERVER['HTTP_REFERER'])) {
     $ref = $_SERVER['HTTP_REFERER'];
     
-    if (strpos($ref, 'sys.4chan.org') !== false || strpos($ref, '/thread/') !== false) {
+    if (strpos($ref, 'sys.localhost') !== false || strpos($ref, '/thread/') !== false) {
       return true;
     }
   }
@@ -569,14 +569,14 @@ function twister_captcha_get_credits($memcached, $pwd) {
 }
 
 function twister_captcha_get_userpwd($user_ip) {
-  if (isset($_COOKIE['4chan_pass'])) {
-    $_c = $_COOKIE['4chan_pass'];
+  if (isset($_COOKIE['localchan_pass'])) {
+    $_c = $_COOKIE['localchan_pass'];
   }
   else {
     $_c = null;
   }
   
-  return new UserPwd($user_ip, TWISTER_DOMAIN, $_COOKIE['4chan_pass']);
+  return new UserPwd($user_ip, TWISTER_DOMAIN, $_COOKIE['localchan_pass']);
 }
 
 // ---

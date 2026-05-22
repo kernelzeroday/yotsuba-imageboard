@@ -157,7 +157,7 @@ function return_archive_link( $board, $resno, $admin = false, $url_only = false,
         $file = 'log_janitors';
       }
       */
-      return '<a href="https://team.4chan.org/stafflog#board=' . $board . ',post=' . $resno . '" rel="noreferrer" target="_blank">/' . $board . '/' . $resno . '</a>';
+      return '<a href="https://team.localhost/stafflog#board=' . $board . ',post=' . $resno . '" rel="noreferrer" target="_blank">/' . $board . '/' . $resno . '</a>';
   }
   
   if ($url_only) {
@@ -166,6 +166,6 @@ function return_archive_link( $board, $resno, $admin = false, $url_only = false,
   
   $url = rawurlencode($url);
   
-  return '<a href="https://www.4chan.org/derefer?url=' .
+  return '<a href="https://www.localhost/derefer?url=' .
     $url . '" target="_blank">/' . $board . '/' . $resno . '</a>';
 }

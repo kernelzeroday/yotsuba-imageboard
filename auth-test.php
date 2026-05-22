@@ -1,15 +1,8 @@
 <?php
 die();
-define('IS_4CHANNEL', preg_match('/(^|\.)4channel.org$/', $_SERVER['HTTP_HOST']));
-
-if (IS_4CHANNEL) {
-  define('THIS_DOMAIN', '4channel.org');
-  define('OTHER_DOMAIN', '4chan.org');
-}
-else {
-  define('THIS_DOMAIN', '4chan.org');
-  define('OTHER_DOMAIN', '4channel.org');
-}
+define('IS_4CHANNEL', false);
+define('THIS_DOMAIN', 'localhost');
+define('OTHER_DOMAIN', 'localhost');
 
 define('PASS_TIMEOUT', 900); // 15 minutes
 define('LOGIN_FAIL_HOURLY', 5);
@@ -48,11 +41,11 @@ class App {
     ERR_DB = 'We are currently having database issues. Please try again later.',
     ERR_BAD_AUTH = 'Incorrect Token or PIN.',
     ERR_IN_USE = 'This Pass is already in use by another IP. Please wait %s and re-authorize by visiting this page again to change IPs.',
-    ERR_EXPIRED = 'This Pass has expired. Please visit <a href="https://www.4chan.org/pass.php?renew=%s">this page</a> to renew it.', // status 1
+    ERR_EXPIRED = 'This Pass has expired. Please visit <a href="/pass">this page</a> to renew it.', // status 1
     ERR_REFUNDED = 'This Pass has been refunded and disabled. You cannot use it anymore.', // status 2
     ERR_DISPUTED = 'This Pass has a disputed payment. You cannot use it until the dispute is resolved.', // status 3
-    ERR_REVOKED_SPAM = 'This Pass has been revoked due to spamming, which is a violation of the <a href="https://www.4chan.org/pass#termsofuse">Terms of Use</a>.', // status 4
-    ERR_REVOKED_ILLEGAL = 'This Pass has been revoked due to illegal content being posted, which is a violaton of the <a href="https://www.4chan.org/pass#termsofuse">Terms of Use</a>.' // status 5
+    ERR_REVOKED_SPAM = 'This Pass has been revoked due to spamming, which is a violation of the <a href="/pass">Terms of Use</a>.', // status 4
+    ERR_REVOKED_ILLEGAL = 'This Pass has been revoked due to illegal content being posted, which is a violaton of the <a href="/pass">Terms of Use</a>.' // status 5
   ;
   
   private function error($msg) {
@@ -112,7 +105,7 @@ class App {
       return;
     }
     
-    if (!preg_match('/^https:\/\/sys\.(4chan|4channel)\.org(\/|$)/', $_SERVER['HTTP_REFERER'])) {
+    if (!preg_match('/^https?:\/\/localhost(\/|$)/', $_SERVER['HTTP_REFERER'])) {
       $this->error(self::ERR_BAD_REQUEST);
     }
   }
@@ -401,7 +394,7 @@ class App {
     if (in_array($action, $this->actions)) {
       if (isset($method['xhr'])) {
         /*
-        if (isset($_SERVER['HTTP_ORIGIN']) && preg_match('/^https:\/\/sys\.(4chan|4channel)\.org$/', $_SERVER['HTTP_ORIGIN'])) {
+        if (isset($_SERVER['HTTP_ORIGIN']) && preg_match('/^https:\/\/sys\.(localhost)\.org$/', $_SERVER['HTTP_ORIGIN'])) {
           header('Access-Control-Allow-Origin: ' . $_SERVER['HTTP_ORIGIN']);
           header('Access-Control-Allow-Methods: OPTIONS, POST');
           header('Access-Control-Allow-Credentials: true');

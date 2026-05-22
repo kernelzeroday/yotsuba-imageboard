@@ -230,7 +230,7 @@ J.checkDeletedPosts = function () {
     return;
   }
 
-  url = '//a.4cdn.org/' + Main.board + '/res/' + Main.tid + '.json';
+  url = '//a.localhost/' + Main.board + '/res/' + Main.tid + '.json';
 
   xhr = new XMLHttpRequest();
   xhr.open('GET', url);
@@ -337,7 +337,7 @@ J.deletePost = function (btn, imageOnly) {
         else {
           el = $.id('f' + id);
           el.innerHTML = '<span class="fileThumb"><img alt="File deleted."'
-            + ' src="//s.4cdn.org/image/filedeleted' + (isOp ? '' : '-res') + '.gif"></span>';
+            + ' src="//s.localhost/image/filedeleted' + (isOp ? '' : '-res') + '.gif"></span>';
 
           if (delall) {
             builtMsg = document.createElement('span');
@@ -702,7 +702,7 @@ J.onFileSpoilerLoad = function() {
     if (!Config.revealSpoilers) {
       el = $.tag('img', el)[0];
       el.style.width = el.style.height = '100px';
-      el.src = '//s.4cdn.org/image/spoiler-' + Main.board + '.png';
+      el.src = '//s.localhost/image/spoiler-' + Main.board + '.png';
     }
   }
   else {
@@ -739,12 +739,12 @@ Multi.exec = function(btn) {
   
   if (sel) {
     window.open('https://' + J.teamSubDomain
-      + '.4chan.org/search#{"comment":"' + sel.replace(/[\r\n]+/g, ' ') + '"}');
+      + '.localhost/search#{"comment":"' + sel.replace(/[\r\n]+/g, ' ') + '"}');
   }
   else {
     pid = btn.getAttribute('data-id');
     
-    window.open('https://team.4chan.org/search?action=from_pid&board=' + Main.board
+    window.open('https://team.localhost/search?action=from_pid&board=' + Main.board
     + '&pid=' + pid);
   }
 };
@@ -756,7 +756,7 @@ Multi.prompt = function (ip, pid) {
   btn = $.cls('postMenuBtn', cnt)[0];
   
   link = document.createElement('a');
-  link.href = 'https://' + J.teamSubDomain + '.4chan.org/search#{"ip":"' + ip + '"}';
+  link.href = 'https://' + J.teamSubDomain + '.localhost/search#{"ip":"' + ip + '"}';
   link.setAttribute('target', '_blank');
   link.className = 'post-ip';
   link.textContent = ip;
@@ -827,7 +827,7 @@ J.initIconsCatalog = function() {
     photon: 'photon/'
   };
   
-  url = '//s.4cdn.org/image/';
+  url = '//s.localhost/image/';
   
   if (window.devicePixelRatio >= 2) {
     for (key in Main.icons) {
@@ -863,15 +863,15 @@ AdminTools.init = function () {
   html = '<div class="drag" id="atHeader">Moderator Tools'
     + '<img alt="Refresh" title="Refresh" src="' + Main.icons.refresh
     + '" id="atRefresh" data-cmd="at-refresh" class="pointer right"></div>'
-    + '<h4><a href="https://' + J.reportsSubDomain + '.4chan.org/" target="_blank">Reports</a>: '
+    + '<h4><a href="https://' + J.reportsSubDomain + '.localhost/" target="_blank">Reports</a>: '
     + '<span title="Total" id="at-total">?</span> ('
     + '<span title="Illegal" id="at-illegal">?</span>)</h4>'
-    + '<h4><a href="https://' + J.reportsSubDomain + '.4chan.org/?action=ban_requests" target="_blank">Ban Requests</a>: '
+    + '<h4><a href="https://' + J.reportsSubDomain + '.localhost/?action=ban_requests" target="_blank">Ban Requests</a>: '
     + '<span id="at-banreqs">?</span> (<span title="Illegal" id="at-illegal-br">?</span>)</h4>'
-    + '<h4><a href="https://' + J.teamSubDomain + '.4chan.org/appeals" target="_blank">Appeals</a>: '
+    + '<h4><a href="https://' + J.teamSubDomain + '.localhost/appeals" target="_blank">Appeals</a>: '
     + '<span id="at-appeals">?</span> (<span title="4chan Pass Users" id="at-prio-appeals">?</span>)</h4>'
     + '<h4 id="at-msg-cnt"><a data-cmd="at-msg" href="https://' + J.reportsSubDomain
-      + '.4chan.org/?action=staffmessages" target="_blank">Messages</a>: <span id="at-msg">?</span></h4>';
+      + '.localhost/?action=staffmessages" target="_blank">Messages</a>: <span id="at-msg">?</span></h4>';
     
   if (Main.tid) {
     html += '<hr><h4><a href="javascript:void(0);" data-cmd="poster-id">Same Poster ID</a></h4>';
@@ -922,7 +922,7 @@ AdminTools.refreshReportCount = function(force) {
   
   xhr = new XMLHttpRequest();
   
-  xhr.open('GET', 'https://' + J.reportsSubDomain + '.4chan.org/H429f6uIsUqU.php', true);
+  xhr.open('GET', 'https://' + J.reportsSubDomain + '.localhost/H429f6uIsUqU.php', true);
   
   xhr.withCredentials = true;
   
@@ -1311,7 +1311,7 @@ J.refreshJCount = function() {
   
   if (!stored || (Date.now() - stored.time) >= 10000) {
     xhr = new XMLHttpRequest();
-    xhr.open('GET', 'https://sys.4chan.org/j/1mcQTXbjW5WO.php?&' + Date.now());
+    xhr.open('GET', 'https://sys.localhost/j/1mcQTXbjW5WO.php?&' + Date.now());
     xhr.withCredentials = true;
     xhr.onloadend = function() {
       var data, obj, delta;
@@ -1391,7 +1391,7 @@ J.initIcons = function () {
     photon:'photon/'
   };
 
-  url = '//s.4cdn.org/image/buttons/' + paths[Main.stylesheet];
+  url = '//s.localhost/image/buttons/' + paths[Main.stylesheet];
 
   if (window.devicePixelRatio >= 2) {
     for (key in J.icons) {
@@ -1413,7 +1413,7 @@ J.initNavLinks = function () {
   // [j] link
   el = document.createElement('span');
   el.id = 'j-link';
-  el.innerHTML = '[<a href="https://sys.4chan.org/j/" title="Janitor &amp; Moderator Discussion">j</a>]';
+  el.innerHTML = '[<a href="https://sys.localhost/j/" title="Janitor &amp; Moderator Discussion">j</a>]';
   el.firstElementChild.addEventListener('mouseup', J.clearJCount, false);
   nav.parentNode.insertBefore(el, nav);
 
@@ -1431,7 +1431,7 @@ J.initNavLinks = function () {
   frag.appendChild(document.createTextNode('] ['));
   el = document.createElement('a');
   el.textContent = 'Team';
-  el.href = 'https://' + J.teamSubDomain + '.4chan.org/';
+  el.href = 'https://' + J.teamSubDomain + '.localhost/';
   el.setAttribute('target', '_blank');
   frag.appendChild(el);
   frag.appendChild(document.createTextNode('] ['));
@@ -2025,59 +2025,59 @@ J.addCss = function () {
 }\
 .burichan_new .deleteIcon,\
 .yotsuba_b_new .deleteIcon {\
-  background-image: url("//s.4cdn.org/image/buttons/burichan/cross.png");\
+  background-image: url("//s.localhost/image/buttons/burichan/cross.png");\
 }\
 .burichan_new .banIcon,\
 .yotsuba_b_new .banIcon {\
-  background-image: url("//s.4cdn.org/image/buttons/burichan/ban.png");\
+  background-image: url("//s.localhost/image/buttons/burichan/ban.png");\
 }\
 .burichan_new .fileIcon,\
 .yotsuba_b_new .fileIcon {\
-  background-image: url("//s.4cdn.org/image/buttons/burichan/f.png");\
+  background-image: url("//s.localhost/image/buttons/burichan/f.png");\
 }\
 .burichan_new .multiIcon,\
 .yotsuba_b_new .multiIcon {\
-  background-image: url("//s.4cdn.org/image/buttons/burichan/multi.png");\
+  background-image: url("//s.localhost/image/buttons/burichan/multi.png");\
 }\
 .futaba_new .deleteIcon,\
 .yotsuba_new .deleteIcon {\
-  background-image: url("//s.4cdn.org/image/buttons/futaba/cross.png");\
+  background-image: url("//s.localhost/image/buttons/futaba/cross.png");\
 }\
 .futaba_new .banIcon,\
 .yotsuba_new .banIcon {\
-  background-image: url("//s.4cdn.org/image/buttons/futaba/ban.png");\
+  background-image: url("//s.localhost/image/buttons/futaba/ban.png");\
 }\
 .futaba_new .fileIcon,\
 .yotsuba_new .fileIcon {\
-  background-image: url("//s.4cdn.org/image/buttons/futaba/f.png");\
+  background-image: url("//s.localhost/image/buttons/futaba/f.png");\
 }\
 .futaba_new .multiIcon,\
 .yotsuba_new .multiIcon {\
-  background-image: url("//s.4cdn.org/image/buttons/futaba/multi.png");\
+  background-image: url("//s.localhost/image/buttons/futaba/multi.png");\
 }\
 .photon .deleteIcon {\
-  background-image: url("//s.4cdn.org/image/buttons/photon/cross.png");\
+  background-image: url("//s.localhost/image/buttons/photon/cross.png");\
 }\
 .photon .banIcon {\
-  background-image: url("//s.4cdn.org/image/buttons/photon/ban.png");\
+  background-image: url("//s.localhost/image/buttons/photon/ban.png");\
 }\
 .photon .fileIcon {\
-  background-image: url("//s.4cdn.org/image/buttons/photon/f.png");\
+  background-image: url("//s.localhost/image/buttons/photon/f.png");\
 }\
 .photon .multiIcon {\
-  background-image: url("//s.4cdn.org/image/buttons/photon/multi.png");\
+  background-image: url("//s.localhost/image/buttons/photon/multi.png");\
 }\
 .tomorrow .deleteIcon {\
-  background-image: url("//s.4cdn.org/image/buttons/tomorrow/cross.png");\
+  background-image: url("//s.localhost/image/buttons/tomorrow/cross.png");\
 }\
 .tomorrow .banIcon {\
-  background-image: url("//s.4cdn.org/image/buttons/tomorrow/ban.png");\
+  background-image: url("//s.localhost/image/buttons/tomorrow/ban.png");\
 }\
 .tomorrow .fileIcon {\
-  background-image: url("//s.4cdn.org/image/buttons/tomorrow/f.png");\
+  background-image: url("//s.localhost/image/buttons/tomorrow/f.png");\
 }\
 .tomorrow .multiIcon {\
-  background-image: url("//s.4cdn.org/image/buttons/tomorrow/multi.png");\
+  background-image: url("//s.localhost/image/buttons/tomorrow/multi.png");\
 }\
 .dd-admin {\
   text-indent: 5px;\

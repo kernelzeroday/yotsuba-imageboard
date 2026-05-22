@@ -1,5 +1,6 @@
--- 4chan Yotsuba Imageboard — initial schema for security lab
--- Global database (yotsuba_global)
+-- localchan imageboard schema
+
+USE localchan;
 
 -- Board directory
 CREATE TABLE IF NOT EXISTS `boardlist` (
@@ -35,6 +36,7 @@ CREATE TABLE IF NOT EXISTS `b` (
   `com` text NOT NULL,
   `host` varchar(255) NOT NULL DEFAULT '',
   `pwd` varchar(32) NOT NULL DEFAULT '',
+  `4pass_id` varchar(64) NOT NULL DEFAULT '',
   `email` varchar(128) NOT NULL DEFAULT '',
   `filename` varchar(255) NOT NULL DEFAULT '',
   `ext` varchar(8) NOT NULL DEFAULT '',
@@ -86,7 +88,7 @@ CREATE TABLE IF NOT EXISTS `mod_users` (
 
 -- Banned users
 CREATE TABLE IF NOT EXISTS `banned_users` (
-  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `no` int(11) NOT NULL AUTO_INCREMENT,
   `global` tinyint(1) NOT NULL DEFAULT 0,
   `board` varchar(10) NOT NULL DEFAULT '',
   `host` varchar(255) NOT NULL DEFAULT '',
@@ -100,9 +102,14 @@ CREATE TABLE IF NOT EXISTS `banned_users` (
   `tripcode` varchar(32) NOT NULL DEFAULT '',
   `4pass_id` varchar(64) NOT NULL DEFAULT '',
   `post_num` int(11) NOT NULL DEFAULT 0,
+  `template_id` int(11) NOT NULL DEFAULT 0,
+  `active` tinyint(1) NOT NULL DEFAULT 1,
+  `now` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `unbannedon` timestamp NULL DEFAULT NULL,
+  `unbannedby` varchar(64) NOT NULL DEFAULT '',
   `created` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `md5` varchar(32) NOT NULL DEFAULT '',
-  PRIMARY KEY (`id`),
+  PRIMARY KEY (`no`),
   KEY `host` (`host`),
   KEY `md5` (`md5`),
   KEY `board` (`board`)
@@ -195,4 +202,135 @@ CREATE TABLE IF NOT EXISTS `contest_banners` (
   `board` varchar(10) NOT NULL DEFAULT '',
   `is_live` tinyint(1) NOT NULL DEFAULT 0,
   PRIMARY KEY (`file_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Ban templates (for moderation)
+CREATE TABLE IF NOT EXISTS `ban_templates` (
+  `no` int(11) NOT NULL AUTO_INCREMENT,
+  `name` varchar(128) NOT NULL DEFAULT '',
+  `rule` text NOT NULL,
+  `global` tinyint(1) NOT NULL DEFAULT 0,
+  PRIMARY KEY (`no`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Ban requests (pre-ban screening)
+CREATE TABLE IF NOT EXISTS `ban_requests` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `host` varchar(255) NOT NULL DEFAULT '',
+  `reverse` varchar(255) NOT NULL DEFAULT '',
+  `pwd` varchar(32) NOT NULL DEFAULT '',
+  `xff` varchar(255) NOT NULL DEFAULT '',
+  `reason` text NOT NULL,
+  `global` tinyint(1) NOT NULL DEFAULT 0,
+  `tpl_name` varchar(128) NOT NULL DEFAULT '',
+  `ban_template` int(11) NOT NULL DEFAULT 0,
+  `board` varchar(10) NOT NULL DEFAULT '',
+  `janitor` varchar(64) NOT NULL DEFAULT '',
+  `spost` text NOT NULL,
+  `post_json` text NOT NULL,
+  `warn_req` tinyint(1) NOT NULL DEFAULT 0,
+  `ts` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `host` (`host`),
+  KEY `board` (`board`),
+  KEY `ts` (`ts`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Halloween event votes
+CREATE TABLE IF NOT EXISTS `halloween_votes` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `long_ip` bigint(20) NOT NULL DEFAULT 0,
+  `board` varchar(10) NOT NULL DEFAULT '',
+  `post_id` int(11) NOT NULL DEFAULT 0,
+  PRIMARY KEY (`id`),
+  KEY `long_ip` (`long_ip`),
+  KEY `board_post` (`board`, `post_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Like system scores
+CREATE TABLE IF NOT EXISTS `like_user_scores` (
+  `user_id` varchar(64) NOT NULL DEFAULT '',
+  `user_score` int(11) NOT NULL DEFAULT 0,
+  PRIMARY KEY (`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Like system audit log
+CREATE TABLE IF NOT EXISTS `like_user_log` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `user_id` varchar(64) NOT NULL DEFAULT '',
+  `target_user_id` varchar(64) NOT NULL DEFAULT '',
+  `suspicious` tinyint(1) NOT NULL DEFAULT 0,
+  `board` varchar(10) NOT NULL DEFAULT '',
+  `post_id` int(11) NOT NULL DEFAULT 0,
+  PRIMARY KEY (`id`),
+  KEY `user_id` (`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- User statistics counters
+CREATE TABLE IF NOT EXISTS `user_stats` (
+  `name` varchar(64) NOT NULL DEFAULT '',
+  `count` int(11) NOT NULL DEFAULT 0,
+  PRIMARY KEY (`name`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Post filter rules
+CREATE TABLE IF NOT EXISTS `postfilter` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `pattern` text NOT NULL,
+  `autosage` tinyint(1) NOT NULL DEFAULT 0,
+  `log` tinyint(1) NOT NULL DEFAULT 1,
+  `regex` tinyint(1) NOT NULL DEFAULT 0,
+  `quiet` tinyint(1) NOT NULL DEFAULT 0,
+  `lenient` tinyint(1) NOT NULL DEFAULT 0,
+  `ops_only` tinyint(1) NOT NULL DEFAULT 0,
+  `min_count` int(11) NOT NULL DEFAULT 0,
+  `board` varchar(10) NOT NULL DEFAULT '',
+  `ban_days` int(11) NOT NULL DEFAULT 0,
+  `active` tinyint(1) NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id`),
+  KEY `board` (`board`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- IP range bans (spam filtering)
+CREATE TABLE IF NOT EXISTS `iprangebans` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `range_start` bigint(20) NOT NULL DEFAULT 0,
+  `range_end` bigint(20) NOT NULL DEFAULT 0,
+  `asn` int(11) NOT NULL DEFAULT 0,
+  `active` tinyint(1) NOT NULL DEFAULT 1,
+  `expires_on` int(11) NOT NULL DEFAULT 0,
+  `boards` varchar(255) NOT NULL DEFAULT '',
+  `ops_only` tinyint(1) NOT NULL DEFAULT 0,
+  `img_only` tinyint(1) NOT NULL DEFAULT 0,
+  `lenient` tinyint(1) NOT NULL DEFAULT 0,
+  `report_only` tinyint(1) NOT NULL DEFAULT 0,
+  `ua_ids` varchar(255) NOT NULL DEFAULT '',
+  `created_on` int(11) NOT NULL DEFAULT 0,
+  `updated_on` int(11) NOT NULL DEFAULT 0,
+  PRIMARY KEY (`id`),
+  KEY `range_lookup` (`range_start`, `range_end`),
+  KEY `asn` (`asn`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- MD5/Content blacklist (for image uploads)
+CREATE TABLE IF NOT EXISTS `blacklist` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `active` tinyint(1) NOT NULL DEFAULT 1,
+  `boardrestrict` varchar(10) NOT NULL DEFAULT '',
+  `field` varchar(32) NOT NULL DEFAULT '',
+  `contents` varchar(255) NOT NULL DEFAULT '',
+  `reason` text NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `field` (`field`),
+  KEY `contents` (`contents`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Post filter hit tracking
+CREATE TABLE IF NOT EXISTS `postfilter_hits` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `filter_id` int(11) NOT NULL DEFAULT 0,
+  `board` varchar(10) NOT NULL DEFAULT '',
+  `long_ip` bigint(20) NOT NULL DEFAULT 0,
+  PRIMARY KEY (`id`),
+  KEY `filter_id` (`filter_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

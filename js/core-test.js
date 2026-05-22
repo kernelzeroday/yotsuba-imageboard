@@ -1,6 +1,6 @@
 var $L = {
   nws: {"aco":1,"b":1,"bant":1,"d":1,"e":1,"f":1,"gif":1,"h":1,"hc":1,"hm":1,"hr":1,"i":1,"ic":1,"pol":1,"r":1,"r9k":1,"s":1,"s4s":1,"soc":1,"t":1,"trash":1,"u":1,"wg":1,"y":1},
-  blue: '4chan.org', red: '4chan.org',
+  blue: 'localhost', red: 'localhost',
   d: function(b) {
     return $L.nws[b] ? $L.red : $L.blue;
   }
@@ -41,7 +41,7 @@ var TCaptcha = {
   
   ticketKey: '4chan-tc-ticket',
   
-  domain: '4chan.org',
+  domain: 'localhost',
   
   failCd: 60,
   
@@ -789,7 +789,7 @@ var StorageSync = {
     self.remoteFrame = null;
     
     self.remoteOrigin = location.protocol + '//boards.'
-      + (location.host === 'boards.4channel.org' ? '4chan' : '4channel')
+      + (location.host === 'boardlocalhost/static' ? '4chan' : '4channel')
       + '.org';
     
     window.addEventListener('message', self.onFrameMessage, false);
@@ -887,7 +887,7 @@ function loadBannerImage() {
     return;
   }
   
-  cnt.innerHTML = '<img alt="4chan" src="//s.4cdn.org/image/title/'
+  cnt.innerHTML = '<img alt="4chan" src="//localhost/static/image/title/'
     + cnt.getAttribute('data-src') + '">';
 }
 
@@ -1069,7 +1069,7 @@ function initTCaptcha() {
 }
 
 function initAnalytics() {
-  var tid = location.host.indexOf('.4channel.org') !== -1 ? 'UA-166538-5' : 'UA-166538-1';
+  var tid = location.host.indexOf('.localhost') !== -1 ? 'UA-166538-5' : 'UA-166538-1';
   
   (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){(i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)})(window,document,'script','//www.google-analytics.com/analytics.js','ga');
   
@@ -1332,7 +1332,7 @@ function initAdsHome(cnt) {
   a.target = '_blank';
   
   let img = document.createElement('img');
-  img.src = '//s.4cdn.org/image/banners/' + src;
+  img.src = '//localhost/static/image/banners/' + src;
   
   a.appendChild(img);
   
@@ -1491,11 +1491,11 @@ function loadExtraScripts() {
   if (window.FC) {
     el = document.createElement('script');
     el.type = 'text/javascript';
-    el.src = 'https://s.4cdn.org/js/' + path + '.' + jsVersion + '.js';
+    el.src = 'https://localhost/static/js/' + path + '.' + jsVersion + '.js';
     document.head.appendChild(el);
   }
   else {
-    document.write('<script type="text/javascript" src="https://s.4cdn.org/js/' + path + '.' + jsVersion + '.js"></script>');
+    document.write('<script type="text/javascript" src="https://localhost/static/js/' + path + '.' + jsVersion + '.js"></script>');
   }
   
   return true;
@@ -1925,7 +1925,7 @@ function setActiveStyleSheet(title, init) {
 
   if (!init) {
     if (title !== '_special') {
-      createCookie(style_group, title, 365, location.host.indexOf('4channel.org') === -1 ? '4chan.org' : '4channel.org');
+      createCookie(style_group, title, 365, location.host.indexOf('localhost') === -1 ? 'localhost' : 'localhost');
       
       if (window.css_event) {
         fn = window['fc_' + window.css_event + '_cleanup'];
@@ -2015,7 +2015,7 @@ function setRetinaIcons() {
 
 function onCoreClick(e) {
   if (/flag flag-/.test(e.target.className) && e.which == 1) {
-    window.open('//s.4cdn.org/image/country/'
+    window.open('//localhost/static/image/country/'
       + e.target.className.match(/flag-([a-z]+)/)[1]
       + '.gif', '');
   }
@@ -2131,7 +2131,7 @@ var PainterCore = {
     
     Tegaki.open({
       replayMode: true,
-      replayURL: '//i.4cdn.org/' + location.pathname.split(/\//)[1] + '/' + id + '.tgkr'
+      replayURL: '//localhost/images/' + location.pathname.split(/\//)[1] + '/' + id + '.tgkr'
     });
   },
   

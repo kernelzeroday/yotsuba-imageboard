@@ -939,7 +939,7 @@ function form( &$dat, $resno, $admin = '' )
 </table>' . $blotter . '
 </form>
 ' . DONATE . '
-<script>with(document.post) {name.value=get_cookie("4chan_name"); email.value=get_cookie("4chan_email"); pwd.value=get_pass("4chan_pass"); }</script>		
+<script>with(document.post) {name.value=get_cookie("4chan_name"); email.value=get_cookie("4chan_email"); pwd.value=get_pass("localchan_pass"); }</script>		
 ';
 	} else { // Closed thread
 		form_ads( $dat );

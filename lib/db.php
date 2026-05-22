@@ -4,7 +4,7 @@ require_once 'config/config_db.php';
 require_once 'lib/util.php';
 
 // define the error message strings in case this wasn't used in a file that
-// uses the full yotsuba_config system...
+// uses the full localchan_config system...
 if(!defined('S_SQLCONF')) {
 	define('S_SQLCONF', 'MySQL connection error');
 	define('S_SQLDBSF', 'MySQL database error');

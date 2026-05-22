@@ -17,9 +17,9 @@ Your 4chan Pass (Token: $token) has expired.
 In order to continue posting without typing a CAPTCHA, you must renew your Pass. Renewing your 
 Pass will add 12 additional months from the date of your renewal payment.
 
-You can renew your Pass by visiting the following link: https://www.4chan.org/pass?renew=$pending_id
+You can renew your Pass by visiting the following link: https://www.localhost/pass?renew=$pending_id
 
-If you have any questions or problems renewing, please e-mail 4chanpass@4chan.org
+If you have any questions or problems renewing, please e-mail 4chanpass@localhost
 
 Thanks for your support!
 MSG;
@@ -32,21 +32,21 @@ Your 4chan Pass (Token: $token) is due to expire in less than $reminder_interval
 To avoid any interruption, we recommend renewing your Pass now. Renewing your Pass will add 12 
 additional months to your current expiration date.
 
-You can renew your Pass by visiting the following link: https://www.4chan.org/pass?renew=$pending_id
+You can renew your Pass by visiting the following link: https://www.localhost/pass?renew=$pending_id
 
-If you have any questions or problems renewing, please e-mail 4chanpass@4chan.org
+If you have any questions or problems renewing, please e-mail 4chanpass@localhost
 
 Thanks for your support!
 MSG;
   }
   
   // From:
-  $headers = "From: 4chan Pass <4chanpass@4chan.org>\r\n";
+  $headers = "From: 4chan Pass <4chanpass@localhost>\r\n";
   $headers .= "MIME-Version: 1.0\r\n";
   $headers .= "Content-Type: text/plain; charset=UTF-8\r\n";
   
   // Envelope
-  $opts = '-f 4chanpass@4chan.org';
+  $opts = '-f 4chanpass@localhost';
   
   return mail($email, $subject, $message, $headers, $opts);
 }

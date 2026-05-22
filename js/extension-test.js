@@ -254,7 +254,7 @@ Parser.init = function() {
     this.needMsg = true;
   }
   
-  staticPath = '//s.4cdn.org/image/';
+  staticPath = '//localhost/static/image/';
   
   tail = window.devicePixelRatio >= 2 ? '@2x.gif' : '.gif';
   
@@ -564,14 +564,14 @@ Parser.buildHTMLFromJSON = function(data, board, standalone, fromQuote) {
   /*
   if (board !== 'f') {
     if (data.no % 3 > 2) {
-      imgDir = '//is.4chan.org/' + board;
+      imgDir = '//ilocalhost/static/' + board;
     }
     else {
-      imgDir = '//is2.4chan.org/' + board;
+      imgDir = '//is2.localhost/' + board;
     }
   }
   else {*/
-    imgDir = '//i.4cdn.org/' + board;
+    imgDir = '//localhost/images/' + board;
   //}
   
   if (!data.resto) {
@@ -739,7 +739,7 @@ Parser.buildHTMLFromJSON = function(data, board, standalone, fromQuote) {
         fileSpoilerTip = '" title="' + longFile + '"';
         fileClass = ' imgspoiler';
         
-        fileThumb = '//s.4cdn.org/image/spoiler'
+        fileThumb = '//localhost/static/image/spoiler'
           + (Parser.customSpoiler[board] || '') + '.png';
         data.tn_w = 100;
         data.tn_h = 100;
@@ -755,7 +755,7 @@ Parser.buildHTMLFromJSON = function(data, board, standalone, fromQuote) {
     }
     
     if (!fileThumb) {
-      fileThumb = '//i.4cdn.org/' + board + '/' + data.tim + 's.jpg';
+      fileThumb = '//localhost/images/' + board + '/' + data.tim + 's.jpg';
     }
     
     fileDims = data.ext == '.pdf' ? 'PDF' : data.w + 'x' + data.h;
@@ -1164,7 +1164,7 @@ Parser.revealImageSpoiler = function(fileThumb) {
   img.removeAttribute('style');
   isOP = $.hasClass(fileThumb.parentNode.parentNode, 'op');
   img.style.maxWidth = img.style.maxHeight = isOP ? '250px' : '125px';
-  img.src = '//i.4cdn.org'
+  img.src = '//localhost/images'
     + (fileThumb.pathname.replace(/\/([0-9]+).+$/, '/$1s.jpg'));
   
   filename = fileThumb.previousElementSibling;
@@ -1664,7 +1664,7 @@ PostMenu.open = function(btn) {
         href = el.href;
       }
       else {
-        href = 'http://i.4cdn.org/' + Main.board + '/'
+        href = 'http://localhost/images/' + Main.board + '/'
           + el.href.match(/\/([0-9]+)m?\..+$/)[1] + 's.jpg';
       }
       
@@ -1756,7 +1756,7 @@ var Search = {
       $.on(el, 'submit', Search.onSearch);
       $.on(window, 'hashchange', Search.onHashChanged);
       
-      if (location.host == 'boards.4channel.org') {
+      if (location.host == 'boardlocalhost/static') {
         Search.initSelector();
       }
       
@@ -1773,7 +1773,7 @@ var Search = {
     
     for (i = len - 1; i >= 0; i--) {
       el = nodes[i];
-      if (el.value === '' || $L.d(el.value) === '4chan.org') {
+      if (el.value === '' || $L.d(el.value) === 'localhost') {
         sel.removeChild(el);
       }
     }
@@ -2465,7 +2465,7 @@ Depager.depage = function() {
   
   Depager.isLoading = true;
   
-  $.get('//a.4cdn.org/' + Main.board + '/catalog.json', {
+  $.get('//a.localhost/' + Main.board + '/catalog.json', {
     onload: Depager.onLoad,
     onerror: Depager.onError
   });
@@ -2648,7 +2648,7 @@ QuoteInline.inlineRemote = function(link, board, tid, pid) {
   
   link.setAttribute('data-loading', '1');
   
-  $.get('//a.4cdn.org/' + board + '/thread/' + tid + '.json',
+  $.get('//a.localhost/' + board + '/thread/' + tid + '.json',
     {
       onload: onload,
       onerror: onerror
@@ -2843,7 +2843,7 @@ QuotePreview.showRemote = function(link, board, tid, pid) {
     link.style.cursor = '';
   };
   
-  $.get('//a.4cdn.org/' + board + '/thread/' + tid + '.json',
+  $.get('//a.localhost/' + board + '/thread/' + tid + '.json',
     {
       onload: onload,
       onerror: onerror
@@ -3004,7 +3004,7 @@ ImageExpansion.loadOgv = function(target) {
   let s = $.el('script');
   s.id = 'js-ogv-scr';
   s.onload = ImageExpansion.onOgvLoaded;
-  s.src = 'https://s.4cdn.org/js/ogv/ogv.js';
+  s.src = 'https://localhost/static/js/ogv/ogv.js';
   document.body.appendChild(s);
 };
 
@@ -3153,7 +3153,7 @@ ImageExpansion.expandWebm = function(thumb) {
     $.on(el, 'ended', OgvCtrl.onPlayEnd);
     cnt.appendChild(el);
     link.parentNode.appendChild(cnt);
-    el.src = href.replace(/\/\/.+\.4chan\.org\//, '//i.4cdn.org/');
+    el.src = href.replace(/\/\/.+\.4chan\.org\//, '//localhost/images/');
     OgvCtrl.attach(el);
     if (!Config.unmuteWebm) {
       OgvCtrl.toggleMute();
@@ -3863,7 +3863,7 @@ QR.onOpenInPainterClick = function(btn) {
   
   Feedback.notify('Loading…', 0);
   
-  img.src = el.href.replace('is2.4chan.org', 'i.4cdn.org');
+  img.src = el.href.replace('is2.localhost', 'localhost/images');
   
   QR.show(tid);
 };
@@ -4962,7 +4962,7 @@ ThreadHiding.purge = function() {
   }
   
   if (!lastPurged || lastPurged < Date.now() - this.threshold) {
-    $.get('//a.4cdn.org/' + Main.board + '/threads.json',
+    $.get('//a.localhost/' + Main.board + '/threads.json',
     {
       onload: function() {
         var i, j, t, p, pages, threads, alive;
@@ -5680,7 +5680,7 @@ ThreadWatcher.fetchCatalog = function(board, catalogs, meta) {
   var xhr;
   
   xhr = new XMLHttpRequest();
-  xhr.open('GET', '//a.4cdn.org/' + board + '/catalog.json');
+  xhr.open('GET', '//a.localhost/' + board + '/catalog.json');
   xhr.onload = function() {
     meta.count--;
     catalogs[board] = Parser.parseCatalogJSON(this.responseText);
@@ -5864,7 +5864,7 @@ ThreadWatcher.fetch = function(key, img) {
   if (img) {
     xhr.onerror = xhr.onload;
   }
-  xhr.open('GET', '//a.4cdn.org/' + tuid[1] + '/thread/' + tuid[0] + '.json');
+  xhr.open('GET', '//a.localhost/' + tuid[1] + '/thread/' + tuid[0] + '.json');
   xhr.send(null);
 };
 
@@ -5891,7 +5891,7 @@ ThreadExpansion.expandComment = function(link) {
   abbr = link.parentNode;
   abbr.textContent = 'Loading...';
   
-  $.get('//a.4cdn.org/' + Main.board + '/thread/' + tid + '.json',
+  $.get('//a.localhost/' + Main.board + '/thread/' + tid + '.json',
     {
       onload: function() {
         var i, msg, post, posts;
@@ -5987,7 +5987,7 @@ ThreadExpansion.toggle = function(tid) {
 
 ThreadExpansion.fetch = function(tid) {
   ThreadExpansion.fetchXhr = $.get(
-    '//a.4cdn.org/' + Main.board + '/thread/' + tid + '.json',
+    '//a.localhost/' + Main.board + '/thread/' + tid + '.json',
     {
       onload: function() {
         var i, p, n, frag, thread, tail, posts, msg, metacap,
@@ -6111,7 +6111,7 @@ ThreadUpdater.init = function() {
   this.lastReply = null;
   
   this.currentIcon = null;
-  this.iconPath = '//s.4cdn.org/image/';
+  this.iconPath = '//localhost/static/image/';
   this.iconNode = $.qs('link[rel="shortcut icon"]', document.head);
   this.iconNode.type = 'image/x-icon';
   this.defaultIcon = this.iconNode.getAttribute('href').replace(this.iconPath, '');
@@ -6121,7 +6121,7 @@ ThreadUpdater.init = function() {
   if (Config.updaterSound) {
     this.audioEnabled = false;
     this.audio = document.createElement('audio');
-    this.audio.src = '//s.4cdn.org/media/beep.ogg';
+    this.audio.src = '//localhost/static/media/beep.ogg';
   }
   
   this.hidden = 'hidden';
@@ -6409,7 +6409,7 @@ ThreadUpdater.update = function(full) {
   
   isTail = !full && self.checkTailUpdate();
   
-  url = '//a.4cdn.org/' + Main.board + '/thread/' + Main.tid
+  url = '//a.localhost/' + Main.board + '/thread/' + Main.tid
     + (isTail ? '-tail' : '') + '.json';
   
   if (self.apiUrlFilter) {
@@ -6814,7 +6814,7 @@ ThreadStats.update = function(replies, images, ips, isBumpFull, isImageFull) {
 };
 
 ThreadStats.updatePageNumber = function() {
-  $.get('//a.4cdn.org/' + Main.board + '/threads.json',
+  $.get('//a.localhost/' + Main.board + '/threads.json',
     {
       onload: ThreadStats.onCatalogLoad,
       onerror: ThreadStats.onCatalogError
@@ -7836,7 +7836,7 @@ SWFEmbed.getFrameNode = function(file_url, width, height) {
   el.setAttribute('width', +width);
   el.setAttribute('height', +height);
   
-  el.src = `//s.4cdn.org/media/flash/embed.html?4#${+width},${+height},${filename},1`;
+  el.src = `//localhost/static/media/flash/embed.html?4#${+width},${+height},${filename},1`;
   
   return el;
 };
@@ -8994,7 +8994,7 @@ SettingsMenu.options = {
     classicNav: [ 'Use traditional board list', '', false, true ],
     autoHideNav: [ 'Auto-hide on scroll', '', false, true ],
     customMenu: [ 'Custom board list [<a href="javascript:;" data-cmd="custom-menu-edit">Edit</a>]', 'Only show selected boards in top and bottom board lists' ],
-    //showNWSBoards: [ 'Show all boards', 'Show all boards in top and bottom board lists on 4channel.org', true],
+    //showNWSBoards: [ 'Show all boards', 'Show all boards in top and bottom board lists on localhost', true],
     alwaysDepage: [ 'Always use infinite scroll', 'Enable infinite scroll by default, so reaching the bottom of the board index will load subsequent pages', true ],
     topPageNav: [ 'Page navigation at top of page', 'Show the page switcher at the top of the page, hold Shift and drag to move' ],
     stickyNav: [ 'Navigation arrows', 'Show top and bottom navigation arrows, hold Shift and drag to move' ],
@@ -9335,7 +9335,7 @@ Main.init = function() {
   
   Main.now = Date.now();
   
-  Main.is_4channel = location.host === 'boards.4channel.org';
+  Main.is_4channel = location.host === 'boardlocalhost/static';
   
   UA.init();
   
@@ -9681,7 +9681,7 @@ Main.initIcons = function() {
     photon: 'photon/'
   };
   
-  url = '//s.4cdn.org/image/';
+  url = '//localhost/static/image/';
   
   if (window.devicePixelRatio >= 2) {
     for (key in Main.icons) {
@@ -11181,7 +11181,7 @@ div.post div.postInfoM span.nameBlock { clear: none }\
 }\
 .m-dark .button {\
   background-color: rgb(27,28,30);\
-  background-image: url("//s.4cdn.org/image/buttonfade-dark.png");\
+  background-image: url("//localhost/static/image/buttonfade-dark.png");\
   background-repeat: repeat-x;\
   border: 1px solid #282A2E;\
 }\
@@ -11194,7 +11194,7 @@ div.post div.postInfoM span.nameBlock { clear: none }\
 body.m-dark { background: #1D1F21 none; color: #C5C8C6; }\
 .m-dark #globalToggle {\
   background-color: #FFADAD;\
-  background-image: url("//s.4cdn.org/image/buttonfade-red.png");\
+  background-image: url("//localhost/static/image/buttonfade-red.png");\
   border: 1px solid #C45858;\
   color: #880000 !important;\
 }\

@@ -12,7 +12,7 @@ var SyncFrame = {
     }
     
     this.remoteOrigin = location.protocol + '//boards.'
-      + (location.host === 'boards.4channel.org' ? '4chan' : '4channel')
+      + (location.host === 'boards.localhost' ? '4chan' : '4channel')
       + '.org';
     
     this.domain = location.host.replace(/^boards\./, '');

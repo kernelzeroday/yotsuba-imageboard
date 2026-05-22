@@ -1,7 +1,5 @@
 <?php
 require_once 'lib/ini.php';
-// Yotsuba configuration engine
-// HOEHOEPA!
 
 if ($use_pdo) {
 	require_once 'lib/db_pdo.php';

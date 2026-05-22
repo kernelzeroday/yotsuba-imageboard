@@ -1,7 +1,7 @@
 var Parser = {}
 
 Parser.init = function() {
-  var staticPath = '//static.4chan.org/image/';
+  var staticPath = '//static.localhost/image/';
   
   var tail = window.devicePixelRatio >= 2 ? '@2x.gif' : '.gif';
   
@@ -46,7 +46,7 @@ function buildHTMLFromJSON(data) {
     maxSize = 150,
     ratio, imgWidth, imgHeight,
     
-    imgDir = '//images.4chan.org/' + data.board + '/src';
+    imgDir = '//images.localhost/' + data.board + '/src';
   
   noLink = 'res/' + data.resto + '#p' + data.no;
   quoteLink = 'res/' + data.resto + '#q' + data.no;
@@ -98,7 +98,7 @@ function buildHTMLFromJSON(data) {
   }
   
   if (data.country) {
-    flag = ' <img src="//static.4chan.org/image/country/'
+    flag = ' <img src="//static.localhost/image/country/'
       + (data.board == 'pol' ? 'troll/' : '')
       + data.country.toLowerCase() + '.gif" alt="'
       + data.country + '" title="' + data.country_name + '" class="countryFlag">';
@@ -127,7 +127,7 @@ function buildHTMLFromJSON(data) {
       fileSize = data.fsize + ' ';
     }
     
-    fileThumb = '//images.4chan.org/bans/thumb/' + data.board + '/' + data.thumb + 's.jpg';
+    fileThumb = '//images.localhost/bans/thumb/' + data.board + '/' + data.thumb + 's.jpg';
     
     imgWidth = data.tn_w;
     imgHeight = data.tn_h;

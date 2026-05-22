@@ -396,20 +396,20 @@ function auth_user( $login = false )
   mysql_global_do("UPDATE `%s` SET ips = '$ips_array' $login_query WHERE id = %d", SQLLOGMOD, $fetch['id']);
   
 	if( !isset( $_COOKIE['4chan_auser'] ) || !isset( $_COOKIE['4chan_apass'] ) ) {
-		if( strstr( $_SERVER["HTTP_HOST"], ".4chan.org" ) ) {
-			setcookie( "4chan_auser", $user, time() + 30 * 24 * 3600, "/", ".4chan.org", true, true );
-			setcookie( "4chan_apass", $pass, time() + 30 * 24 * 3600, "/", ".4chan.org", true, true );
-			setcookie( "4chan_aflags", $flags, time() + 30 * 24 * 3600, "/", ".4chan.org", true );
+		if( strstr( $_SERVER["HTTP_HOST"], ".localhost" ) ) {
+			setcookie( "4chan_auser", $user, time() + 30 * 24 * 3600, "/", ".localhost", true, true );
+			setcookie( "4chan_apass", $pass, time() + 30 * 24 * 3600, "/", ".localhost", true, true );
+			setcookie( "4chan_aflags", $flags, time() + 30 * 24 * 3600, "/", ".localhost", true );
 
 			$jspath = $auth['level'] == 'janitor' ? JANITOR_JS_PATH : ADMIN_JS_PATH;
 			if( !isset( $_COOKIE['extra_path'] ) || !in_array( $_COOKIE['extra_path'], array(JANITOR_JS_PATH, ADMIN_JS_PATH) ) ) {
-				setcookie( 'extra_path', $jspath, time() + ( 30 * 24 * 3600 ), '/', '.4chan.org' );
+				setcookie( 'extra_path', $jspath, time() + ( 30 * 24 * 3600 ), '/', '.localhost' );
 			}
-		} elseif( strstr( $_SERVER["HTTP_HOST"], ".4channel.org" ) ) {
-			setcookie( "4chan_auser", $user, time() + 30 * 24 * 3600, "/", ".4channel.org", true, true );
-			setcookie( "4chan_apass", $pass, time() + 30 * 24 * 3600, "/", ".4channel.org", true, true );
+		} elseif( strstr( $_SERVER["HTTP_HOST"], ".localhost" ) ) {
+			setcookie( "4chan_auser", $user, time() + 30 * 24 * 3600, "/", ".localhost", true, true );
+			setcookie( "4chan_apass", $pass, time() + 30 * 24 * 3600, "/", ".localhost", true, true );
 		} else {
-			die( 'Not 4chan.org' );
+			die( 'Not localhost' );
 		}
 		
 	}
@@ -463,9 +463,9 @@ function start_auth_captcha($use_alt_captcha = false)
 }
 
 function clear_pass_cookies() {
-	setcookie('pass_id', null, 1, '/', 'sys.4chan.org', true, true);
-	setcookie('pass_id', null, 1, '/', '.4chan.org', true, true);
-	setcookie('pass_enabled', null, 1, '/', '.4chan.org');
+	setcookie('pass_id', null, 1, '/', 'sys.localhost', true, true);
+	setcookie('pass_id', null, 1, '/', '.localhost', true, true);
+	setcookie('pass_enabled', null, 1, '/', '.localhost');
 }
 
 function valid_captcha_bypass()
@@ -494,8 +494,8 @@ function valid_captcha_bypass()
 	$pass_cookie = isset( $_COOKIE['pass_id'] ) ? $_COOKIE['pass_id'] : '';
 	
 	if (strlen($pass_cookie) == 10) {
-    setcookie('pass_id', '0', 1, '/', '.4chan.org', true, true);
-    setcookie('pass_enabled', '0', 1, '/', '.4chan.org');
+    setcookie('pass_id', '0', 1, '/', '.localhost', true, true);
+    setcookie('pass_enabled', '0', 1, '/', '.localhost');
 		error(S_PASSFORMATCHANGED);
 	}
 	

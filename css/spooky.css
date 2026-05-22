@@ -104,7 +104,7 @@ hr#op, #ctrl-top { clear: both; }
   display: inline-block;
   width: 16px;
   height: 16px;
-  background: url('//s.4cdn.org/image/minileaf.gif');
+  background: url('/static/image/minileaf.gif');
 }
 
 .n-pu,
@@ -118,13 +118,13 @@ hr#op, #ctrl-top { clear: both; }
 
 .n-pu {
   /* Pumpkin icon by twemoji is licensed under CC BY 4.0 (https://twitter.github.io/twemoji/) */
-  background: url('//s.4cdn.org/image/1f383.png');
+  background: url('/static/image/1f383.png');
   -webkit-filter: drop-shadow(0px 0px 6px rgba(217,133,24,1)) brightness(125%);
   filter: drop-shadow(0px 0px 6px rgba(217,133,24,1)) brightness(125%);
 }
 
 .n-jol {
-  background: url('//s.4cdn.org/image/1f383.png');
+  background: url('/static/image/1f383.png');
 }
 
 .n-jol-1 {

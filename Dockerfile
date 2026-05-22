@@ -1,9 +1,8 @@
 FROM php:5.6-apache
 
-# Security lab — not for production use
-LABEL org.opencontainers.image.description="4chan Yotsuba imageboard — security testing lab"
+LABEL org.opencontainers.image.description="localchan imageboard — security testing lab"
 
-# Install system dependencies — Debian Stretch is EOL, use archive mirrors
+# Debian Stretch is EOL — use archive mirrors
 RUN echo 'deb http://archive.debian.org/debian stretch main' > /etc/apt/sources.list \
     && echo 'deb http://archive.debian.org/debian-security stretch/updates main' >> /etc/apt/sources.list \
     && apt-get update -o Acquire::Check-Valid-Until=false -o Acquire::AllowInsecureRepositories=true \
@@ -21,13 +20,16 @@ RUN echo 'deb http://archive.debian.org/debian stretch main' > /etc/apt/sources.
     gifsicle \
     optipng \
     jhead \
+    libjpeg-turbo-progs \
+    libicu-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Install PHP extensions
+# PHP extensions
 RUN pecl install memcached-2.2.0 \
     && docker-php-ext-enable memcached \
     && pecl install imagick-3.4.4 \
     && docker-php-ext-enable imagick \
+    && docker-php-ext-configure gd --with-jpeg-dir=/usr --with-png-dir=/usr --with-freetype-dir=/usr --with-webp-dir=/usr \
     && docker-php-ext-install -j$(nproc) \
         mysql \
         mysqli \
@@ -36,9 +38,10 @@ RUN pecl install memcached-2.2.0 \
         gd \
         xml \
         mbstring \
-        zip
+        zip \
+        intl
 
-# Configure PHP for the imageboard
+# PHP config
 RUN { \
         echo 'short_open_tag = On'; \
         echo 'display_errors = Off'; \
@@ -49,53 +52,69 @@ RUN { \
         echo 'post_max_size = 12M'; \
         echo 'max_execution_time = 60'; \
         echo 'expose_php = Off'; \
-    } > /usr/local/etc/php/conf.d/yotsuba.ini
+        echo 'date.timezone = UTC'; \
+    } > /usr/local/etc/php/conf.d/localchan.ini
 
-# Enable Apache modules
+# Apache modules
 RUN a2enmod rewrite expires headers
 
-# Configure Apache vhost for the imageboard
-# DocumentRoot at /www/4chan.org/web/boards/ so /b/ maps to boards/b/
-# URL path parsing in yotsuba_config.php derives board from the directory
+# Apache vhost — DocumentRoot at /www/localchan/boards so /b/ maps to boards/b/
 RUN { \
         echo '<VirtualHost *:80>'; \
-        echo '  DocumentRoot /www/4chan.org/web/boards'; \
+        echo '  DocumentRoot /www/localchan/boards'; \
         echo '  DirectoryIndex imgboard.php'; \
-        echo '  <Directory /www/4chan.org/web/boards>'; \
+        echo '  Alias /images /www/localchan/images'; \
+        echo '  Alias /thumbs /www/localchan/thumbs'; \
+        echo '  Alias /static /www/localchan/static'; \
+        echo '  Alias /sys /www/localchan/sys'; \
+        echo '  <Directory /www/localchan/boards>'; \
         echo '    Options FollowSymLinks'; \
         echo '    AllowOverride All'; \
         echo '    Require all granted'; \
         echo '  </Directory>'; \
+        echo '  <Directory /www/localchan/images>'; \
+        echo '    Require all granted'; \
+        echo '  </Directory>'; \
+        echo '  <Directory /www/localchan/thumbs>'; \
+        echo '    Require all granted'; \
+        echo '  </Directory>'; \
+        echo '  <Directory /www/localchan/static>'; \
+        echo '    Require all granted'; \
+        echo '  </Directory>'; \
+        echo '  <Directory /www/localchan/sys>'; \
+        echo '    Require all granted'; \
+        echo '  </Directory>'; \
         echo '  RewriteEngine On'; \
+        echo '  RewriteRule ^/?$ /b/ [R=302,L]'; \
         echo '  RewriteRule ^/([a-z0-9]+)/?$ /$1/imgboard.php [QSA,L]'; \
+        echo '  RewriteRule ^/([a-z0-9]+)/post /$1/imgboard.php [QSA,L]'; \
+        echo '  RewriteRule ^/([a-z0-9]+)/delete /$1/imgboard.php [QSA,L]'; \
         echo '  RewriteRule ^/([a-z0-9]+)/thread/([0-9]+) /$1/imgboard.php [QSA,L]'; \
         echo '  RewriteRule ^/([a-z0-9]+)/catalog /$1/catalog.php [QSA,L]'; \
         echo '  RewriteRule ^/([a-z0-9]+)/json /$1/json.php [QSA,L]'; \
         echo '</VirtualHost>'; \
-    } > /etc/apache2/sites-available/yotsuba.conf \
+    } > /etc/apache2/sites-available/localchan.conf \
     && a2dissite 000-default \
-    && a2ensite yotsuba
+    && a2ensite localchan
 
-# Set up app directory
 WORKDIR /var/www/html
 
 # Copy application code
 COPY . /var/www/html/
-
-# Copy container-specific config
 COPY docker/config/ /var/www/html/config/
 COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
 COPY docker/init-boards.sh /usr/local/bin/init-boards.sh
+COPY docker/static/ /www/localchan/static/
 
 RUN chmod +x /usr/local/bin/entrypoint.sh /usr/local/bin/init-boards.sh
 
-# Create required directories & symlink source to yotsuba path
+# Directory structure + symlink source to global path
 RUN mkdir -p /www/global \
-    && ln -s /var/www/html /www/global/yotsuba \
-    && mkdir -p /www/4chan.org/web/boards \
-    && mkdir -p /www/4chan.org/web/images \
-    && mkdir -p /www/4chan.org/web/thumbs \
-    && mkdir -p /www/4chan.org/web/sys \
+    && ln -s /var/www/html /www/global/localchan \
+    && mkdir -p /www/localchan/boards \
+    && mkdir -p /www/localchan/images \
+    && mkdir -p /www/localchan/thumbs \
+    && mkdir -p /www/localchan/sys \
     && mkdir -p /www/keys \
     && mkdir -p /www/perhost \
     && chown -R www-data:www-data /www

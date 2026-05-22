@@ -41,7 +41,7 @@ Hello,
 
 We have received a request to verify this email address for use on 4chan. If you requested this verification, please go to the following URL:
 
-https://sys.4chan.org/signin?action=verify&tkn=$token
+https://sys.localhost/signin?action=verify&tkn=$token
 
 This link will expire in $ttl. You can use it multiple times to authorize as many of your devices as needed.
 
@@ -52,11 +52,11 @@ Sincerely,
 Team 4chan.
 MSG;
   
-  $headers = "From: 4chan <noreply@4chan.org>\r\n";
+  $headers = "From: 4chan <noreply@localhost>\r\n";
   $headers .= "MIME-Version: 1.0\r\n";
   $headers .= "Content-Type: text/plain; charset=UTF-8\r\n";
   
-  $opts = '-f noreply@4chan.org';
+  $opts = '-f noreply@localhost';
   
   return mail($email, $subject, $message, $headers, $opts);
 }

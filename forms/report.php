@@ -5,7 +5,7 @@ function report_get_style_new( $group )
 {
 	$style = ( $group == 'nws_style' ) ? 'yotsubanew' : 'yotsubluenew';
 
-	return '//s.4cdn.org/css/' . $style . '.' . CSS_VERSION . '.css';
+	return '/static/css/' . $style . '.' . CSS_VERSION . '.css';
 }
 
 function report_head( $no, $success = 0, $altCaptcha = false )

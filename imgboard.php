@@ -9,7 +9,7 @@ if ( isset($_REQUEST["sqlprofile"] )) {
 	$mysql_query_log = YES;
 }
 */
-require_once "yotsuba_config.php";
+require_once "localchan_config.php";
 
 require_once( "lib/ads.php" );
 
@@ -103,8 +103,8 @@ extract( $_POST, EXTR_SKIP );
 extract( $_GET, EXTR_SKIP );
 extract( $_COOKIE, EXTR_SKIP );
 
-if (isset( $_COOKIE['4chan_pass']) && $_COOKIE['4chan_pass']) {
-  $pwdc = $_COOKIE['4chan_pass'];
+if (isset( $_COOKIE['localchan_pass']) && $_COOKIE['localchan_pass']) {
+  $pwdc = $_COOKIE['localchan_pass'];
 }
 else {
   $pwdc = null;
@@ -138,7 +138,7 @@ ignore_user_abort( true );
 
 $word_filters_enabled = false;
 if (WORD_FILT) {
-  $word_filt_root = '/www/global/yotsuba/wordfilters/';
+  $word_filt_root = '/www/global/localchan/wordfilters/';
   
   if (file_exists($word_filt_root . BOARD_DIR . '.php')) {
     include_once($word_filt_root . BOARD_DIR . '.php');
@@ -169,7 +169,7 @@ $board_flags_array = null;
 
 if (ENABLE_BOARD_FLAGS) {
   $_flags_type = (defined('BOARD_FLAGS_TYPE') && BOARD_FLAGS_TYPE) ? BOARD_FLAGS_TYPE : BOARD_DIR;
-  $_board_flags_path = '/www/global/yotsuba/lib/board_flags_' . $_flags_type . '.php';
+  $_board_flags_path = '/www/global/localchan/lib/board_flags_' . $_flags_type . '.php';
   if (file_exists($_board_flags_path)) {
     include_once($_board_flags_path);
     $board_flags_array = get_board_flags_array();
@@ -1194,8 +1194,8 @@ JS;
 <!DOCTYPE html><html><head>
 <meta http-equiv="content-type" content="text/html; charset=UTF-8">
 <meta http-equiv="pragma" content="no-cache">
-<link rel="icon" type="image/x-icon" href="//s.4cdn.org/image/favicon-team$ws.ico">
-<link rel="stylesheet" style="text/css" href="//s.4cdn.org/css/$css.$css_ver.css">
+<link rel="icon" type="image/x-icon" href="/static/image/favicon-team$ws.ico">
+<link rel="stylesheet" style="text/css" href="/static/css/$css.$css_ver.css">
 </head>
 <body>
 <table style="text-align: center; width: 100%; height: 150px; border: 0;">
@@ -2047,7 +2047,7 @@ function renderPostHtml($no, $in_thread, $sorted_replies = null, $reply_count = 
     
 		//if ($ext !== ".swf" && BOARD_DIR !== 'j') {
 			//if ($no % 100 >= 74) {
-				//$displaysrc = "//is2.4chan.org/" . BOARD_DIR . "/" . $tim . $ext;
+				//$displaysrc = "//is2.localhost/" . BOARD_DIR . "/" . $tim . $ext;
 			//}
 		//}
     
@@ -2617,7 +2617,7 @@ function delete_post($resno, $pwd, $imgonly = 0, $automatic = 0, $children = 1, 
 		
 	$purge_files = array();
 	
-	$img_webroot = 'http://i.4cdn.org/' . BOARD_DIR . '/';
+	$img_webroot = 'http:/images/' . BOARD_DIR . '/';
 	
 	while( $delrow = mysql_fetch_array( $result ) ) {
 		// delete
@@ -3052,7 +3052,7 @@ function rebuild_archived_thread($thread_id) {
   }
   */
   if (defined('ADS_DANBO') && ADS_DANBO)  {
-    $dat .= '<div id="danbo-s-b" class="danbo-slot"></div><div class="adl">[<a target="_blank" href="https://www.4chan.org/advertise">Advertise on 4chan</a>]</div><hr>';
+    $dat .= '<div id="danbo-s-b" class="danbo-slot"></div><div class="adl">[<a target="_blank" href="https://www.localhost/advertise">Advertise on 4chan</a>]</div><hr>';
   }
   if (defined('AD_CUSTOM_BOTTOM') && AD_CUSTOM_BOTTOM) {
     $dat .= '<div>' . AD_CUSTOM_BOTTOM . '<hr></div>';
@@ -3174,7 +3174,7 @@ function rebuildd_stats()
 	return "<!-- t $avgtime m $memuse $peakmemuse rc $rpccount -->";
 }
 
-// Changes relative board urls to absolute //board.4chan.org urls
+// Changes relative board urls to absolute //board.localhost urls
 // mostly for /j/ and error pages on sys.4chan
 function fix_board_nav($nav, $fix_protocol = false) {
   if ($fix_protocol) {
@@ -3283,7 +3283,7 @@ JJS;
     // Christmas 2021
     if (defined('CSS_EVENT_NAME') && CSS_EVENT_NAME === 'tomorrow') {
       $extra = <<<JJS
-<script src='//s.4cdn.org/js/snow.js'></script>
+<script src='/static/js/snow.js'></script>
 <script>
   function fc_tomorrow_init() {
     if (window.matchMedia && window.matchMedia('(min-width: 481px)').matches) {
@@ -3300,7 +3300,7 @@ JJS;
   border-image-width: 40px 0px 0px 0px;
   border-image-outset: 0px 0px 0px 0px;
   border-image-repeat: repeat repeat;
-  border-image-source: url('https://s.4cdn.org/image/temp/garland.png');
+  border-image-source: url('https:/static/image/temp/garland.png');
   border-style: solid;
   padding-top: 50px;
 }
@@ -3333,10 +3333,10 @@ JJS;
     el.className = 'desktop' + (Math.random() < 0.25 ? ' topskel' : '');
     el.alt = '';
     if (Math.random() < 0.01) {
-      el.src = '//s.4cdn.org/image/temp/dinosaur.gif';
+      el.src = '/static/image/temp/dinosaur.gif';
     }
     else {
-      el.src = '//s.4cdn.org/image/skeletons/' + idx + '.gif';
+      el.src = '/static/image/skeletons/' + idx + '.gif';
     }
     document.body.insertBefore(el, document.body.firstElementChild);
   }
@@ -3659,7 +3659,7 @@ JS;
   $page_title .= ' - 4chan';
   
   if (!$_is_archived) {
-    $_delegate_ch = '<meta http-equiv="Delegate-CH" content="Sec-CH-UA-Model https://sys.4chan.org">';
+    $_delegate_ch = '<meta http-equiv="Delegate-CH" content="Sec-CH-UA-Model https://sys.localhost">';
   }
   else {
     $_delegate_ch = '';
@@ -3734,7 +3734,7 @@ HTML;
   if (!$error && !$is_arclist) {
     /*
     if (defined('ADS_BIDGLASS_TOP_MOBILE') && ADS_BIDGLASS_TOP_MOBILE) {
-      $dat .= '<div class="adg-rects mobile"><div class="ad-bgls adp-250 bidglass-unit-' . ADS_BIDGLASS_TOP_MOBILE . '" data-m data-u="' . ADS_BIDGLASS_TOP_MOBILE . '" style="pointer-events: none;"></div><div class="adl">[<a target="_blank" href="https://www.4chan.org/advertise">Advertise on 4chan</a>]</div><hr class="belowLeaderboard"></div>';
+      $dat .= '<div class="adg-rects mobile"><div class="ad-bgls adp-250 bidglass-unit-' . ADS_BIDGLASS_TOP_MOBILE . '" data-m data-u="' . ADS_BIDGLASS_TOP_MOBILE . '" style="pointer-events: none;"></div><div class="adl">[<a target="_blank" href="https://www.localhost/advertise">Advertise on 4chan</a>]</div><hr class="belowLeaderboard"></div>';
     }
     else if (defined('AD_ABC_TOP_MOBILE') && AD_ABC_TOP_MOBILE) {
       $dat .= '<div class="adg-rects mobile"><div class="adg-m adp-250" data-abc="' . AD_ABC_TOP_MOBILE . '"></div><hr class="belowLeaderboard"></div>';
@@ -3876,7 +3876,7 @@ function normalize_link_cb( $m )
 
 function normalize_links( $proto )
 {
-	// change http://xxx.4chan.org/board/res/no links into plaintext >># or >>>/board/#
+	// change http://xxx.localhost/board/res/no links into plaintext >># or >>>/board/#
 	$proto = preg_replace_callback( '@https?://([a-z]*)[.](?:4chan|4channel)[.]org/(\w+)/(?:(res|thread)/(\d+)(?:\/[-a-z0-9]+)?(?:#[qp]?(\d*))?|(catalog(?:#s=[a-z0-9+]+)?)|\w+.php[?]res=(\d+)(?:#[qp]?(\d*))?|)(?=[\s.<!?,]|$)@i', 'normalize_link_cb', $proto );
 
 	return $proto;
@@ -4024,12 +4024,12 @@ function boards_matching_arr()
 // before inserting the post into the database.
 function normalize_and_linkify($proto) {
   
-	if (strpos($proto, "4chan") !== false || strpos($proto, "4cdn.org") !== false) {
+	if (strpos($proto, "4chan") !== false || strpos($proto, "localhost") !== false) {
 		// normalize long links
 		$proto = normalize_links($proto);
 		
 		// linkify other internal links
-		if ((strpos($proto, "4chan") !== false && strpos($proto, "/derefer") === false) || strpos($proto, "4cdn.org") !== false) {
+		if ((strpos($proto, "4chan") !== false && strpos($proto, "/derefer") === false) || strpos($proto, "localhost") !== false) {
 			$proto = preg_replace_callback( '/(https?:\/\/(?:[A-Za-z]*\.)?)(4chan|4channel|4cdn)(\.org)(\/[\w\-\.,@?^=%&;:\/~\+#\(\)]*[\w\-\@?^=%&;\/~\+#])?/i', 'clean_internal_link', $proto );
 			$proto = preg_replace( '/([<][^>]*?)<a href="((https?:\/\/(?:[A-Za-z]*\.)?)(4chan|4channel|4cdn)(\.org)(\/[\w\-\.,@?^=%&:\/~\+#\(\)]*[\w\-\@?^=%&\/~\+#])?)" target="_blank">\\2<\/a>([^<]*?[>])/i', '\\1\\3\\4\\5\\6\\7\\8', $proto );
 		}
@@ -4042,7 +4042,7 @@ function normalize_and_linkify($proto) {
 	return $proto;
 }
 
-// Removes >> links from internal 4chan.org links
+// Removes >> links from internal localhost links
 function clean_internal_link($matches) {
 	$link = preg_replace('/&gt;&gt;&gt;|&gt;&gt;/', '', $matches[0]);
 	return "<a href=\"$link\" target=\"_blank\">$link</a>";
@@ -4613,7 +4613,7 @@ function wordwrap2( $str, $cols, $cut )
 */
 			foreach( $words as &$word ) {/*
 				foreach( $exclude as $match ) {
-					if( stripos( $word, $match ) === 0 && stripos( $word, '4chan.org' ) !== false ) continue 2;
+					if( stripos( $word, $match ) === 0 && stripos( $word, 'localhost' ) !== false ) continue 2;
 				}*/
 
 				$word = htmlspecialchars_decode( $word, ENT_QUOTES );
@@ -4832,7 +4832,7 @@ function new_post( $name, $email, $sub, $com, $url, $pwd, $upfile, $upfile_name,
 	/* VARIOUS CHECKS BEFORE ANY POSTING TAKES PLACE */
 	
 	$oldbanbuster = ( $_SERVER['HTTP_USER_AGENT'] == 'Mozilla/5.0 (compatible; MSIE 9.0; Windows NT 6.1; Trident/5.0)' && $com == 'test' );
-	$newbanbuster = ( $_SERVER['HTTP_USER_AGENT'] == 'Mozilla/5.0 (Windows NT 5.1) AppleWebKit/537.19 (KHTML, like Gecko) Chrome/25.0.1324.0 Safari/537.19' && ( preg_match( '#^[a-zA-Z]{15}$#', $com ) || $com == 'test' ) && !isset( $_COOKIE['4chan_pass'] ) );
+	$newbanbuster = ( $_SERVER['HTTP_USER_AGENT'] == 'Mozilla/5.0 (Windows NT 5.1) AppleWebKit/537.19 (KHTML, like Gecko) Chrome/25.0.1324.0 Safari/537.19' && ( preg_match( '#^[a-zA-Z]{15}$#', $com ) || $com == 'test' ) && !isset( $_COOKIE['localchan_pass'] ) );
 	
 	if( BOARD_DIR == 'b' && ( $oldbanbuster || $newbanbuster ) ) {
 		$msg = $com == 'test' ? 'com = test' : 'com = 15 length string';
@@ -6860,7 +6860,7 @@ function show_post_successful( $mes, $com, $insertid, $resto, $redirect, $delay_
 		}
 
 
-		$script .= '<link rel="shortcut icon" href="//s.4cdn.org/image/' . $icon . '">';
+		$script .= '<link rel="shortcut icon" href="/static/image/' . $icon . '">';
 		$success = "<!DOCTYPE html><head>$script<title>" . S_POSTING_DONE . "</title>$css</head><body style=\"margin-top: 20%; text-align: center;\"><h1 style=\"font-size:36pt;\">$mes</h1><!-- thread:$resto,no:$insertid --></body></html>";
 	}
 	echo $success;
@@ -7022,7 +7022,7 @@ function tensorchan_predict($data) {
   );
   
   curl_setopt($curl, CURLOPT_HTTPHEADER, $headers);
-  curl_setopt($curl, CURLOPT_USERAGENT, '4chan.org');
+  curl_setopt($curl, CURLOPT_USERAGENT, 'localhost');
   
   $resp = curl_exec($curl);
   
@@ -7334,8 +7334,8 @@ function report() {
   
   $host = $_SERVER['REMOTE_ADDR'];
   
-  if (isset($_COOKIE['4chan_pass'])) {
-    $userpwd = new UserPwd($host, MAIN_DOMAIN, $_COOKIE['4chan_pass']);
+  if (isset($_COOKIE['localchan_pass'])) {
+    $userpwd = new UserPwd($host, MAIN_DOMAIN, $_COOKIE['localchan_pass']);
   }
   else {
     $userpwd = new UserPwd($host, MAIN_DOMAIN);
@@ -9588,7 +9588,7 @@ function is_poster_op($host, $hashed_pwd, $resto) {
 }
 
 function spam_filter_check_qa_bot($board, $resto, $ip, $country, $com, $captcha_resp) {
-  if (preg_match('/Edge|Safari|WebKit|Firefox|Mozilla/', $_SERVER['HTTP_USER_AGENT']) && $captcha_resp['hostname'] === 'boards.4chan.org') {
+  if (preg_match('/Edge|Safari|WebKit|Firefox|Mozilla/', $_SERVER['HTTP_USER_AGENT']) && $captcha_resp['hostname'] === 'boards.localhost') {
     return true;
   }
   

@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <title>4chan Pass - Authenticate</title>
-  <link rel="stylesheet" type="text/css" href="//s.4cdn.org/css/pass_auth.css">
-  <link rel="shortcut icon" href="//s.4cdn.org/image/favicon<?php if (IS_4CHANNEL) echo('-ws'); ?>.ico" type="image/x-icon">
+  <link rel="stylesheet" type="text/css" href="/static/css/pass_auth.css">
+  <link rel="shortcut icon" href="/static/image/favicon<?php if (IS_4CHANNEL) echo('-ws'); ?>.ico" type="image/x-icon">
 </head>
 <body>
 <header>
@@ -35,7 +35,7 @@
         <td colspan="2"><hr></td>
       </tr>
       <tr>
-        <td colspan="2"><p>Forgot your 4chan Pass login details?<br><a href="https://www.4chan.org/pass?reset">Go here</a> to reset your PIN.</p><p>Don't have a 4chan Pass?<br><a href="https://www.4chan.org/pass">Click here</a> to learn more.</p></td>
+        <td colspan="2"><p>Forgot your 4chan Pass login details?<br><a href="https://www.localhost/pass?reset">Go here</a> to reset your PIN.</p><p>Don't have a 4chan Pass?<br><a href="https://www.localhost/pass">Click here</a> to learn more.</p></td>
       </tr>
     </tfoot>
   </table></fieldset>

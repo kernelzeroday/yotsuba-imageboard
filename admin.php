@@ -1,5 +1,5 @@
 <?
-include_once "yotsuba_config.php";
+include_once "localchan_config.php";
 require_once 'lib/util.php';
 /*
 if( isset( $_REQUEST["profile"] ) ) {
@@ -250,7 +250,7 @@ function admin_get_thread_history($ip) {
 	return (int)mysql_fetch_row($res)[0];
 }
 
-function admin_hash_4chan_pass($pass) {
+function admin_hash_localchan_pass($pass) {
   $salt = file_get_contents(SALTFILE);
   
   if (!$salt || !$pass) {
@@ -284,11 +284,11 @@ function get_ban_history_html($ban_summary, $host = false) {
   $ban_tip = "<strong>Past 12 months history</strong><ul class=\"ban-tip-cnt\"><li>" . implode('</li><li>', $ban_tip) . '</li></ul>';
   
   if ($host !== false) {
-    return "<div id=\"ban-tip-ip\" style=\"display:none\">$ban_tip</div><small>[ <a data-tip data-tip-type=\"ip\" data-tip-cb=\"showBanTip\" href=\"https://team.4chan.org/bans?action=search&amp;ip=$host\" target=\"_blank\">{$ban_summary['total']} ban" .
+    return "<div id=\"ban-tip-ip\" style=\"display:none\">$ban_tip</div><small>[ <a data-tip data-tip-type=\"ip\" data-tip-cb=\"showBanTip\" href=\"https://team.localhost/bans?action=search&amp;ip=$host\" target=\"_blank\">{$ban_summary['total']} ban" .
       (($ban_summary['total'] > 1) ? 's' : '') . " for this IP</a> ]</small>";
   }
   else {
-    return "<div id=\"ban-tip-pass\" style=\"display:none\">$ban_tip</div><small>[ <a data-tip data-tip-type=\"pass\" data-tip-cb=\"showBanTip\" href=\"https://team.4chan.org/bans?action=search&amp;pass_ref=%2F" . BOARD_DIR . "%2F" . (int)$_GET['id'] . "\" target=\"_blank\">{$ban_summary['total']} ban" .
+    return "<div id=\"ban-tip-pass\" style=\"display:none\">$ban_tip</div><small>[ <a data-tip data-tip-type=\"pass\" data-tip-cb=\"showBanTip\" href=\"https://team.localhost/bans?action=search&amp;pass_ref=%2F" . BOARD_DIR . "%2F" . (int)$_GET['id'] . "\" target=\"_blank\">{$ban_summary['total']} ban" .
       (($ban_summary['total'] > 1) ? 's' : '') . " for this Pass</a> ]</small>";
   }
 }
@@ -695,7 +695,7 @@ function clean()
 	print "<strong>Cleanup complete!</strong>";
 }
 
-// Changes relative board urls to absolute //sys.4chan.org admin urls
+// Changes relative board urls to absolute //sys.localhost admin urls
 function fix_board_nav($nav) {
   return preg_replace('/href="\/([a-z0-9]+)\/"/', "href=\"//sys." . L::d(BOARD_DIR) . "/$1/admin\"", $nav);
 }
@@ -919,8 +919,8 @@ JS;
 <meta http-equiv="content-type" content="text/html; charset=UTF-8">
 <meta http-equiv="pragma" content="no-cache">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<link rel="icon" type="image/x-icon" href="//s.4cdn.org/image/favicon-team' . $ws . '.ico">
-<link rel="stylesheet" style="text/css" href="//s.4cdn.org/css/' . $style . '.387.css">
+<link rel="icon" type="image/x-icon" href="/static/image/favicon-team' . $ws . '.ico">
+<link rel="stylesheet" style="text/css" href="/static/css/' . $style . '.387.css">
 <script type="text/javascript">' . $fb_js . '</script>
 <style type="text/css">
 table:not([class]) {
@@ -1489,7 +1489,7 @@ function adminvalid( $title = 'Manager Mode' )
 			echo '</span>';
 		}
 		elseif( $valid ) {
-			//echo ' [<a href="//www.4chan.org/rules#' . BOARD_DIR . '" target="_blank" title="Open the rules for this board in a new window">Rules</a>] ';
+			//echo ' [<a href="//www.localhost/rules#' . BOARD_DIR . '" target="_blank" title="Open the rules for this board in a new window">Rules</a>] ';
 		}
 
 		if( ( !isset( $_GET[ 'admin' ] ) || $_GET[ 'admin' ] == 'cleanup' ) && has_level( 'mod' ) ) {
@@ -1612,7 +1612,7 @@ SQL;
 
     echo '<div style="margin:12px;border:1px solid">';
     if ($post['fsize'] > 0) {
-      echo '<img src="https://i.4cdn.org/' . $report['board'] . '/' . $post['tim'] . 's.jpg">';
+      echo '<img src="https:/images/' . $report['board'] . '/' . $post['tim'] . 's.jpg">';
     }
 
     $tid = $post['resto'] ? $post['resto'] : $report['no'];
@@ -2235,7 +2235,7 @@ function ban_template_js($post_has_file = true, $is_thread = false) {
   }
   
   return '
-  <script type="text/javascript" src="//s.4cdn.org/js/admin_autocomplete.10.js"></script>
+  <script type="text/javascript" src="/static/js/admin_autocomplete.10.js"></script>
   <script>
   var e_template = document.getElementsByName("template")[0];
   var globalTemplates = ' . json_encode( $templates, JSON_PARTIAL_OUTPUT_ON_ERROR ) . ';
@@ -2676,7 +2676,7 @@ function adminban()
 	
   $by_tpl_mode = false;
   
-  // for async calls from reports.4chan.org
+  // for async calls from reports.localhost
   if (isset($_POST['by_tpl']) && $_POST['by_tpl']) {
     $template = admin_get_template_by_id($_POST['by_tpl']);
     
@@ -3110,14 +3110,14 @@ if( $submit != "" ) { // pressed submit
   }
   
   if ($row['4pass_id'] != '') {
-    $has_4chan_pass = $row['4pass_id'];
+    $has_localchan_pass = $row['4pass_id'];
     
     $note[] = 'This user is using a 4chan Pass';
     
-    $ban_summary_pass = get_bans_summary($has_4chan_pass, true);
+    $ban_summary_pass = get_bans_summary($has_localchan_pass, true);
   }
   else {
-    $has_4chan_pass = false;
+    $has_localchan_pass = false;
     $ban_summary_pass = null;
   }
   
@@ -3228,7 +3228,7 @@ HTML;
 	
 	echo "<tr><td class=\"postblock\">Unban In</td><td><input id=\"ban-days\" disabled=\"disabled\" name=\"days\" type=\"number\" size=\"4\" min=\"0\" maxlength=\"4\" class=\"inputcenter\" /> days [<input type=\"checkbox\" name=\"warn\" value=\"1\">Warn] [<input type=\"checkbox\" name=\"indefinite\" value=\"1\">Perma]</tr>\n";
 	
-	echo "<tr id=\"more_file\"><td style=\"height: 20px;\" class=\"postblock\">More Info</td><td style=\"padding-top: 4px; padding-bottom: 4px;\">[<a href='javascript:more(\"more_info\",\"more_info\")'>View Info</a>] [<a target=\"_blank\" data-tip=\"Search posts by IP\" href=\"https://team.4chan.org/search#{&quot;ip&quot;:&quot;$host&quot;}\">Search</a>]" . ($_post_meta['is_mobile'] ? ' <span data-tip="Posted from a mobile device" class="ico-phone">&phone;</span>' : '') . "</td></tr>";
+	echo "<tr id=\"more_file\"><td style=\"height: 20px;\" class=\"postblock\">More Info</td><td style=\"padding-top: 4px; padding-bottom: 4px;\">[<a href='javascript:more(\"more_info\",\"more_info\")'>View Info</a>] [<a target=\"_blank\" data-tip=\"Search posts by IP\" href=\"https://team.localhost/search#{&quot;ip&quot;:&quot;$host&quot;}\">Search</a>]" . ($_post_meta['is_mobile'] ? ' <span data-tip="Posted from a mobile device" class="ico-phone">&phone;</span>' : '') . "</td></tr>";
 
 	if (!empty($note)) {
 		$note = implode('<br>', $note);
@@ -3406,13 +3406,13 @@ HTML;
 
 	echo "<div id=\"more_info\" style=\"position: absolute; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.6); display: none;\"><div style=\"position:absolute; left: 50%; top: 50%; padding: 6px; margin-left: -185px; margin-top: -52px;\" class=\"post reply preview\"><table class=\"bantable bantable-extra\">";
 
-  if ($has_4chan_pass && has_level('mod')) {
+  if ($has_localchan_pass && has_level('mod')) {
     if ($is_manager) {
-      echo "<tr class=\"more_pass\"><td class=\"postblock\">4chan Pass</td><td><input type=\"text\" value=\"$has_4chan_pass\" readonly=\"readonly\"></td></tr>";
+      echo "<tr class=\"more_pass\"><td class=\"postblock\">4chan Pass</td><td><input type=\"text\" value=\"$has_localchan_pass\" readonly=\"readonly\"></td></tr>";
     }
     else {
-      $hashed_4chan_pass = admin_hash_4chan_pass($has_4chan_pass);
-      echo "<tr class=\"more_pass\"><td class=\"postblock\"><span data-tip=\"Hashed 4chan Pass\">Hashed Pass</span></td><td><input type=\"text\" value=\"$hashed_4chan_pass\" readonly=\"readonly\"></td></tr>";
+      $hashed_localchan_pass = admin_hash_localchan_pass($has_localchan_pass);
+      echo "<tr class=\"more_pass\"><td class=\"postblock\"><span data-tip=\"Hashed 4chan Pass\">Hashed Pass</span></td><td><input type=\"text\" value=\"$hashed_localchan_pass\" readonly=\"readonly\"></td></tr>";
     }
   }
 
@@ -3875,7 +3875,7 @@ SQL;
     }
   }
 	
-  // for async calls from reports.4chan.org
+  // for async calls from reports.localhost
   if (isset($_POST['by_tpl']) && $_POST['by_tpl']) {
     $_POST['template'] = $_POST['by_tpl'];
     unset($_POST['warn_req']);
@@ -4168,7 +4168,7 @@ HTML;
 	$encTemp = json_encode( $templates );
 
 	$v = <<<HTML
-<script type="text/javascript" src="//s.4cdn.org/js/admin_autocomplete.9.js"></script>
+<script type="text/javascript" src="/static/js/admin_autocomplete.9.js"></script>
 <script type="text/javascript">
 var e_template = document.getElementsByName("template")[0];
 	var globalTemplates = $encTemp;

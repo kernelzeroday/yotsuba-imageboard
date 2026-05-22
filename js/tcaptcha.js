@@ -29,7 +29,7 @@ var TCaptcha = {
   
   ticketKey: '4chan-tc-ticket',
   
-  domain: '4chan.org',
+  domain: 'localhost',
   
   failCd: 60,
   

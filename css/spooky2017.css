@@ -92,7 +92,7 @@ hr#op, #ctrl-top { clear: both; }
   display: inline-block;
   width: 16px;
   height: 16px;
-  background: url('//s.4cdn.org/image/minileaf.gif');
+  background: url('/static/image/minileaf.gif');
 }
 
 .n-pu,
@@ -105,11 +105,11 @@ hr#op, #ctrl-top { clear: both; }
 }
 
 .n-pu {
-  background: url('//s.4cdn.org/image/minileaf.gif');
+  background: url('/static/image/minileaf.gif');
 }
 
 .n-jol {
-  background: url('//s.4cdn.org/image/1f383.png');
+  background: url('/static/image/1f383.png');
 }
 
 .n-jol-1 {

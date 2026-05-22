@@ -1,12 +1,9 @@
 #!/bin/bash
 # Pre-generate board index HTML by hitting local Apache for each board.
-# Each request runs in its own PHP process — no function redeclaration issues.
-#
-# Requires Apache to be running. Called from entrypoint.sh after Apache starts.
+# Called from entrypoint.sh after Apache starts.
 
 BASE_URL="http://localhost"
 
-# Query boardlist via PHP (mysql CLI not available in this image)
 BOARDS=$(php -- <<'PHPEOF'
 <?php
 require '/var/www/html/config/config_db.php';
@@ -19,18 +16,16 @@ PHPEOF
 )
 
 if [ -z "$BOARDS" ]; then
-    echo "[init] No boards found in boardlist. Skipping pre-generation."
+    echo "[init] No boards found. Skipping pre-generation."
     exit 0
 fi
 
-echo "[init] Pre-generating board indexes via HTTP..."
+echo "[init] Pre-generating board indexes..."
 
 for board in $BOARDS; do
-    # curl triggers updating_index() which generates + serves the page
     HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "$BASE_URL/$board/" 2>&1)
 
-    # Check for gzipped or plain index file (USE_GZIP=yes by default)
-    INDEX_FILE="/www/4chan.org/web/boards/$board/imgboard.html"
+    INDEX_FILE="/www/localchan/boards/$board/imgboard.html"
     GZ_FILE="${INDEX_FILE}.gz"
     if [ -f "$GZ_FILE" ]; then
         SIZE=$(stat -c%s "$GZ_FILE" 2>/dev/null || stat -f%z "$GZ_FILE" 2>/dev/null)
@@ -39,7 +34,7 @@ for board in $BOARDS; do
         SIZE=$(stat -c%s "$INDEX_FILE" 2>/dev/null || stat -f%z "$INDEX_FILE" 2>/dev/null)
         echo "[init] $board — HTTP $HTTP_CODE, index: $SIZE bytes"
     else
-        echo "[init] $board — HTTP $HTTP_CODE, WARNING: index file not created"
+        echo "[init] $board — HTTP $HTTP_CODE, WARNING: index not created"
     fi
 done
 

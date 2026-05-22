@@ -130,9 +130,9 @@ var FC = function() {
     orderby: 'alt',
     large: false,
     extended: true,
-    imgdel: '//s.4cdn.org/image/filedeleted-res.gif',
-    imgspoiler: '//s.4cdn.org/image/spoiler',
-    nofile: '//s.4cdn.org/image/nofile.png',
+    imgdel: '//localhost/static/image/filedeleted-res.gif',
+    imgspoiler: '//localhost/static/image/spoiler',
+    nofile: '//localhost/static/image/nofile.png',
     smallsize: 150,
     tipdelay: 250,
     filterColors: [
@@ -256,7 +256,7 @@ var FC = function() {
         if (!extConfig.disableAll) {
           CustomMenu.initCtrl(extConfig.dropDownNav, extConfig.classicNav);
           /*
-          if (location.host === 'boards.4channel.org' && extConfig.showNWSBoards) {
+          if (location.host === 'boardlocalhost/static' && extConfig.showNWSBoards) {
             CustomMenu.showNWSBoards();
           }
           */
@@ -1465,7 +1465,7 @@ var FC = function() {
       style.type = 'text/css';
       style.id = 'base-css';
       style.rel = 'stylesheet';
-      style.setAttribute('href', '//s.4cdn.org/css/catalog_'
+      style.setAttribute('href', '//localhost/static/css/catalog_'
         + ss.toLowerCase().replace(/ /g, '_') + '.' + css_version + '.css');
       document.head.insertBefore(style, $.id('mobile-css'));
     }
@@ -1833,7 +1833,7 @@ var FC = function() {
       capcodeReplies, capcodeReply, capcodeTitle, page;
     
     provider = '//boards.' + $L.d(catalog.slug) + '/' + catalog.slug + '/thread/';
-    contentUrl = 'i.4cdn.org/' + catalog.slug + '/';
+    contentUrl = 'localhost/images/' + catalog.slug + '/';
     
     calcSize = !options.large;
     newtab = activeTheme.newtab ? 'target="_blank" ' : '';
@@ -1993,7 +1993,7 @@ var FC = function() {
       
       if (window.partyHats) {
         thread = '<div class="party-cnt">' + thread
-          + '</div><img class="party-hat" src="//s.4cdn.org/image/'
+          + '</div><img class="party-hat" src="//localhost/static/image/'
           + window.partyHats + '"></div>';
       }
       else {
@@ -2876,7 +2876,7 @@ ThreadWatcher.fetchCatalog = function(board, catalogs, meta) {
   var xhr;
   
   xhr = new XMLHttpRequest();
-  xhr.open('GET', '//a.4cdn.org/' + board + '/catalog.json');
+  xhr.open('GET', '//a.localhost/' + board + '/catalog.json');
   xhr.onload = function() {
     meta.count--;
     catalogs[board] = ThreadWatcher.parseCatalogJSON(this.responseText);
@@ -3046,7 +3046,7 @@ ThreadWatcher.fetch = function(key, img) {
   if (img) {
     xhr.onerror = xhr.onload;
   }
-  xhr.open('GET', '//a.4cdn.org/' + tuid[1] + '/thread/' + tuid[0] + '.json');
+  xhr.open('GET', '//a.localhost/' + tuid[1] + '/thread/' + tuid[0] + '.json');
   xhr.send(null);
 };
 

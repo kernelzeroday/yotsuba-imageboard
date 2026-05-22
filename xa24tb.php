@@ -38,11 +38,11 @@ function output_error($msg) {
 function create_account() {
   $user_ip = $_SERVER['REMOTE_ADDR'];
   
-  if (isset($_COOKIE['4chan_pass'])) {
-    $userpwd = new UserPwd($user_ip, '4chan.org', $_COOKIE['4chan_pass']);
+  if (isset($_COOKIE['localchan_pass'])) {
+    $userpwd = new UserPwd($user_ip, 'localhost', $_COOKIE['localchan_pass']);
   }
   else {
-    $userpwd = new UserPwd($user_ip, '4chan.org');
+    $userpwd = new UserPwd($user_ip, 'localhost');
   }
   
   $user_id = $userpwd->getPwd();
@@ -75,7 +75,7 @@ SQL;
     output_error('Internal Server Error (frac0)');
   }
   
-  $userpwd->setCookie('.4chan.org');
+  $userpwd->setCookie('.localhost');
   
   output_json([
     'balance' => $cur_amount
@@ -116,11 +116,11 @@ function get_account_balance($user_id) {
 function get_account() {
   $user_ip = $_SERVER['REMOTE_ADDR'];
   
-  if (!isset($_COOKIE['4chan_pass'])) {
+  if (!isset($_COOKIE['localchan_pass'])) {
     output_error('Account not found');
   }
   
-  $userpwd = new UserPwd($user_ip, '4chan.org', $_COOKIE['4chan_pass']);
+  $userpwd = new UserPwd($user_ip, 'localhost', $_COOKIE['localchan_pass']);
   
   if ($userpwd->isNew()) {
     output_error('Account not found');
