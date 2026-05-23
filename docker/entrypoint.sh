@@ -61,7 +61,7 @@ patch_ini STATIC_SERVER "/static/"
 patch_ini DATA_SERVER "/"
 patch_ini PHP_SERVER "/"
 patch_ini IMG_SERVER "/images/"
-patch_ini THUMB_DIR2_PART "localhost/thumbs/{{BOARD_DIR}}/"
+patch_ini THUMB_DIR2 "/thumbs/{{BOARD_DIR}}/"
 patch_ini MAIN_DOMAIN localhost
 patch_ini TITLEIMG "/rid.php"
 patch_ini STATIC_IMG_DIR2 "/static/image/"
@@ -91,7 +91,9 @@ done
 # ---------------------------------------------------------------------------
 
 # Enable error display for lab debugging
-sed -i 's/display_errors = Off/display_errors = On/' /usr/local/etc/php/conf.d/yotsuba.ini
+# Keep display_errors off — PHP 8 is strict about undefined vars and the legacy code has many
+sed -i 's/display_errors = .*/display_errors = Off/' /usr/local/etc/php/conf.d/yotsuba.ini
+sed -i 's/error_reporting = .*/error_reporting = E_ALL \& ~E_NOTICE \& ~E_DEPRECATED \& ~E_STRICT \& ~E_WARNING/' /usr/local/etc/php/conf.d/yotsuba.ini
 
 # Allow GET requests to trigger index rebuild (bypass DDOS check)
 php -- <<'PHPEOF'
@@ -304,71 +306,44 @@ sed -i "s|private static \$red = '4chan.org'|private static \$red = 'localhost'|
 chown -R www-data:www-data /www/4chan.org/web/static 2>/dev/null || true
 
 # ---------------------------------------------------------------------------
-# Patch updating_index() — serve cached static HTML
+# Patch updating_index() — always render from DB (no static HTML cache)
 # ---------------------------------------------------------------------------
 php -- <<'PHPEOF'
 <?php
-$f = file_get_contents('/var/www/html/imgboard.php');
-if (strpos($f, '// Lab: serve cached HTML') !== false) {
+$f = '/var/www/html/imgboard.php';
+$c = file_get_contents($f);
+if (strpos($c, '// Lab: always render from DB') !== false) {
     echo "[entrypoint] updating_index() already patched, skipping.\n";
     exit;
 }
 $old = 'function updating_index()
 {
-	$proto = ( stripos( $_SERVER["HTTP_REFERER"], "https" ) !== false ) ? "https:" : "http:";
-	echo';
+	echo "<!doctype html>';
 $new = 'function updating_index()
 {
-	// Lab: serve cached HTML if available, regenerate if missing
-	$gzfile = SELF_PATH2_FILE . ".gz";
-	if (file_exists($gzfile)) {
-		header("Content-Encoding: gzip");
-		readfile($gzfile);
-		return;
-	}
-	$file = SELF_PATH2_FILE;
-	if (file_exists($file)) {
-		readfile($file);
-		return;
-	}
+	// Lab: always render from DB — no static cache, no stale pages
 	global $mode;
 	$prev_mode = $mode;
 	$mode = "nothing";
 	updatelog(0, 0);
 	$mode = $prev_mode;
+	$file = SELF_PATH2_FILE;
+	$gzfile = $file . ".gz";
 	if (file_exists($gzfile)) {
 		header("Content-Encoding: gzip");
 		readfile($gzfile);
+		@unlink($gzfile);
 		return;
 	}
 	if (file_exists($file)) {
 		readfile($file);
+		@unlink($file);
 		return;
 	}
-	$proto = ( stripos( $_SERVER["HTTP_REFERER"], "https" ) !== false ) ? "https:" : "http:";
-	echo';$f = str_replace($old, $new, $f, $count);
-file_put_contents('/var/www/html/imgboard.php', $f);
+	echo "<!doctype html>';
+$c = str_replace($old, $new, $c, $count);
+file_put_contents($f, $c);
 echo "[entrypoint] Patched updating_index() ($count replacements).\n";
-PHPEOF
-
-# ---------------------------------------------------------------------------
-# Patch show_post_successful() — invalidate cached index after post
-# ---------------------------------------------------------------------------
-php -- <<'PHPEOF'
-<?php
-$f = file_get_contents('/var/www/html/imgboard.php');
-if (strpos($f, '// Lab: invalidate cached index') !== false) {
-    echo "[entrypoint] show_post_successful() already patched, skipping.\n";
-    exit;
-}
-$old = 'echo $success;';
-$new = '	// Lab: invalidate cached index so next page load regenerates it
-	@unlink(SELF_PATH2_FILE . ".gz");
-	@unlink(SELF_PATH2_FILE);
-	echo $success;';
-$f = str_replace($old, $new, $f, $count);
-file_put_contents('/var/www/html/imgboard.php', $f);
-echo "[entrypoint] Patched show_post_successful() ($count replacements).\n";
 PHPEOF
 
 # ---------------------------------------------------------------------------
@@ -400,44 +375,6 @@ echo "[entrypoint] Patched fastcgi_finish_request ($count + $count2 replacements
 PHPEOF
 
 # ---------------------------------------------------------------------------
-# Patch catalog.php — serve cached catalog HTML
-# ---------------------------------------------------------------------------
-php -- <<'PHPEOF'
-<?php
-$f = file_get_contents('/var/www/html/catalog.php');
-if (strpos($f, '// Lab: serve cached catalog') !== false) {
-    echo "[entrypoint] catalog.php already patched, skipping.\n";
-    exit;
-}
-$insert = '
-
-// Lab: serve cached catalog HTML
-if (basename($_SERVER["SCRIPT_FILENAME"]) === "catalog.php" || basename($_SERVER["SCRIPT_FILENAME"]) === "catalog-test.php") {
-    if (!defined("DATA_ROOT")) {
-        $_SERVER["REQUEST_METHOD"] = "GET";
-        require_once "yotsuba_config.php";
-    }
-    $cat_gz = INDEX_DIR . "catalog.html.gz";
-    $cat_html = INDEX_DIR . "catalog.html";
-    if (file_exists($cat_gz)) {
-        header("Content-Encoding: gzip");
-        readfile($cat_gz);
-        exit;
-    }
-    if (file_exists($cat_html)) {
-        readfile($cat_html);
-        exit;
-    }
-    echo "Catalog not yet generated. Make a post to trigger catalog rebuild.";
-    exit;
-}
-';
-$f .= $insert;
-file_put_contents('/var/www/html/catalog.php', $f);
-echo "[entrypoint] Patched catalog.php serving.\n";
-PHPEOF
-
-# ---------------------------------------------------------------------------
 # Create board directories with symlinks
 # ---------------------------------------------------------------------------
 for board_conf in "$SRC/config/boards/"*.config.ini; do
@@ -447,7 +384,7 @@ for board_conf in "$SRC/config/boards/"*.config.ini; do
     mkdir -p "/www/4chan.org/web/images/$board"
     mkdir -p "/www/4chan.org/web/thumbs/$board"
 
-    for f in imgboard.php catalog.php json.php rid.php; do
+    for f in imgboard.php catalog.php catalog_serve.php json.php rid.php boards.php; do
         ln -sf "$SRC/$f" "$board_dir/$f"
     done
 
@@ -460,16 +397,150 @@ for board_conf in "$SRC/config/boards/"*.config.ini; do
              boardlist.txt captcha.php captcha-test.php catalog.php catalog-test.php \
              json.php json-test.php admin.php admin-test.php auth.php auth-test.php \
              signin.php signin-test.php emotes_xa22.php xa24tb.php derefer.php \
-             rebuildd.php rebuildd-test.php clippy.html latest.php; do
+             rebuildd.php rebuildd-test.php clippy.html latest.php homepage.php infopage.php; do
         [ -f "$SRC/$f" ] && ln -sf "$SRC/$f" "$board_dir/$f"
     done
 done
 
 # ---------------------------------------------------------------------------
-# Finalize
+# Admin auth: create salt file, expand local IP ranges for Docker
 # ---------------------------------------------------------------------------
 mkdir -p /www/perhost /www/keys
-chown -R www-data:www-data /www/perhost /www/4chan.org/web/images /www/4chan.org/web/thumbs /www/4chan.org/web/sys /www/4chan.org/web/boards
+echo -n 'local-lab-salt' > /www/keys/2014_admin.salt
+echo -n 'local-lab-enc-key-32bytes!!!!!!!!' > /www/keys/2015_enc.key
+
+# Expand is_local() in admin.php to include Docker bridge networks
+php -- <<'PHPEOF'
+<?php
+foreach (['/var/www/html/admin.php', '/var/www/html/admin-test.php'] as $f) {
+    if (!file_exists($f)) continue;
+    $c = file_get_contents($f);
+    if (strpos($c, '172.16.0.0/12') !== false) continue;
+    $c = str_replace(
+        'cidrtest( $longip, "127.0.0.0/24" )',
+        'cidrtest( $longip, "127.0.0.0/8" ) || cidrtest( $longip, "172.16.0.0/12" ) || cidrtest( $longip, "192.168.0.0/16" )',
+        $c
+    );
+    file_put_contents($f, $c);
+    echo "[entrypoint] Patched is_local() in " . basename($f) . "\n";
+}
+
+// Disable is_local_auth() — in Docker every request arrives from a local IP,
+// which would grant staff privileges to all visitors, bypassing thread locks etc.
+foreach (['/var/www/html/lib/auth.php', '/var/www/html/lib/auth-test.php'] as $f) {
+    if (!file_exists($f)) continue;
+    $c = file_get_contents($f);
+    if (strpos($c, 'lab: disabled') !== false) continue;
+    // Find the function and replace it entirely (handles nested braces)
+    $start = strpos($c, 'function is_local_auth()');
+    if ($start === false) continue;
+    $brace = strpos($c, '{', $start);
+    if ($brace === false) continue;
+    $depth = 0;
+    $end = $brace;
+    for ($i = $brace; $i < strlen($c); $i++) {
+        if ($c[$i] === '{') $depth++;
+        if ($c[$i] === '}') { $depth--; if ($depth === 0) { $end = $i + 1; break; } }
+    }
+    $c = substr($c, 0, $start) . "function is_local_auth()\n{\n\treturn false; // lab: disabled\n}" . substr($c, $end);
+    file_put_contents($f, $c);
+    echo "[entrypoint] Disabled is_local_auth() in " . basename($f) . "\n";
+}
+PHPEOF
+
+# Patch cookie domain in clear_cookies() and auth — remove .4chan.org domain restriction
+php -- <<'PHPEOF'
+<?php
+foreach (['/var/www/html/lib/admin.php', '/var/www/html/lib/admin-test.php'] as $f) {
+    if (!file_exists($f)) continue;
+    $c = file_get_contents($f);
+    if (strpos($c, '// lab: patched cookie domain') !== false) continue;
+    $old = 'function clear_cookies()
+{
+	if( strstr( $_SERVER["HTTP_HOST"], ".4chan.org" ) ) {
+		setcookie( "4chan_auser", "", time() - 3600, "/", ".4chan.org", true );
+		setcookie( "4chan_apass", "", time() - 3600, "/", ".4chan.org", true );
+		setcookie( "4chan_aflags", "", time() - 3600, "/", ".4chan.org", true );
+
+	} elseif( strstr( $_SERVER["HTTP_HOST"], ".4channel.org" ) ) {
+		setcookie( "4chan_auser", "", time() - 24 * 3600, "/", ".4channel.org", true );
+		setcookie( "4chan_apass", "", time() - 24 * 3600, "/", ".4channel.org", true );
+	} else {
+		setcookie( "4chan_auser", "", time() - 24 * 3600, "/", true );
+		setcookie( "4chan_apass", "", time() - 24 * 3600, "/", true );
+		setcookie( "4chan_aflags", "", time() - 24 * 3600, "/", true );
+	}
+
+	setcookie( \'extra_path\', \'\', 1, \'/\', \'.4chan.org\' );
+}';
+    $new = 'function clear_cookies()
+{
+	// lab: patched cookie domain
+	setcookie( "4chan_auser", "", time() - 3600, "/" );
+	setcookie( "4chan_apass", "", time() - 3600, "/" );
+	setcookie( "apass", "", time() - 3600, "/" );
+	setcookie( "4chan_aflags", "", time() - 3600, "/" );
+	setcookie( "extra_path", "", time() - 3600, "/" );
+}';
+    $c = str_replace($old, $new, $c, $n);
+    if ($n) {
+        file_put_contents($f, $c);
+        echo "[entrypoint] Patched clear_cookies() in " . basename($f) . "\n";
+    }
+}
+PHPEOF
+
+# Add Apache rewrite rules for admin
+VHOST=/etc/apache2/sites-enabled/yotsuba.conf
+if ! grep -q 'admin\.php' "$VHOST"; then
+    sed -i '/RewriteEngine On/a\  RewriteRule ^/admin\\.php$ /b/admin.php [QSA,L]\n  RewriteRule ^/admin$ /b/admin.php [QSA,L]\n  RewriteRule ^/([a-z0-9]+)/admin$ /$1/admin.php [QSA,L]' "$VHOST"
+    echo "[entrypoint] Added admin rewrite rules"
+fi
+# Ensure homepage rewrite is present (not redirect to /b/)
+if grep -q 'R=302.*\/b\/' "$VHOST"; then
+    sed -i 's|RewriteRule ^/?\$ /b/ \[R=302,L\]|RewriteRule ^/?$ /b/homepage.php [QSA,L]|' "$VHOST"
+    echo "[entrypoint] Fixed homepage rewrite (no redirect)"
+fi
+# Use catalog_serve.php instead of catalog.php for catalog routes
+if grep -q 'catalog\.php \[QSA' "$VHOST"; then
+    sed -i 's|/catalog /\$1/catalog\.php \[QSA|/catalog /$1/catalog_serve.php [QSA|' "$VHOST"
+    sed -i 's|/catalog \$1/catalog\.php \[QSA|/catalog $1/catalog_serve.php [QSA|' "$VHOST"
+    echo "[entrypoint] Updated catalog rewrite to use catalog_serve.php"
+fi
+
+# ---------------------------------------------------------------------------
+# Rebuild title_banners.txt from actual files on disk
+# ---------------------------------------------------------------------------
+TITLE_DIR="/www/4chan.org/web/static/image/title"
+BANNERS_TXT="$SRC/title_banners.txt"
+if [ -d "$TITLE_DIR" ]; then
+    ls "$TITLE_DIR" > "$BANNERS_TXT"
+    cp "$BANNERS_TXT" "/www/4chan.org/web/static/title_banners.txt"
+    echo "[entrypoint] Rebuilt title_banners.txt ($(wc -l < "$BANNERS_TXT") banners)"
+fi
+
+# ---------------------------------------------------------------------------
+# Build contest_banners.json from contest_banners DB table
+# ---------------------------------------------------------------------------
+CONTEST_JSON="/www/4chan.org/web/static/contest_banners.json"
+DB_HOST="${YOTSUBA_DB_HOST:-db}"
+DB_USER="${YOTSUBA_DB_USER:-yotsuba}"
+DB_PASS="${YOTSUBA_DB_PASS:-yotsuba}"
+DB_NAME="${YOTSUBA_DB_NAME:-yotsuba_global}"
+if mysql --skip-ssl -h "$DB_HOST" -u "$DB_USER" -p"$DB_PASS" "$DB_NAME" -e "SELECT 1 FROM contest_banners LIMIT 1" >/dev/null 2>&1; then
+    mysql --skip-ssl -h "$DB_HOST" -u "$DB_USER" -p"$DB_PASS" "$DB_NAME" -N -e \
+        "SELECT CONCAT('{\"f\":\"', file_name, '\",\"b\":\"', board, '\"}') FROM contest_banners WHERE active=1" \
+        | awk 'BEGIN{printf "["} NR>1{printf ","} {printf "%s",$0} END{printf "]\n"}' \
+        > "$CONTEST_JSON"
+    echo "[entrypoint] Built contest_banners.json ($(python3 -c "import json;print(len(json.load(open('$CONTEST_JSON'))))" 2>/dev/null || echo '?') banners)"
+else
+    echo "[entrypoint] contest_banners table not ready yet, skipping JSON generation"
+fi
+
+# ---------------------------------------------------------------------------
+# Finalize
+# ---------------------------------------------------------------------------
+chown -R www-data:www-data /www/perhost /www/keys /www/4chan.org/web/images /www/4chan.org/web/thumbs /www/4chan.org/web/sys /www/4chan.org/web/boards
 echo "ServerName localhost" >> /etc/apache2/apache2.conf
 
 echo "[entrypoint] Boards: $(ls $BOARDS_ROOT | tr '\n' ' ')"
@@ -478,8 +549,21 @@ echo "[entrypoint] Boards: $(ls $BOARDS_ROOT | tr '\n' ' ')"
 echo "[entrypoint] Starting Apache for board initialization..."
 apache2-foreground &
 APACHE_PID=$!
-sleep 3
 
+# Wait for DB to be ready
+echo "[entrypoint] Waiting for database..."
+DB_HOST="${YOTSUBA_DB_HOST:-db}"
+DB_USER="${YOTSUBA_DB_USER:-yotsuba}"
+DB_PASS="${YOTSUBA_DB_PASS:-yotsuba}"
+for i in $(seq 1 30); do
+    if mysql --skip-ssl -h "$DB_HOST" -u "$DB_USER" -p"$DB_PASS" -e "SELECT 1" >/dev/null 2>&1; then
+        echo "[entrypoint] Database ready after ${i}s"
+        break
+    fi
+    sleep 1
+done
+
+/usr/local/bin/run-migrations.sh
 /usr/local/bin/init-boards.sh
 
 # Stop the temporary Apache

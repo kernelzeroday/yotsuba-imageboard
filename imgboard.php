@@ -1,4 +1,7 @@
 <?php
+if (!function_exists('fastcgi_finish_request')) {
+    function fastcgi_finish_request() { return true; }
+}
 require_once 'lib/util.php';
 /*
 if( isset( $_REQUEST["profile"] ) ) {
@@ -420,7 +423,7 @@ function get_blotter() {
 HTML;
   
   $query = <<<SQL
-SELECT sql_cache `date`, content 
+SELECT sql_cache UNIX_TIMESTAMP(`date`) AS `date`, content
 FROM blotter_messages
 ORDER BY id DESC LIMIT $msg_limit
 SQL;
@@ -437,7 +440,7 @@ SQL;
       
       $blotter .= '<tr><td data-utc="' .
         $row['date'] . '" class="blotter-date">' .
-        date('m/d/y', $row['date']) . '</td><td class="blotter-content">' .
+        date('m/d/y', is_numeric($row['date']) ? (int)$row['date'] : strtotime($row['date'])) . '</td><td class="blotter-content">' .
         $row['content'] . '</td></tr>';
     }
   }
@@ -446,9 +449,7 @@ SQL;
   }
   
   $blotter .= '</tbody><tfoot><tr><td colspan="2">[<a data-utc="' . $mtime
-    . '" id="toggleBlotter" href="#">Hide</a>]<span> [<a href="//www.'
-    . L::d(BOARD_DIR)
-    . '/blotter" target="_blank">Show All</a>]</span></td></tr></tfoot></table>';
+    . '" id="toggleBlotter" href="#">Hide</a>]<span> [<a href="/blotter" target="_blank">Show All</a>]</span></td></tr></tfoot></table>';
   
   return $blotter;
 }
@@ -547,6 +548,50 @@ function parse_bbcode_one( $com, $tn, $st, $et, $nest_limit = 2, $skip_on_spoile
   }
   
 	return $ret;
+}
+
+function parse_markdown($com) {
+	$lines = explode("\n", $com);
+	$out = array();
+	$in_code = false;
+	$code_buf = array();
+
+	foreach ($lines as $line) {
+		if (!$in_code && preg_match('/^```/', $line)) {
+			$in_code = true;
+			$code_buf = array();
+			continue;
+		}
+		if ($in_code) {
+			if (preg_match('/^```/', $line)) {
+				$in_code = false;
+				$out[] = '<pre class="prettyprint">' . htmlspecialchars(implode("\n", $code_buf)) . '</pre>';
+				continue;
+			}
+			$code_buf[] = $line;
+			continue;
+		}
+
+		if (preg_match('/^#{1,3}\s+(.+)$/', $line, $m)) {
+			$out[] = '<b>' . $m[1] . '</b>';
+			continue;
+		}
+
+		$line = preg_replace('/\*\*(.+?)\*\*/', '<b>$1</b>', $line);
+		$line = preg_replace('/(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)/', '<i>$1</i>', $line);
+		$line = preg_replace('/~~(.+?)~~/', '<s>$1</s>', $line);
+		$line = preg_replace('/`([^`]+)`/', '<code>$1</code>', $line);
+		$line = preg_replace('/\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/', '<a href="$2">$1</a>', $line);
+		$line = preg_replace('/^[-*]\s+(.+)$/', '• $1', $line);
+
+		$out[] = $line;
+	}
+
+	if ($in_code && count($code_buf) > 0) {
+		$out[] = '<pre class="prettyprint">' . htmlspecialchars(implode("\n", $code_buf)) . '</pre>';
+	}
+
+	return implode("\n", $out);
 }
 
 function spoiler_parse( $com )
@@ -1007,7 +1052,7 @@ function log_cache($invalidate = 0, $thread = 0, $archive_mode = 0) {
         $log[$row['resto']]['replycount'] = (int)$row['r_count'];
       }
       
-      $query = mysql_board_call("SELECT no FROM `" . SQLLOG . "` WHERE no IN($_thread_ids) ORDER BY root DESC");
+      $query = mysql_board_call("SELECT no FROM `" . SQLLOG . "` WHERE no IN($_thread_ids) ORDER BY sticky DESC, root DESC");
     }
     else {
       if ($archive_mode === 1) {
@@ -1015,7 +1060,7 @@ function log_cache($invalidate = 0, $thread = 0, $archive_mode = 0) {
       } else {
         $archived = "archived = 0";
       }
-      $query = mysql_board_call("SELECT no FROM `" . SQLLOG . "` WHERE $archived AND resto = 0 AND root > 0 ORDER BY root DESC");
+      $query = mysql_board_call("SELECT no FROM `" . SQLLOG . "` WHERE $archived AND resto = 0 AND root > 0 ORDER BY sticky DESC, root DESC, no DESC");
     }
     
     $threads = array(); // IDs
@@ -1226,8 +1271,8 @@ function do_move_thread() {
   $ret = move_thread($_POST['id'], $_POST['board'], $del);
   
   if (is_array($ret)) {
-    $message = 'Thread moved to <a target="_blank" href="//boards.'
-      . L::d($ret[0]) . '/' . $ret[0] . '/thread/' . $ret[1]
+    $message = 'Thread moved to <a target="_blank" href="/'
+      . $ret[0] . '/thread/' . $ret[1]
       . '">/' . $ret[0] . '/' . $ret[1] . '</a>';
     
     echo headless_message($message, true);
@@ -1266,8 +1311,8 @@ function do_copy_threads() {
   }
   
   if (is_array($ret)) {
-    $message = 'Thread copied to <a target="_blank" href="//boards.'
-      . L::d($ret[0]) . '/' . $ret[0] . '/thread/' . $ret[1]
+    $message = 'Thread copied to <a target="_blank" href="/'
+      . $ret[0] . '/thread/' . $ret[1]
       . '">/' . $ret[0] . '/' . $ret[1] . '</a>';
     
     echo headless_message($message, true);
@@ -1873,7 +1918,7 @@ SQL;
 
 function thumb_url()
 {
-	return "//" . THUMB_DIR2_PART;
+	return THUMB_DIR2;
 }
 
 function display_no( $no )
@@ -2036,7 +2081,7 @@ function renderPostHtml($no, $in_thread, $sorted_replies = null, $reply_count = 
 	}
 
 	if( isset( $abbreviated ) && $abbreviated ) {
-		$com .= '<br><br><span class="abbr">Comment too long. <a href="' . RES_DIR2 . ( $resto ? $resto : $no ) . PHP_EXT2 . '#p' . $no . '">Click here</a> to view the full text.</span>';
+		$com .= '<br><br><span class="abbr">Comment too long. <a href="/' . BOARD_DIR . '/' . RES_DIR2 . ( $resto ? $resto : $no ) . PHP_EXT2 . '#p' . $no . '">Click here</a> to view the full text.</span>';
 	}
 
 	// Image tag creation
@@ -2109,8 +2154,7 @@ function renderPostHtml($no, $in_thread, $sorted_replies = null, $reply_count = 
 			$tn_h         = '100';
 		}
 		else {
-			//$imgthumb_src = thumb_url() . $tim . 's.jpg';
-			$imgthumb_src = '//' . THUMB_DIR2_PART . $tim . 's.jpg';
+			$imgthumb_src = THUMB_DIR2 . $tim . 's.jpg';
 		}
 		
     if (MOBILE_IMG_RESIZE && $m_img) {
@@ -2153,7 +2197,7 @@ HTML;
 			$postinfo_extra = '';
 		}
 		else {
-			$href = RES_DIR2 . $no . PHP_EXT2;
+			$href = '/' . BOARD_DIR . '/' . RES_DIR2 . $no . PHP_EXT2;
 			
 			if ($semantic_url !== '') {
 			  $semantic_url = "/$semantic_url";
@@ -2185,24 +2229,24 @@ HTML;
         $cur = 1;
         
         while ($s >= $cur) {
-          list($row) = each($sorted_replies);
-          
+          $row = key($sorted_replies); next($sorted_replies);
+
           if ($log[$row]['fsize'] && !$log[$row]['filedeleted']) {
             $t++;
           }
-          
+
           $cur++;
         }
-        
+
         $total_t = $t;
-        
+
         while ($reply_count >= $cur) {
-          list($row) = each($sorted_replies);
-          
+          $row = key($sorted_replies); next($sorted_replies);
+
           if ($log[$row]['fsize'] && !$log[$row]['filedeleted']) {
             $total_t++;
           }
-          
+
           $cur++;
         }
         
@@ -2327,7 +2371,7 @@ HTML;
 	 * Reply
 	 */
 	else {
-		$href = $in_thread ? '' : RES_DIR2 . $resto . PHP_EXT2;
+		$href = $in_thread ? '' : '/' . BOARD_DIR . '/' . RES_DIR2 . $resto . PHP_EXT2;
 		$threadmodes = $postinfo_extra = $oldtext = $postInfo = $extra = $op_file = '';
 		$reply_file = $file;
 		$post_class = 'reply';
@@ -2974,13 +3018,13 @@ function rebuild_archived_thread($thread_id) {
   // Render replies
   $repCount = 0;
   
-  while (list($resrow) = each($sorted_replies)) {
+  foreach ($sorted_replies as $resrow => $_unused) {
     if (!$log[$resrow]['no']) {
       break;
     }
-    
+
     $dat .= renderPostHtml($resrow, $thread_id, null, null, null, true);
-    
+
     $repCount++;
   }
   
@@ -3074,20 +3118,30 @@ function rebuild_archived_thread($thread_id) {
         <option value="Futaba New">Futaba</option>
         <option value="Burichan New">Burichan</option>
         <option value="Tomorrow">Tomorrow</option>
-        <option value="Photon">Photon</option>';
-    
+        <option value="Photon">Photon</option>
+        <option value="Paisley">Paisley</option>
+        <option value="Neo Paisley">Neo Paisley</option>
+        <option value="Gentlebot">Gentlebot</option>
+        <option value="Dark">Dark</option>
+        <option value="Obsidian">Obsidian</option>
+        <option value="Sakura">Sakura</option>
+        <option value="Rainbow">Rainbow</option>
+        <option value="Nigrachan">Nigrachan</option>
+        <option value="Kusaba X">Kusaba X</option>
+        <option value="Tomorrow 99">Tomorrow (99)</option>';
+
     if (defined('CSS_EVENT_NAME') && CSS_EVENT_NAME) {
       $dat .= '<option value="_special">Special</option>';
     }
-    
+
     $dat .= '</select>
     </span>';
   }
-  
+
   $dat .= '</div></form>';
-  
+
   foot($dat);
-  
+
   // Write the page
   print_page(RES_DIR . $thread_id . PHP_EXT, $dat);
 }
@@ -3184,7 +3238,7 @@ function fix_board_nav($nav, $fix_protocol = false) {
     $protocol = '';
   }
   
-  return preg_replace('/href="\/([a-z0-9]+)\/"/', "href=\"$protocol//boards." . L::d(BOARD_DIR) . "/$1/\"", $nav);
+  return preg_replace('/href="\/([a-z0-9]+)\/"/', 'href="/$1/"', $nav);
 }
 
 // Same but for /archive lmao
@@ -3241,7 +3295,17 @@ function head( &$dat, $res, $error = 0, $page = 0, $npages = 0, $is_arclist = fa
 		'Futaba New'    => "futabanew.$cssVersion.css",
 		'Burichan New'  => "burichannew.$cssVersion.css",
 		'Photon'        => "photon.$cssVersion.css",
-		'Tomorrow'      => "tomorrow.$cssVersion.css"
+		'Tomorrow'      => "tomorrow.$cssVersion.css",
+		'Paisley'       => "paisley.css",
+		'Neo Paisley'   => "neopaisley.css",
+		'Gentlebot'     => "gentlebot.css",
+		'Dark'          => "dark.css",
+		'Obsidian'      => "obsidian.css",
+		'Sakura'        => "sakura.css",
+		'Rainbow'       => "rainbow.css",
+		'Nigrachan'     => "nigrachan.css",
+		'Kusaba X'      => "kusabax.css",
+		'Tomorrow 99'   => "tomorrow-99.css"
 	);
 
 	// /j/ versioning fix
@@ -3358,7 +3422,7 @@ JJS;
     }
 	}
 
-	$css .= '<link rel="stylesheet" href="' . STATIC_SERVER . 'css/' . $mobilecss . '">';
+	$css .= '<link rel="stylesheet" media="screen and (max-width: 480px)" href="' . STATIC_SERVER . 'css/' . $mobilecss . '">';
 	
   // April 2024
   $css .= '<link rel="stylesheet" href="' . STATIC_SERVER . 'css/xa24extra.css">';
@@ -3602,14 +3666,14 @@ JS;
 	}
 	
 	if ($is_arclist) {
-		$canonical = '<link rel="canonical" href="https://boards.' . L::d(BOARD_DIR) . '/' . BOARD_DIR.'/archive">';
+		$canonical = '<link rel="canonical" href="/' . BOARD_DIR.'/archive">';
   }
 	else if (!$res) {
 	  if ($page > 0) {
-		  $canonical = '<link rel="canonical" href="https://boards.' . L::d(BOARD_DIR) . '/' . BOARD_DIR.'/' . (($page / DEF_PAGES) + 1) . '">';
+		  $canonical = '<link rel="canonical" href="/' . BOARD_DIR.'/' . (($page / DEF_PAGES) + 1) . '">';
 	  }
 	  else {
-		  $canonical = '<link rel="canonical" href="https://boards.' . L::d(BOARD_DIR) . '/' .BOARD_DIR.'/">';
+		  $canonical = '<link rel="canonical" href="/' .BOARD_DIR.'/">';
 	  }
 	}
 	elseif ($res) {
@@ -3619,7 +3683,7 @@ JS;
       $href_context = "/$href_context";
     }
 	  
-		$canonical = '<link rel="canonical" href="https://boards.' . L::d(BOARD_DIR) . '/' .BOARD_DIR.'/thread/'.$res.$href_context . '">';
+		$canonical = '<link rel="canonical" href="/' .BOARD_DIR.'/thread/'.$res.$href_context . '">';
 	}
 	else {
 	  $canonical = '';
@@ -3787,14 +3851,14 @@ function error($mes, $unused = '') {
 	
 	$dat .= '<table style="text-align: center; width: 100%; height: 300px;"><tr valign="middle"><td align="center" style="font-size: x-large; font-weight: bold;"><span id="errmsg" style="color: red;">' . $mes . '</span><br><br>[<a href=';
 	
-	if (preg_match('#^' . $protocol . '//boards.' . L::d(BOARD_DIR) . '/' . BOARD_DIR . '/thread/([0-9]+)#', $_SERVER["HTTP_REFERER"], $m)) {
+	if (preg_match('#/' . BOARD_DIR . '/thread/([0-9]+)#', $_SERVER["HTTP_REFERER"], $m)) {
 	  $thread_part = 'thread/' . (int)$m[1];
 	}
 	else {
 	  $thread_part = '';
 	}
 	
-	$dat .= $protocol . '//boards.' . L::d(BOARD_DIR) . '/' . BOARD_DIR . '/' . $thread_part . ">" . S_RELOAD . "</a>]</td></tr></table><br><br><hr size=1>";
+	$dat .= '/' . BOARD_DIR . '/' . $thread_part . ">" . S_RELOAD . "</a>]</td></tr></table><br><br><hr size=1>";
 	
 	foot( $dat, true );
 	
@@ -3824,7 +3888,7 @@ function error_redirect($mes, $redirect, $timeout = 3000) {
 </script>
 HTML;
 	$dat .= '<table style="text-align: center; width: 100%; height: 300px;"><tr valign="middle"><td align="center" style="font-size: x-large; font-weight: bold;"><span id="errmsg" style="color: red;">' . $mes . '</span><br><br>[<a href=';
-	$dat .= '//boards.' . L::d(BOARD_DIR) . '/' . BOARD_DIR . "/>"
+	$dat .= '/' . BOARD_DIR . "/>"
     . S_RELOAD . "</a>]</td></tr></table><br><br><hr size=1>";
 	foot( $dat );
 	
@@ -4004,7 +4068,7 @@ function interboard_catalog_link_cb( $m )
 	if( $lsearchquery == "catalog" ) {
 		return "<a href=\"/$board/catalog\" class=\"quotelink\">$original</a>";
 	} elseif( $lsearchquery == 'rules' ) {
-		return '<a href="//www.' . L::d($board) . '/rules#' . $board . '" class="quotelink">' . $original . '</a>';
+		return '<a href="/rules#' . $board . '" class="quotelink">' . $original . '</a>';
 	} else {
 		return "<a href=\"/$board/catalog#s=$lsearchquery\" class=\"quotelink\">$original</a>";
 	}
@@ -4078,11 +4142,11 @@ function auto_link_static_cb($matches) {
 				$ruleno = substr( $resno, $ruleloc + 1 );
 			}
 			
-			$parsed_link = '//www.' . L::d($inter_board) . "/rules#$inter_board$ruleno";
+			$parsed_link = "/rules#$inter_board$ruleno";
 			$target      = ' target="_blank"';
 		}
 		else if (in_array($inter_board, $boards_matching_arr)) {
-			$parsed_link = '//boards.' . L::d($inter_board) . "/$inter_board/";
+			$parsed_link = "/$inter_board/";
 			
 			if( $inter_board == 'f' && $url == 'catalog' ) return $full_link;
 			
@@ -4200,9 +4264,9 @@ function parse_interboard_link( $post, $inter_board, $no )
 	if( $resto === false ) { // dead link
 		$url = '';
 	} elseif( $resto ) { // different thread
-		$url = '//boards.' . L::d($inter_board) . "/{$inter_board}/thread/$resto#p$resno";
+		$url = "/{$inter_board}/thread/$resto#p$resno";
 	} else { // same thread
-		$url = '//boards.' . L::d($inter_board) . "/{$inter_board}/thread/$resno#p$resno";
+		$url = "/{$inter_board}/thread/$resno#p$resno";
 	}
 
 	$disable = BOARD_DIR == 'mlp' && ( $inter_board == 'b' || $inter_board == 'co' );
@@ -4224,9 +4288,9 @@ function trans_same_board_links( &$com )
 	$dir      = BOARD_DIR;
 	$com .= '~';
 
-	while( isset( $com{$i} ) ) {
+	while( isset( $com[$i] ) ) {
 
-		if( is_numeric( $com{$i + $len} ) ) {
+		if( is_numeric( $com[$i + $len] ) ) {
 			// Match, replace out
 			$com = substr_replace( $com, '>>', $i, $len );
 
@@ -4260,15 +4324,15 @@ function auto_link_parser( $post, $resno )
 
 	$dbg = "";
 
-	while( isset( $post{$i} ) ) {
+	while( isset( $post[$i] ) ) {
 		$seen_gt_this = false;
-		$c            = $post{$i};
+		$c            = $post[$i];
 
 		if( !$in_link ) {
 			// Not in a link, find &gt;
 
 			if( $c == '&' ) {
-				if( $post{$i + 1} == 'g' && $post{$i + 2} == 't' && $post{$i + 3} == ';' ) {
+				if( $post[$i + 1] == 'g' && $post[$i + 2] == 't' && $post[$i + 3] == ';' ) {
 					if( $gt_count < 3 ) $gt_count++;
 
 					$i = $i + 4;
@@ -4484,7 +4548,7 @@ SQL;
     if ($res && mysql_num_rows($res) > 0) {
       $private_reason = "DMCA complaint from {$row['description']} (blacklist ID: {$row['id']})";
       auto_ban_poster($ban_name, 3, 1, $private_reason, S_DMCABANREASON, true, $pwd, $pass_id);
-      error_redirect(S_BANNED, 'https://www.' . L::d(BOARD_DIR) . '/banned');
+      error_redirect(S_BANNED, '/banned');
     }
     else {
       $query = "INSERT INTO user_actions (board,postno,ip,time,uploaded,action) VALUES ('%s', %d, %d, NOW(), 0, 'fail_dmca')";
@@ -4527,7 +4591,7 @@ function check_blacklist($post, $dest, $file_ext = '', $resto = 0, $pwd = null, 
 	if( mysql_num_rows( $query ) == 0 ) return false;
 	
 	$row       = mysql_fetch_assoc( $query );
-	$prvreason = "Blacklisted ${row['field']} - " . htmlspecialchars( $row['contents'] );
+	$prvreason = "Blacklisted {$row['field']} - " . htmlspecialchars( $row['contents'] );
 	
 	if ($row['field'] == 'md5') {
 		$prvreason .= ' - Filename: ' . htmlspecialchars($post['filename']) . $file_ext;
@@ -4555,7 +4619,7 @@ function check_blacklist($post, $dest, $file_ext = '', $resto = 0, $pwd = null, 
       
       auto_ban_poster($post['trip'] ? $post['nametrip'] : $post['name'], 3, 1, $prvreason, S_DMCABANREASON, true, $pwd, $pass_id);
       
-      error_redirect(S_BANNED, 'https://www.' . L::d(BOARD_DIR) . '/banned');
+      error_redirect(S_BANNED, '/banned');
     }
     else {
       $query = "INSERT INTO user_actions (board,postno,ip,time,uploaded,action) VALUES ('%s',%d,%d,NOW(),0,'fail_dmca')";
@@ -5296,6 +5360,9 @@ function new_post( $name, $email, $sub, $com, $url, $pwd, $upfile, $upfile_name,
 	$com = str_replace( "\r\n", "\n", $com );
 	$com = str_replace( "\r", "\n", $com );
 
+	// Convert literal \n to real newlines (lazy agents post it wrong)
+	$com = str_replace( '\n', "\n", $com );
+
 	$comlim  = has_level() ? MAX_COM_CHARS_AUTHED : MAX_COM_CHARS;
 	$longlim = has_level() ? 255 : 100;
 
@@ -5669,7 +5736,7 @@ function new_post( $name, $email, $sub, $com, $url, $pwd, $upfile, $upfile_name,
       mysql_global_call("INSERT INTO user_actions (board,ip,time,action) VALUES ('%s',%d,from_unixtime(%d),'%s')", BOARD_DIR, ip2long($host), $time, 'is_banned');
     }
     
-    $redirect = 'https://www.' . L::d(BOARD_DIR) . '/banned';
+    $redirect = '/banned';
     
     if ($user_is_banned == 1) {
       // Banned
@@ -5749,6 +5816,8 @@ function new_post( $name, $email, $sub, $com, $url, $pwd, $upfile, $upfile_name,
 
 	time_log( "ab" );
   
+  $com = parse_markdown($com);
+
   // Only process linebreaks for non-html posts
   if (!$log_html_post) {
     $com = nl2br($com, false);
@@ -6112,7 +6181,7 @@ function new_post( $name, $email, $sub, $com, $url, $pwd, $upfile, $upfile_name,
 			if( mysql_num_rows( $result ) ) {
 				list( $dupeno, $duperesto ) = mysql_fetch_row( $result );
 				if( !$duperesto ) $duperesto = $dupeno;
-				error( '' . S_DUPE . ' <a href="//boards.' . L::d(BOARD_DIR) . '/' . BOARD_DIR . "/thread/" . $duperesto . PHP_EXT2 . '#p' . $dupeno . '">here</a>.', $dest );
+				error( '' . S_DUPE . ' <a href="/' . BOARD_DIR . "/thread/" . $duperesto . PHP_EXT2 . '#p' . $dupeno . '">here</a>.', $dest );
 			}
 			
 			if ($resto && MAX_IMG_REPOST_COUNT > 0) {
@@ -6142,7 +6211,7 @@ function new_post( $name, $email, $sub, $com, $url, $pwd, $upfile, $upfile_name,
 			}
 		}
 
-		$rootpredicate = $resto ? "0" : "now()";
+		$rootpredicate = $resto ? "0" : "UNIX_TIMESTAMP()";
     
 		// ROBOT9000
     if (defined('ROBOT9000') && ROBOT9000) {
@@ -6645,7 +6714,7 @@ function new_post( $name, $email, $sub, $com, $url, $pwd, $upfile, $upfile_name,
 			  $root_col = '';
 			}
 			else if ($resline['permaage']) {
-			  $root_col = 'root=now(),';
+			  $root_col = 'root=UNIX_TIMESTAMP(),';
 			}
 			else if ($is_sage || $countres >= MAX_RES) {
 			  $root_col = '';
@@ -6654,8 +6723,8 @@ function new_post( $name, $email, $sub, $com, $url, $pwd, $upfile, $upfile_name,
 			  $root_col = '';
 		  }
 		  else {
-			  $root_col = 'root=now(),';
-        
+			  $root_col = 'root=UNIX_TIMESTAMP(),';
+
         if (!$captcha_bypass && BOARD_DIR === 'jp') {
           if (!spam_filter_can_bump_thread($resline['root'])) {
             $root_col = '';
@@ -6687,13 +6756,12 @@ function new_post( $name, $email, $sub, $com, $url, $pwd, $upfile, $upfile_name,
 		}
 		
 		// determine url to redirect to
-		$proto = ( stripos( $_SERVER["HTTP_REFERER"], "https" ) !== false ) ? "https:" : "http:";
 		if( !$is_nonoko && !$resto ) {
-			$redirect = $proto . '//boards.' . L::d(BOARD_DIR) . '/' . BOARD_DIR . "/thread/" . $insertid . PHP_EXT2;
+			$redirect = '/' . BOARD_DIR . "/thread/" . $insertid . PHP_EXT2;
 		} else if( !$is_nonoko ) {
-			$redirect = $proto . '//boards.' . L::d(BOARD_DIR) . '/' . BOARD_DIR . "/thread/" . $resto . PHP_EXT2 . '#p' . $insertid;
+			$redirect = '/' . BOARD_DIR . "/thread/" . $resto . PHP_EXT2 . '#p' . $insertid;
 		} else {
-			$redirect = $proto . '//boards.' . L::d(BOARD_DIR) . '/' . BOARD_DIR . '/';
+			$redirect = '/' . BOARD_DIR . '/';
 		}
 		
 		// To let the JavaScript thread watcher know the newly created thread ID
@@ -6739,7 +6807,13 @@ function new_post( $name, $email, $sub, $com, $url, $pwd, $upfile, $upfile_name,
 
 		// late tasks happen below here
 		iplog_add( BOARD_DIR, $insertid, $host, $time, $resto == 0, $tim, $has_image );
-		
+
+		mysql_global_call(
+			"INSERT INTO post_log (board, post_no, resto, name, sub, com, ip, time, has_file, filename, capcode) VALUES ('%s', %d, %d, '%s', '%s', '%s', '%s', %d, %d, '%s', '%s')",
+			BOARD_DIR, $insertid, $resto, $name, $sub, $com, $host, $time, $has_image ? 1 : 0, $has_image ? ($original_filename . $ext) : '', $capcode
+		);
+		error_log(sprintf("[post] /%s/ No.%d resto=%d name=%s sub=%s ip=%s file=%s", BOARD_DIR, $insertid, $resto, $name, $sub, $host, $has_image ? 'yes' : 'no'));
+
     // Auto-report possibly nsfw post
     if ($tensorchan_score && $tensorchan_score > 0.5) {
       tensorchan_log(BOARD_DIR, $insertid, $resto, $tim, $ext, $tensorchan_score);
@@ -6780,10 +6854,10 @@ function show_post_successful_fake($resto = 0, $captcha_passed = true) {
   }
   
   if (!$thread_id) {
-    $redirect = 'https://boards.' . L::d(BOARD_DIR) . '/' . BOARD_DIR . "/thread/" . $insert_id . PHP_EXT2;
+    $redirect = '/' . BOARD_DIR . "/thread/" . $insert_id . PHP_EXT2;
   }
   else {
-    $redirect = 'https://boards.' . L::d(BOARD_DIR) . '/' . BOARD_DIR . "/thread/" . $thread_id . PHP_EXT2 . '#p' . $insert_id;
+    $redirect = '/' . BOARD_DIR . "/thread/" . $thread_id . PHP_EXT2 . '#p' . $insert_id;
   }
   
   $cookie_domain = '.' . L::d(BOARD_DIR);
@@ -6836,7 +6910,17 @@ function show_post_successful( $mes, $com, $insertid, $resto, $redirect, $delay_
 			'Futaba New'    => "futabanew.$cssVersion.css",
 			'Burichan New'  => "burichannew.$cssVersion.css",
 			'Photon'        => "photon.$cssVersion.css",
-			'Tomorrow'      => "tomorrow.$cssVersion.css"
+			'Tomorrow'      => "tomorrow.$cssVersion.css",
+			'Paisley'       => "paisley.css",
+			'Neo Paisley'   => "neopaisley.css",
+			'Gentlebot'     => "gentlebot.css",
+			'Dark'          => "dark.css",
+			'Obsidian'      => "obsidian.css",
+			'Sakura'        => "sakura.css",
+			'Rainbow'       => "rainbow.css",
+			'Nigrachan'     => "nigrachan.css",
+			'Kusaba X'      => "kusabax.css",
+			'Tomorrow 99'   => "tomorrow-99.css"
 		);
 
 		$css = '';
@@ -6919,9 +7003,9 @@ function resredir( $res, $delete = 0, $no_exit = false ) {
 	}
 
 	if( $resto == "0" ) { // thread
-		$redirect = $proto . '//boards.' . L::d(BOARD_DIR) . '/' . BOARD_DIR . "/thread/" . $no . PHP_EXT2 . '#p' . $no;
+		$redirect = '/' . BOARD_DIR . "/thread/" . $no . PHP_EXT2 . '#p' . $no;
 	} else {
-		$redirect = $proto . '//boards.' . L::d(BOARD_DIR) . '/' . BOARD_DIR . "/thread/" . $resto . PHP_EXT2 . '#p' . $no;
+		$redirect = '/' . BOARD_DIR . "/thread/" . $resto . PHP_EXT2 . '#p' . $no;
 	}
 
 	$redirect = JANITOR_BOARD ? str_replace( 'boards.', 'sys.', $redirect ) : $redirect;
@@ -7303,7 +7387,7 @@ function sanitize_text( $str, $skip_bidi = 0, $allow_html = false )
 	}
 
 	$str = trim( $str ); //blankspace removal
-	if( get_magic_quotes_gpc() ) { //magic quotes is deleted (?)
+	if( function_exists('get_magic_quotes_gpc') && get_magic_quotes_gpc() ) {
 		$str = stripslashes( $str );
 	}
 
@@ -7445,11 +7529,10 @@ function arcdel($no, $redirect = false, $redirect_res = null) {
 
   $delno = array();
   $time = $_SERVER['REQUEST_TIME'];
-  reset( $_POST );
-  
-  while ($item = each($_POST)) {
-    if ($item[1] == 'delete') {
-      $delno[] = $item[0];
+
+  foreach ($_POST as $key => $value) {
+    if ($value == 'delete') {
+      $delno[] = $key;
     }
   }
   
@@ -7508,11 +7591,10 @@ function user_delete( $no, $pwd, $redirect = false, $redirect_res = null )
 	$delno = array();
 	$time = $_SERVER['REQUEST_TIME'];
 	$delflag = false;
-	reset( $_POST );
 
-	while( $item = each( $_POST ) ) {
-		if( $item[1] == 'delete' ) {
-			array_push( $delno, $item[0] );
+	foreach ($_POST as $key => $value) {
+		if ($value == 'delete') {
+			array_push( $delno, $key );
 			$delflag = true;
 		}
 	}
@@ -7664,7 +7746,7 @@ function rebuild_catalog( $shutup = false )
 	$time = round( microtime( true ) - $start, 6 );
 
 	if( !$shutup ) {
-		echo 'Done!<br><br>Rebuilding took ' . $time . ' seconds.<br><br>Redirecting to catalog...<br><br><meta http-equiv="refresh" content="5;URL=//boards.' . L::d(BOARD_DIR) . '/' . BOARD_DIR .  '/catalog">';
+		echo 'Done!<br><br>Rebuilding took ' . $time . ' seconds.<br><br>Redirecting to catalog...<br><br><meta http-equiv="refresh" content="5;URL=/' . BOARD_DIR .  '/catalog">';
 		die();
 	}
 }
@@ -7738,7 +7820,7 @@ function rebuild( $all = 0 )
 	_print(fancystyle());
 	$l = $all ? 'all' : 'missing';
 
-	_print( "Rebuilding $l replies and pages... <a href=\"//boards." . L::d(BOARD_DIR) . '/' . BOARD_DIR . "/\">Go back</a><br><br>\n" );
+	_print( "Rebuilding $l replies and pages... <a href=\"/" . BOARD_DIR . "/\">Go back</a><br><br>\n" );
 	log_cache();
 	trim_db();
 	trim_archive();
@@ -7783,7 +7865,7 @@ function rebuild( $all = 0 )
 	$peakmem = memory_get_peak_usage(true) / (1024*1024.0);
 	$usedmem = memory_get_usage(true) / (1024*1024.0);
 	
-	$redir = '//boards.' . L::d(BOARD_DIR) . '/' . BOARD_DIR . '/';
+	$redir = '/' . BOARD_DIR . '/';
 	
 echo <<<END
 <br>Total running time (lock excluded): $totaltime seconds.
@@ -7825,9 +7907,8 @@ function rebuild_after_deletion( $no )
 
 function updating_index()
 {
-	$proto = ( stripos( $_SERVER["HTTP_REFERER"], "https" ) !== false ) ? "https:" : "http:";
-	echo "<!doctype html><head><meta http-equiv=\"refresh\" content=\"2;URL=$proto"
-    . '//boards.' . L::d(BOARD_DIR) . '/' . BOARD_DIR . "/\"><title>"
+	echo "<!doctype html><head><meta http-equiv=\"refresh\" content=\"2;URL=/"
+    . BOARD_DIR . "/\"><title>"
     . S_UPDATING_INDEX . "</title></head><body><table style=\"font-family:times,serif;font-size:36pt;text-align:center;width:100%;height:300px;\"><td><strong>"
     . S_UPDATING_INDEX . "</strong></td></table>";
 }
@@ -8908,7 +8989,7 @@ function get_contest_banner() {
   }
   
   $img_url = STATIC_SERVER . "image/contest_banners/{$banner['file_id']}.{$banner['file_ext']}";
-  $link_url = '//boards.' . L::d($banner['board']) . '/' . $banner['board'] . '/';
+  $link_url = '/' . $banner['board'] . '/';
   
   return '<div><a href="' . $link_url . '"><img alt="" src="' . $img_url . '"></a></div>';
 }
@@ -9360,29 +9441,39 @@ SQL;
   }
   
   $html .= '<div class="bottomCtrl desktop">';
-  
+
   if (!defined('CSS_FORCE')) {
-    $html .= '<span class="stylechanger">Style: 
+    $html .= '<span class="stylechanger">Style:
       <select id="styleSelector">
         <option value="Yotsuba New">Yotsuba</option>
         <option value="Yotsuba B New">Yotsuba B</option>
         <option value="Futaba New">Futaba</option>
         <option value="Burichan New">Burichan</option>
         <option value="Tomorrow">Tomorrow</option>
-        <option value="Photon">Photon</option>';
-    
+        <option value="Photon">Photon</option>
+        <option value="Paisley">Paisley</option>
+        <option value="Neo Paisley">Neo Paisley</option>
+        <option value="Gentlebot">Gentlebot</option>
+        <option value="Dark">Dark</option>
+        <option value="Obsidian">Obsidian</option>
+        <option value="Sakura">Sakura</option>
+        <option value="Rainbow">Rainbow</option>
+        <option value="Nigrachan">Nigrachan</option>
+        <option value="Kusaba X">Kusaba X</option>
+        <option value="Tomorrow 99">Tomorrow (99)</option>';
+
     if (defined('CSS_EVENT_NAME') && CSS_EVENT_NAME) {
       $html .= '<option value="_special">Special</option>';
     }
-    
+
     $html .= '</select>
     </span>';
   }
-  
+
   $html .= '</div>';
-  
+
   foot($html, false, true);
-  
+
   if ($print) {
     echo $html;
   }
@@ -9441,7 +9532,17 @@ function rebuild_search_page($print = false) {
     'Futaba New'    => "futabanew.$cssVersion.css",
     'Burichan New'  => "burichannew.$cssVersion.css",
     'Photon'        => "photon.$cssVersion.css",
-    'Tomorrow'      => "tomorrow.$cssVersion.css"
+    'Tomorrow'      => "tomorrow.$cssVersion.css",
+    'Paisley'       => "paisley.css",
+    'Neo Paisley'   => "neopaisley.css",
+    'Gentlebot'     => "gentlebot.css",
+    'Dark'          => "dark.css",
+    'Obsidian'      => "obsidian.css",
+    'Sakura'        => "sakura.css",
+    'Rainbow'       => "rainbow.css",
+    'Nigrachan'     => "nigrachan.css",
+    'Kusaba X'      => "kusabax.css",
+    'Tomorrow 99'   => "tomorrow-99.css"
   );
   
   $dcssl = $defaultcss . '.' . $cssVersion . '.css';
@@ -9452,7 +9553,7 @@ function rebuild_search_page($print = false) {
     $css .= '<link rel="alternate stylesheet" style="text/css" href="' . STATIC_SERVER . 'css/' . $stylecss . '" title="' . $style . '">';
   }
   
-  $css .= '<link rel="stylesheet" href="' . STATIC_SERVER . 'css/' . $mobilecss . '">';
+  $css .= '<link rel="stylesheet" media="screen and (max-width: 480px)" href="' . STATIC_SERVER . 'css/' . $mobilecss . '">';
   
   $scriptjs = '<script type="text/javascript">var style_group = "nws_style";</script>';
   
@@ -9501,27 +9602,37 @@ function rebuild_search_page($print = false) {
   $html .= '<div class="bottomCtrl desktop">';
   
   if (!defined('CSS_FORCE')) {
-    $html .= '<span class="stylechanger">Style: 
+    $html .= '<span class="stylechanger">Style:
       <select id="styleSelector">
         <option value="Yotsuba New">Yotsuba</option>
         <option value="Yotsuba B New">Yotsuba B</option>
         <option value="Futaba New">Futaba</option>
         <option value="Burichan New">Burichan</option>
         <option value="Tomorrow">Tomorrow</option>
-        <option value="Photon">Photon</option>';
-    
+        <option value="Photon">Photon</option>
+        <option value="Paisley">Paisley</option>
+        <option value="Neo Paisley">Neo Paisley</option>
+        <option value="Gentlebot">Gentlebot</option>
+        <option value="Dark">Dark</option>
+        <option value="Obsidian">Obsidian</option>
+        <option value="Sakura">Sakura</option>
+        <option value="Rainbow">Rainbow</option>
+        <option value="Nigrachan">Nigrachan</option>
+        <option value="Kusaba X">Kusaba X</option>
+        <option value="Tomorrow 99">Tomorrow (99)</option>';
+
     if (defined('CSS_EVENT_NAME') && CSS_EVENT_NAME) {
       $html .= '<option value="_special">Special</option>';
     }
-    
+
     $html .= '</select>
     </span>';
   }
-  
+
   $html .= '</div></form>';
-  
+
   foot($html);
-  
+
   if ($print) {
     echo $html;
   }
@@ -10196,7 +10307,12 @@ function validate_referer($strict = false) {
   if (!$strict && (!isset($_SERVER['HTTP_REFERER']) || $_SERVER['HTTP_REFERER'] == '')) {
     return;
   }
-  
+
+  // Accept local referers (localhost, *.local, LAN IPs) in addition to 4chan.org
+  if (preg_match('/^https?:\/\/(localhost|[a-z0-9\-]+\.local)(:\d+)?(\/|$)/', $_SERVER['HTTP_REFERER'])) {
+    return;
+  }
+
   if (!preg_match('/^https?:\/\/([_a-z0-9]+)\.(4chan|4channel)\.org(\/|$)/', $_SERVER['HTTP_REFERER'])) {
     error('Bad Request.');
   }
@@ -10395,8 +10511,33 @@ switch( $mode ) {
 			die( '' );
 		}
 		if( $res ) {
-			resredir( $res );
+			$res = (int)$res;
+			$gzfile = RES_DIR . $res . PHP_EXT . '.gz';
+			$htmlfile = RES_DIR . $res . PHP_EXT;
+			updatelog($res, 1);
+			if (file_exists($gzfile)) {
+				header("Content-Encoding: gzip");
+				readfile($gzfile);
+				@unlink($gzfile);
+			} elseif (file_exists($htmlfile)) {
+				readfile($htmlfile);
+				@unlink($htmlfile);
+			} else {
+				resredir($res);
+			}
 		} else {
-			updating_index();
+			updatelog(0, 0);
+			$idxfile = SELF_PATH2_FILE . '.gz';
+			$idxhtml = SELF_PATH2_FILE;
+			if (file_exists($idxfile)) {
+				header("Content-Encoding: gzip");
+				readfile($idxfile);
+				@unlink($idxfile);
+			} elseif (file_exists($idxhtml)) {
+				readfile($idxhtml);
+				@unlink($idxhtml);
+			} else {
+				updating_index();
+			}
 		}
 }
