@@ -132,8 +132,9 @@ function format_name($name) {
 
 
 function ban_history($dec_ip) {
-	$query = mysql_global_call("SELECT COUNT(*) as total,COUNT(active||NULL) as active FROM banned_users WHERE host='%s'", $dec_ip);
-	$row = mysql_fetch_assoc($query);
+	$db = YotsubaDB::global();
+	$query = $db->query("SELECT COUNT(*) as total, COUNT(active||NULL) as active FROM {$db->qi('banned_users')} WHERE host = ?", [$dec_ip]);
+	$row = $query->fetch(PDO::FETCH_ASSOC);
 	if(!$row)
 		return '';
 	if($row['total'] == 0)
@@ -151,16 +152,18 @@ function ban_history($dec_ip) {
 }
 
 function other_ban_requests($than,$dec_ip) {
-	$query = mysql_global_call("SELECT COUNT(*) as total from ban_requests WHERE id!=%d AND host='%s'", $than, $dec_ip);
-	$row = mysql_fetch_assoc($query);
+	$db = YotsubaDB::global();
+	$query = $db->query("SELECT COUNT(*) as total FROM {$db->qi('ban_requests')} WHERE id != ? AND host = ?", [(int)$than, $dec_ip]);
+	$row = $query->fetch(PDO::FETCH_ASSOC);
 	if(!$row)
 		return 0;
 	return $row['total'];
 }
 
 function get_xff($board,$tim) {
-	$query = mysql_global_call("SELECT xff from xff where tim='%s' AND board='%s'", $board, $tim);
-	$row = mysql_fetch_assoc($query);
+	$db = YotsubaDB::global();
+	$query = $db->query("SELECT xff FROM {$db->qi('xff')} WHERE tim = ? AND board = ?", [$board, $tim]);
+	$row = $query->fetch(PDO::FETCH_ASSOC);
 	if(!$row)
 		return '';
 	return format_host($row['host']);
@@ -168,9 +171,10 @@ function get_xff($board,$tim) {
 
 function form_ban($o) {
 	head();
+	$db = YotsubaDB::global();
 	if($o['load_reporter']) {
-		$query = mysql_global_call("SELECT ip FROM reports where ip=%d LIMIT 1",$o['load_reporter']);
-		if(!($row=mysql_fetch_assoc($query)))
+		$query = $db->query("SELECT ip FROM {$db->qi('reports')} WHERE ip = ? LIMIT 1", [(int)$o['load_reporter']]);
+		if(!($row=$query->fetch(PDO::FETCH_ASSOC)))
 			fancydie("No reports found with specified IP.");
 		$form['load_name'] = 'load_reporter';
 		$form['load_value'] = $o['load_reporter'];
@@ -184,8 +188,8 @@ function form_ban($o) {
 		$form['id'] = (int)$o['load_reporter'];
 	}
 	else if($o['load_ban_request']) {
-		$query = mysql_global_call("SELECT * FROM ban_requests where id=%d", $o['load_ban_request']);
-		if(!($row=mysql_fetch_assoc($query)))
+		$query = $db->query("SELECT * FROM {$db->qi('ban_requests')} WHERE id = ?", [(int)$o['load_ban_request']]);
+		if(!($row=$query->fetch(PDO::FETCH_ASSOC)))
 			fancydie("Specified ban request does not exist.");
 		$form['load_name'] = 'load_ban_request';
 		$form['load_value'] = $o['load_ban_request'];

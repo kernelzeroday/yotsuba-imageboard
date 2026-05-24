@@ -91,15 +91,10 @@ function verify_one_time_pwd($username, $otp) {
     return false;
   }
   
-  $query = "SELECT auth_secret FROM mod_users WHERE username = '%s' LIMIT 1";
-  
-  $res = mysql_global_call($query, $username);
-  
-  if (!$res) {
-    return false;
-  }
-  
-  $enc_secret = mysql_fetch_row($res)[0];
+  $db = YotsubaDB::global();
+  $res = $db->query("SELECT auth_secret FROM {$db->qi('mod_users')} WHERE username = ? LIMIT 1", [$username]);
+
+  $enc_secret = $res->fetch(PDO::FETCH_NUM)[0];
   
   if (!$enc_secret) {
     return false;
@@ -226,13 +221,14 @@ function auth_user($skip_agreement = false) {
 	
 	if( !$user || !$pass ) return false;
 
-	$query = mysql_global_call("SELECT * FROM `%s` WHERE `username` = '%s' LIMIT 1", SQLLOGMOD, $user);
-	
-	if (!mysql_num_rows($query)) {
+	$db = YotsubaDB::global();
+	$query = $db->query("SELECT * FROM {$db->qi(SQLLOGMOD)} WHERE {$db->qi('username')} = ? LIMIT 1", [$user]);
+
+	if (!$query->rowCount()) {
 	  return false;
   }
-  
-	$fetch = mysql_fetch_assoc($query);
+
+	$fetch = $query->fetch(PDO::FETCH_ASSOC);
 	
   $admin_salt = file_get_contents('/www/keys/2014_admin.salt');
   
@@ -301,7 +297,7 @@ function auth_user($skip_agreement = false) {
     $ua = $_SERVER['HTTP_USER_AGENT'];
   }
   
-  mysql_global_call("UPDATE `%s` SET ips = '$ips_array', last_ua = '%s' WHERE id = %d LIMIT 1", SQLLOGMOD, $ua, $fetch['id']);
+  $db->query("UPDATE {$db->qi(SQLLOGMOD)} SET ips = ?, last_ua = ? WHERE id = ? LIMIT 1", [$ips_array, $ua, (int)$fetch['id']]);
   
 	return true;
 }
@@ -393,7 +389,7 @@ function auth_user( $login = false )
     $login_query = '';
   }
   
-  mysql_global_do("UPDATE `%s` SET ips = '$ips_array' $login_query WHERE id = %d", SQLLOGMOD, $fetch['id']);
+  $db->query("UPDATE {$db->qi(SQLLOGMOD)} SET ips = ? {$login_query} WHERE id = ?", [$ips_array, (int)$fetch['id']]);
   
 	if( !isset( $_COOKIE['4chan_auser'] ) || !isset( $_COOKIE['4chan_apass'] ) ) {
 		if( strstr( $_SERVER["HTTP_HOST"], ".4chan.org" ) ) {
@@ -443,9 +439,10 @@ function can_delete( $resno )
 	if( has_level( 'janitor' ) && access_board( BOARD_DIR ) ) return true;
 	//if( !access_board(BOARD_DIR) ) return false;
 
-	$query         = mysql_global_do( "SELECT COUNT(*) from reports WHERE board='%s' AND no=%d AND cat=2", BOARD_DIR, $resno );
-	$illegal_count = mysql_result( $query, 0, 0 );
-	mysql_free_result( $query );
+	$db_del = YotsubaDB::global();
+	$query = $db_del->query("SELECT COUNT(*) FROM {$db_del->qi('reports')} WHERE board = ? AND no = ? AND cat = 2", [BOARD_DIR, (int)$resno]);
+	$illegal_count = $query->fetchColumn();
+	$query->closeCursor();
 
 	return $illegal_count >= 3;
 }
@@ -518,11 +515,10 @@ function valid_captcha_bypass()
       die('Internal Server Error (s0)');
     }
     
-		$passq = mysql_global_call("SELECT user_hash, session_id, last_ip, last_used, last_country, status, pending_id, UNIX_TIMESTAMP(expiration_date) as expiration_date FROM pass_users WHERE pin != '' AND user_hash = '%s'", $pass_user);
-		
-		if( !$passq ) error( S_INVALIDPASS );
-		
-		$res = mysql_fetch_assoc($passq);
+		$db_pass = YotsubaDB::global();
+		$passq = $db_pass->query("SELECT user_hash, session_id, last_ip, last_used, last_country, status, pending_id, {$db_pass->unixTimestamp('expiration_date')} as expiration_date FROM {$db_pass->qi('pass_users')} WHERE pin != '' AND user_hash = ?", [$pass_user]);
+
+		$res = $passq->fetch(PDO::FETCH_ASSOC);
 		
 		if (!$res || !$res['session_id']) {
 		  clear_pass_cookies();
@@ -570,15 +566,20 @@ function valid_captcha_bypass()
         $country_code = 'XX';
       }
       
-      $update_country = ", last_country = '" . mysql_real_escape_string($country_code) . "'";
+      $update_country = ", last_country = ?";
+      $country_param = $country_code;
     }
-    
+
     $passid = $pass_user;
-    
+
 		$captcha_bypass = true;
 		$rangeban_bypass = true;
-		
-		mysql_global_call( "UPDATE pass_users SET last_used = NOW(), last_ip = '%s' $update_country WHERE user_hash = '%s' AND status = 0 LIMIT 1", $host, $res['user_hash'], $host );
+
+		if (isset($country_param)) {
+		  $db_pass->query("UPDATE {$db_pass->qi('pass_users')} SET last_used = NOW(), last_ip = ?, last_country = ? WHERE user_hash = ? AND status = 0 LIMIT 1", [$host, $country_param, $res['user_hash']]);
+		} else {
+		  $db_pass->query("UPDATE {$db_pass->qi('pass_users')} SET last_used = NOW(), last_ip = ? WHERE user_hash = ? AND status = 0 LIMIT 1", [$host, $res['user_hash']]);
+		}
 	}
 	
 	return $captcha_bypass;

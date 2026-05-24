@@ -1,17 +1,15 @@
-FROM php:5.6-apache
+FROM php:8.2-apache
 
-LABEL org.opencontainers.image.description="4chan Yotsuba imageboard — security testing lab"
+LABEL org.opencontainers.image.description="4chan Yotsuba imageboard — local development environment"
 
-# Debian Stretch is EOL — use archive mirrors
-RUN echo 'deb http://archive.debian.org/debian stretch main' > /etc/apt/sources.list \
-    && echo 'deb http://archive.debian.org/debian-security stretch/updates main' >> /etc/apt/sources.list \
-    && apt-get update -o Acquire::Check-Valid-Until=false -o Acquire::AllowInsecureRepositories=true \
-    && apt-get install -y --no-install-recommends --allow-unauthenticated \
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
     libmemcached-dev \
     zlib1g-dev \
     libpng-dev \
     libjpeg-dev \
     libwebp-dev \
+    libfreetype6-dev \
     libxml2-dev \
     imagemagick \
     libmagickwand-dev \
@@ -22,19 +20,24 @@ RUN echo 'deb http://archive.debian.org/debian stretch main' > /etc/apt/sources.
     jhead \
     libjpeg-turbo-progs \
     libicu-dev \
+    libzip-dev \
+    libonig-dev \
+    libpq-dev \
+    default-mysql-client \
+    postgresql-client \
     && rm -rf /var/lib/apt/lists/*
 
 # PHP extensions
-RUN pecl install memcached-2.2.0 \
+RUN pecl install memcached \
     && docker-php-ext-enable memcached \
-    && pecl install imagick-3.4.4 \
+    && pecl install imagick \
     && docker-php-ext-enable imagick \
-    && docker-php-ext-configure gd --with-jpeg-dir=/usr --with-png-dir=/usr --with-freetype-dir=/usr --with-webp-dir=/usr \
+    && docker-php-ext-configure gd --with-jpeg --with-webp --with-freetype \
     && docker-php-ext-install -j$(nproc) \
-        mysql \
         mysqli \
         pdo \
         pdo_mysql \
+        pdo_pgsql \
         gd \
         xml \
         mbstring \
@@ -46,7 +49,7 @@ RUN { \
         echo 'short_open_tag = On'; \
         echo 'display_errors = Off'; \
         echo 'log_errors = On'; \
-        echo 'error_reporting = E_ALL & ~E_NOTICE & ~E_DEPRECATED & ~E_STRICT'; \
+        echo 'error_reporting = E_ALL & ~E_NOTICE & ~E_DEPRECATED & ~E_STRICT & ~E_WARNING'; \
         echo 'memory_limit = 256M'; \
         echo 'upload_max_filesize = 10M'; \
         echo 'post_max_size = 12M'; \
@@ -93,13 +96,36 @@ RUN { \
         echo '  <Directory /www/4chan.org/web/sys>'; \
         echo '    Require all granted'; \
         echo '  </Directory>'; \
+        echo '  ErrorDocument 404 /static/pages/404.html'; \
         echo '  RewriteEngine On'; \
-        echo '  RewriteRule ^/?$ /b/ [R=302,L]'; \
+        echo '  RewriteRule ^/boards\\.json$ /b/boards.php [QSA,L]'; \
+        echo '  RewriteRule ^/?$ /b/homepage.php [QSA,L]'; \
+        echo '  RewriteRule ^/blotter$ /static/pages/blotter.html [PT,L]'; \
+        echo '  RewriteRule ^/rules$ /static/pages/rules.html [PT,L]'; \
+        echo '  RewriteRule ^/faq$ /static/pages/faq.html [PT,L]'; \
+        echo '  RewriteRule ^/feedback$ /static/pages/feedback.html [PT,L]'; \
+        echo '  RewriteRule ^/legal$ /static/pages/legal.html [PT,L]'; \
+        echo '  RewriteRule ^/contact$ /static/pages/contact.html [PT,L]'; \
+        echo '  RewriteRule ^/advertise$ /static/pages/advertise.html [PT,L]'; \
+        echo '  RewriteRule ^/search$ /static/pages/search.html [PT,L]'; \
+        echo '  RewriteRule ^/shiichan$ /static/pages/shiichan.html [PT,L]'; \
+        echo '  RewriteCond %{DOCUMENT_ROOT}/$1/thread/$2.json.gz -f'; \
+        echo '  RewriteRule ^/([a-z0-9]+)/thread/([0-9]+)\\.json$ /$1/thread/$2.json.gz [L,E=no-gzip:1,T=application/json]'; \
+        echo '  RewriteCond %{DOCUMENT_ROOT}/$1/$2.json.gz -f'; \
+        echo '  RewriteRule ^/([a-z0-9]+)/([0-9]+)\\.json$ /$1/$2.json.gz [L,E=no-gzip:1,T=application/json]'; \
+        echo '  RewriteCond %{DOCUMENT_ROOT}/$1/catalog.json.gz -f'; \
+        echo '  RewriteRule ^/([a-z0-9]+)/catalog\\.json$ /$1/catalog.json.gz [L,E=no-gzip:1,T=application/json]'; \
+        echo '  RewriteCond %{DOCUMENT_ROOT}/$1/threads.json.gz -f'; \
+        echo '  RewriteRule ^/([a-z0-9]+)/threads\\.json$ /$1/threads.json.gz [L,E=no-gzip:1,T=application/json]'; \
+        echo '  <FilesMatch "\\.json\\.gz$">'; \
+        echo '    ForceType application/json'; \
+        echo '    Header set Content-Encoding gzip'; \
+        echo '  </FilesMatch>'; \
         echo '  RewriteRule ^/([a-z0-9]+)/?$ /$1/imgboard.php [QSA,L]'; \
         echo '  RewriteRule ^/([a-z0-9]+)/post /$1/imgboard.php [QSA,L]'; \
         echo '  RewriteRule ^/([a-z0-9]+)/delete /$1/imgboard.php [QSA,L]'; \
-        echo '  RewriteRule ^/([a-z0-9]+)/thread/([0-9]+) /$1/imgboard.php [QSA,L]'; \
-        echo '  RewriteRule ^/([a-z0-9]+)/catalog /$1/catalog.php [QSA,L]'; \
+        echo '  RewriteRule ^/([a-z0-9]+)/thread/([0-9]+) /$1/imgboard.php?res=$2 [QSA,L]'; \
+        echo '  RewriteRule ^/([a-z0-9]+)/catalog /$1/catalog_serve.php [QSA,L]'; \
         echo '  RewriteRule ^/([a-z0-9]+)/json /$1/json.php [QSA,L]'; \
         echo '</VirtualHost>'; \
     } > /etc/apache2/sites-available/yotsuba.conf \
@@ -113,9 +139,12 @@ COPY . /var/www/html/
 COPY docker/config/ /var/www/html/config/
 COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
 COPY docker/init-boards.sh /usr/local/bin/init-boards.sh
+COPY docker/run-migrations.sh /usr/local/bin/run-migrations.sh
+COPY docker/backup.sh /usr/local/bin/backup.sh
+COPY docker/backup-dump.sh /usr/local/bin/backup-dump.sh
 COPY docker/static/ /www/4chan.org/web/static/
 
-RUN chmod +x /usr/local/bin/entrypoint.sh /usr/local/bin/init-boards.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh /usr/local/bin/init-boards.sh /usr/local/bin/run-migrations.sh /usr/local/bin/backup.sh /usr/local/bin/backup-dump.sh
 
 # Directory structure + symlink source to global path
 RUN mkdir -p /www/global \
@@ -126,6 +155,7 @@ RUN mkdir -p /www/global \
     && mkdir -p /www/4chan.org/web/sys \
     && mkdir -p /www/keys \
     && mkdir -p /www/perhost \
+    && mkdir -p /www/backups \
     && chown -R www-data:www-data /www
 
 EXPOSE 80

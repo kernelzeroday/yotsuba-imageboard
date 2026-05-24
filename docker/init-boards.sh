@@ -3,38 +3,53 @@
 # Called from entrypoint.sh after Apache starts.
 
 BASE_URL="http://localhost"
+DB_DRIVER="${YOTSUBA_DB_DRIVER:-mysql}"
 
-BOARDS=$(php -- <<'PHPEOF'
+if [ "$DB_DRIVER" = "pgsql" ]; then
+    BOARDS=$(PGPASSWORD="${YOTSUBA_PG_PASS:-yotsuba}" psql \
+        -h "${YOTSUBA_PG_HOST:-pgdb}" \
+        -p "${YOTSUBA_PG_PORT:-5432}" \
+        -U "${YOTSUBA_PG_USER:-yotsuba}" \
+        -d "${YOTSUBA_PG_NAME:-yotsuba_dev}" \
+        -t -A -c "SELECT dir FROM boardlist WHERE hidden = 0" 2>/dev/null)
+else
+    BOARDS=$(php -- <<'PHPEOF'
 <?php
 require '/var/www/html/config/config_db.php';
-$c = mysql_connect(SQLHOST_GLOBAL, SQLUSER_GLOBAL, SQLPASS_GLOBAL);
+$host = defined('SQLHOST_GLOBAL') ? SQLHOST_GLOBAL : 'db';
+if (strpos($host, ':') !== false) {
+    list($h, $p) = explode(':', $host, 2);
+} else {
+    $h = $host; $p = 3306;
+}
+$c = @mysqli_connect($h, SQLUSER_GLOBAL, SQLPASS_GLOBAL, SQLDB_GLOBAL, (int)$p);
 if (!$c) exit;
-mysql_select_db(SQLDB_GLOBAL, $c);
-$q = mysql_query("SELECT dir FROM boardlist WHERE hidden = 0");
-while ($r = mysql_fetch_row($q)) { echo $r[0] . "\n"; }
+$q = mysqli_query($c, "SELECT dir FROM boardlist WHERE hidden = 0");
+while ($r = mysqli_fetch_row($q)) { echo $r[0] . "\n"; }
 PHPEOF
 )
+fi
 
 if [ -z "$BOARDS" ]; then
     echo "[init] No boards found. Skipping pre-generation."
     exit 0
 fi
 
-echo "[init] Pre-generating board indexes..."
+echo "[init] Generating board index pages..."
 
 for board in $BOARDS; do
-    HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "$BASE_URL/$board/" 2>&1)
+    HTTP_CODE=$(curl -s "$BASE_URL/$board/" -o /dev/null -w "%{http_code}" 2>/dev/null)
 
     INDEX_FILE="/www/4chan.org/web/boards/$board/imgboard.html"
     GZ_FILE="${INDEX_FILE}.gz"
     if [ -f "$GZ_FILE" ]; then
         SIZE=$(stat -c%s "$GZ_FILE" 2>/dev/null || stat -f%z "$GZ_FILE" 2>/dev/null)
-        echo "[init] $board — HTTP $HTTP_CODE, index: $SIZE bytes (gz)"
+        echo "[init] $board — $HTTP_CODE, index: $SIZE bytes (gz)"
     elif [ -f "$INDEX_FILE" ]; then
         SIZE=$(stat -c%s "$INDEX_FILE" 2>/dev/null || stat -f%z "$INDEX_FILE" 2>/dev/null)
-        echo "[init] $board — HTTP $HTTP_CODE, index: $SIZE bytes"
+        echo "[init] $board — $HTTP_CODE, index: $SIZE bytes"
     else
-        echo "[init] $board — HTTP $HTTP_CODE, WARNING: index not created"
+        echo "[init] $board — $HTTP_CODE"
     fi
 done
 

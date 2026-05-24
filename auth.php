@@ -132,17 +132,16 @@ class App {
     if (!$long_ip) {
       return;
     }
-    
-    $query = "SELECT COUNT(ip) FROM user_actions WHERE ip = $long_ip AND action = 'fail_pass_auth' AND time >= DATE_SUB(NOW(), INTERVAL 1 HOUR)";
-    
-    $res = mysql_global_call($query);
-    
+
+    $db = YotsubaDB::global();
+    $res = $db->query("SELECT COUNT(ip) FROM {$db->qi('user_actions')} WHERE ip = ? AND action = 'fail_pass_auth' AND time >= {$db->dateInterval('NOW()', 1, 'HOUR')}", [$long_ip]);
+
     if (!$res) {
       return;
     }
-    
-    $count = (int)mysql_fetch_row($res)[0];
-    
+
+    $count = (int)$res->fetch(PDO::FETCH_NUM)[0];
+
     if ($count >= LOGIN_FAIL_HOURLY) {
       $this->error(self::ERR_FLOOD);
     }
@@ -152,27 +151,21 @@ class App {
     if (!$long_ip) {
       return;
     }
-    
-    $query = "INSERT INTO user_actions (ip, board, action, time) VALUES(%d, '', 'fail_pass_auth', NOW())";
-    $res = mysql_global_call($query, $long_ip);
+
+    $db = YotsubaDB::global();
+    $db->query("INSERT INTO {$db->qi('user_actions')} (ip, board, action, time) VALUES(?, '', 'fail_pass_auth', NOW())", [$long_ip]);
   }
   
   private function convert_new_pass_status($user_hash, $hashed_pin) {
-    $table = self::PASS_TABLE;
-    
-    $query = "UPDATE $table SET pin = '%s', status = 0 WHERE user_hash = '%s' AND status = 6 LIMIT 1";
-    
-    mysql_global_call($query, $hashed_pin, $user_hash);
-    
+    $db = YotsubaDB::global();
+    $db->query("UPDATE {$db->qi(self::PASS_TABLE)} SET pin = ?, status = 0 WHERE user_hash = ? AND status = 6 LIMIT 1", [$hashed_pin, $user_hash]);
+
     $this->set_cookie('pass_email', '', -1);
   }
   
   private function convert_delayed_pass_status($user_hash, $hashed_pin) {
-    $table = self::PASS_TABLE;
-    
-    $query = "UPDATE $table SET pin = '%s', status = 0, expiration_date = NOW() + INTERVAL 1 YEAR WHERE user_hash = '%s' AND status = 7 LIMIT 1";
-    
-    mysql_global_call($query, $hashed_pin, $user_hash);
+    $db = YotsubaDB::global();
+    $db->query("UPDATE {$db->qi(self::PASS_TABLE)} SET pin = ?, status = 0, expiration_date = {$db->dateAdd('NOW()', 1, 'YEAR')} WHERE user_hash = ? AND status = 7 LIMIT 1", [$hashed_pin, $user_hash]);
   }
   
   private function set_cookie($name, $value, $ttl, $secure = false, $http_only = false) {
@@ -269,21 +262,20 @@ class App {
     
     $plain_pin = $pin;
     $pin = crypt($pin, substr($id, 4, 9));
-    
-    $query = "SELECT * FROM $table WHERE user_hash = '%s' AND (pin = '%s' OR pin = '%s') LIMIT 1";
-    
-    $res = mysql_global_call($query, $id, $pin, $plain_pin);
-    
+
+    $db = YotsubaDB::global();
+    $res = $db->query("SELECT * FROM {$db->qi($table)} WHERE user_hash = ? AND (pin = ? OR pin = ?) LIMIT 1", [$id, $pin, $plain_pin]);
+
     if (!$res) {
       $this->error(self::ERR_DB);
     }
-    
-    if (mysql_num_rows($res) !== 1) {
+
+    if ($res->rowCount() !== 1) {
       $this->register_auth_failure($long_ip);
       $this->error(self::ERR_BAD_AUTH);
     }
-    
-    $pass = mysql_fetch_assoc($res);
+
+    $pass = $res->fetch(PDO::FETCH_ASSOC);
     
     if (!$pass) {
       $this->error(sprintf(self::ERR_GENERIC, 'mfa1'));
@@ -340,31 +332,25 @@ class App {
     
     // Update country
     $geo_data = GeoIP2::get_country($ip);
-    
+
     if ($geo_data && isset($geo_data['country_code'])) {
-      $country_code = mysql_real_escape_string($geo_data['country_code']);
+      $country_code = $geo_data['country_code'];
     }
     else {
       $country_code = 'XX';
     }
-    
-    $update_country = ", last_country = '$country_code'";
-    
-    $query = "UPDATE $table SET last_ip = '%s', last_used = NOW() $update_country WHERE user_hash = '%s' AND last_ip != '%s' AND status = 0 LIMIT 1";
-    
-    mysql_global_call($query, $ip, $id, $ip);
-    
+
+    $db->query("UPDATE {$db->qi($table)} SET last_ip = ?, last_used = NOW(), last_country = ? WHERE user_hash = ? AND last_ip != ? AND status = 0 LIMIT 1", [$ip, $country_code, $id, $ip]);
+
     // Update session id
     if (!$pass['session_id']) {
       $pass_session = $this->get_random_base64bytes(32);
-      
+
       if (!$pass_session) {
         $this->error(sprintf(self::ERR_GENERIC, 'grb'));
       }
-      
-      $query = "UPDATE $table SET session_id = '$pass_session' WHERE user_hash = '%s' AND status = 0 LIMIT 1";
-      
-      mysql_global_call($query, $id);
+
+      $db->query("UPDATE {$db->qi($table)} SET session_id = ? WHERE user_hash = ? AND status = 0 LIMIT 1", [$pass_session, $id]);
     }
     else {
       $pass_session = $pass['session_id'];

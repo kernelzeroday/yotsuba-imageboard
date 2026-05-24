@@ -5,20 +5,21 @@
 // about 4 tables in global are the same thing with different schema
 
 function rid($tablename,$usetext=0) {
+	$db = YotsubaDB::global();
 
 	if ($usetext) {
-		$fields = "img,link";
+		$fields = "img, link";
 	} else {
 		$fields = "img";
 	}
 
-	$ret = mysql_global_call("select $fields from `%s` join (select floor(1+rand()*(select max(id) from `%s`)) as id) as randid using (id)", $tablename, $tablename);
-
+	$qtbl = $db->qi($tablename);
+	$ret = $db->query("SELECT {$fields} FROM {$qtbl} JOIN (SELECT FLOOR(1 + RAND() * (SELECT MAX(id) FROM {$qtbl})) AS id) AS randid USING (id)");
 
 	if ($usetext) {
-		return mysql_fetch_row($ret);
+		return $ret->fetch(PDO::FETCH_NUM);
 	} else {
-		return mysql_result($ret,0,0);
+		return $ret->fetchColumn();
 	}
 }
 

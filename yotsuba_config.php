@@ -119,4 +119,4 @@ if( basename( $_SERVER[ 'SCRIPT_NAME' ] ) == basename( __FILE__ ) ) {
 	print_r( $cxs[ 'user' ] );
 }
 
-if( !$no_unset ) unset( $title, $constants, $board, $subdomain, $pathcomps, $CONFIG_PATTERN, $query, $row, $fakecwd );
+if( !isset($no_unset) || !$no_unset ) unset( $title, $constants, $board, $subdomain, $pathcomps, $CONFIG_PATTERN, $query, $row, $fakecwd );

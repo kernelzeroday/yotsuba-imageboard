@@ -112,11 +112,10 @@ function oekaki_get_valid_src_pid($src_pid, $board, $thread_id) {
     return null;
   }
   
-  $sql = "SELECT no FROM `%s` WHERE no = $src_pid AND (resto = $thread_id OR resto = 0) AND tim != 0 LIMIT 1";
-  
-  $res = mysql_board_call($sql, $board);
-  
-  if (!$res || mysql_num_rows($res) !== 1) {
+  $db = YotsubaDB::board();
+  $res = $db->query("SELECT no FROM {$db->qi($board)} WHERE no = ? AND (resto = ? OR resto = 0) AND tim != 0 LIMIT 1", [$src_pid, $thread_id]);
+
+  if ($res->rowCount() !== 1) {
     return null;
   }
   

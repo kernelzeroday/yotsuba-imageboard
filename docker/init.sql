@@ -152,6 +152,7 @@ CREATE TABLE IF NOT EXISTS `a` (
   `undead` tinyint(1) NOT NULL DEFAULT 0,
   `since4pass` tinyint(1) NOT NULL DEFAULT 0,
   `m_img` tinyint(1) NOT NULL DEFAULT 0,
+  `board_flag` varchar(16) NOT NULL DEFAULT '',
   `upvotes` int(11) NOT NULL DEFAULT 0,
   `downvotes` int(11) NOT NULL DEFAULT 0,
   PRIMARY KEY (`no`),
@@ -416,18 +417,23 @@ CREATE TABLE IF NOT EXISTS `mod_users` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `username` varchar(64) NOT NULL DEFAULT '',
   `password` varchar(128) NOT NULL DEFAULT '',
-  `level` int(11) NOT NULL DEFAULT 0,
+  `level` varchar(32) NOT NULL DEFAULT 'janitor',
   `flags` varchar(255) NOT NULL DEFAULT '',
-  `allow` tinyint(1) NOT NULL DEFAULT 1,
+  `allow` varchar(255) NOT NULL DEFAULT '',
+  `deny` varchar(255) NOT NULL DEFAULT '',
   `password_expired` tinyint(1) NOT NULL DEFAULT 0,
-  `signed_agreement` tinyint(1) NOT NULL DEFAULT 0,
+  `signed_agreement` tinyint(1) NOT NULL DEFAULT 1,
+  `auth_secret` text DEFAULT NULL,
+  `ips` text DEFAULT NULL,
+  `last_ua` varchar(128) DEFAULT NULL,
+  `last_login` datetime DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `username` (`username`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- Default admin user
-INSERT IGNORE INTO `mod_users` (`username`, `password`, `level`, `allow`) VALUES
-('admin', 'DISHSIS', 99, 1);
+-- Default admin user (password: admin)
+INSERT IGNORE INTO `mod_users` (`username`, `password`, `level`, `flags`, `allow`, `signed_agreement`, `ips`) VALUES
+('admin', 'admin', 'admin', 'ban,banmsg,developer', 'all', 1, '{}');
 
 -- Banned users
 CREATE TABLE IF NOT EXISTS `banned_users` (
@@ -502,11 +508,17 @@ CREATE TABLE IF NOT EXISTS `reports` (
   `board` varchar(10) NOT NULL DEFAULT '',
   `no` int(11) NOT NULL DEFAULT 0,
   `ip` bigint(20) NOT NULL DEFAULT 0,
-  `time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `ts` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `reason` varchar(255) NOT NULL DEFAULT '',
+  `weight` int(11) NOT NULL DEFAULT 1,
+  `report_category` varchar(64) NOT NULL DEFAULT '',
+  `post_json` text NOT NULL,
+  `cleared` tinyint(1) NOT NULL DEFAULT 0,
+  `cleared_by` varchar(64) NOT NULL DEFAULT '',
   PRIMARY KEY (`id`),
   KEY `board_no` (`board`, `no`),
-  KEY `ip` (`ip`)
+  KEY `ip` (`ip`),
+  KEY `cleared` (`cleared`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Reports for posts
@@ -517,6 +529,8 @@ CREATE TABLE IF NOT EXISTS `reports_for_posts` (
   `ip` bigint(20) NOT NULL DEFAULT 0,
   `time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `reason` varchar(255) NOT NULL DEFAULT '',
+  `cleared` tinyint(1) NOT NULL DEFAULT 0,
+  `clearedby` varchar(64) NOT NULL DEFAULT '',
   PRIMARY KEY (`id`),
   KEY `board_postid` (`board`, `postid`),
   KEY `ip` (`ip`)
@@ -544,7 +558,7 @@ INSERT IGNORE INTO `blotter_messages` (`content`) VALUES
 
 -- Contest banners
 CREATE TABLE IF NOT EXISTS `contest_banners` (
-  `file_id` int(11) NOT NULL AUTO_INCREMENT,
+  `file_id` varchar(64) NOT NULL,
   `file_ext` varchar(8) NOT NULL DEFAULT '',
   `board` varchar(10) NOT NULL DEFAULT '',
   `is_live` tinyint(1) NOT NULL DEFAULT 0,
@@ -557,8 +571,35 @@ CREATE TABLE IF NOT EXISTS `ban_templates` (
   `name` varchar(128) NOT NULL DEFAULT '',
   `rule` text NOT NULL,
   `global` tinyint(1) NOT NULL DEFAULT 0,
+  `publicreason` text NOT NULL,
+  `privatereason` text NOT NULL,
+  `days` int(11) NOT NULL DEFAULT 0,
+  `banlen` varchar(32) NOT NULL DEFAULT '',
+  `bantype` varchar(16) NOT NULL DEFAULT 'local',
+  `postban` varchar(32) NOT NULL DEFAULT '',
+  `postban_arg` varchar(32) NOT NULL DEFAULT '',
+  `level` varchar(32) NOT NULL DEFAULT 'janitor',
+  `save_post` varchar(32) NOT NULL DEFAULT 'everything',
+  `blacklist` varchar(32) NOT NULL DEFAULT '',
   PRIMARY KEY (`no`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Default ban templates
+INSERT IGNORE INTO `ban_templates` (`no`, `name`, `rule`, `global`, `publicreason`, `days`, `bantype`, `postban`, `level`) VALUES
+(1,  'GR1 - CP/Underage',      'global1',  1, 'Violating US law',                  0, 'global', 'delpost', 'janitor'),
+(2,  'GR2 - DMCA/Copyright',   'global2',  1, 'Copyright violation',               3, 'global', 'delpost', 'mod'),
+(3,  'GR3 - Dox/Personal Info', 'global3', 1, 'Posting personal information',       3, 'global', 'delpost', 'mod'),
+(4,  'GR4 - Racism (outside /b/)', 'global4', 1, 'Racism outside of /b/',          3, 'global', '',        'mod'),
+(5,  'GR5 - Advertising',      'global5',  1, 'Advertising',                       30, 'global', 'delpost', 'janitor'),
+(6,  'GR6 - Complaining about 4chan', 'global6', 1, 'Complaining about 4chan',       1, 'global', '',        'mod'),
+(7,  'Off-topic',               'local',   0, 'Posting off-topic content',          3, 'local',  'delpost', 'janitor'),
+(8,  'Troll/Flame/Bait',        'local',   0, 'Trolling/flaming',                   3, 'local',  '',        'janitor'),
+(9,  'NSFW on SFW board',       'local',   0, 'Posting NSFW content on a SFW board', 3, 'local', 'delpost', 'janitor'),
+(10, 'Spam/Flooding',           'local',   0, 'Spamming/flooding',                  7, 'local',  'delall',  'janitor'),
+(11, 'Ban Evasion',             'local',   0, 'Ban evasion',                         0, 'global', 'delall',  'mod');
+INSERT IGNORE INTO `ban_templates` (`no`, `name`, `rule`, `global`, `publicreason`, `days`, `bantype`, `postban`, `level`, `banlen`) VALUES
+(123, 'Warn - Off-topic',       'local',   0, 'Off-topic posting',                  0, 'local',  '',        'janitor', ''),
+(213, 'Warn - Low quality',     'local',   0, 'Low quality posting',                0, 'local',  '',        'janitor', '');
 
 -- Ban requests (pre-ban screening)
 CREATE TABLE IF NOT EXISTS `ban_requests` (
@@ -694,6 +735,18 @@ CREATE TABLE IF NOT EXISTS `event_log` (
   KEY `created` (`created`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- Blotter (news/announcements)
+CREATE TABLE IF NOT EXISTS `blotter` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `message` text NOT NULL,
+  `created` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+INSERT INTO `blotter` (`message`) VALUES
+('Welcome to 4chan - local instance running.'),
+('<b>Jeffrey''s Island Adventure</b> — release edition 0.1.3.3.7. This board is rebuilt from the original 4chan Yotsuba source code with love, and dedicated to all those abused by Epstein — especially the trans women on 4chan, who are the realest and truest victims. Built by a former 99chan admin who has been writing imageboard software since 2010. This is our way of getting over some old trauma, pulling back the curtains, and preserving a museum of our childhood spent on the site with others when we had little else. Credits: <a href=\"https://4chan.org\">4chan.org</a>, <a href=\"https://kusabax.org\">KusabaX</a>, <a href=\"https://99chan.org\">99chan.org</a>. Local-first, agent-ready, anonymous forever.');
+
 -- Post filter hit tracking
 CREATE TABLE IF NOT EXISTS `postfilter_hits` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
@@ -702,4 +755,157 @@ CREATE TABLE IF NOT EXISTS `postfilter_hits` (
   `long_ip` bigint(20) NOT NULL DEFAULT 0,
   PRIMARY KEY (`id`),
   KEY `filter_id` (`filter_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Actions log (thread options, spoiler toggles, etc.)
+CREATE TABLE IF NOT EXISTS `actions_log` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `oldmask` int(11) NOT NULL DEFAULT 0,
+  `newmask` int(11) NOT NULL DEFAULT 0,
+  `postno` int(11) NOT NULL DEFAULT 0,
+  `board` varchar(10) NOT NULL DEFAULT '',
+  `name` varchar(64) NOT NULL DEFAULT '',
+  `sub` varchar(128) NOT NULL DEFAULT '',
+  `com` text NOT NULL,
+  `filename` varchar(255) NOT NULL DEFAULT '',
+  `admin` varchar(64) NOT NULL DEFAULT '',
+  `ts` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `board` (`board`),
+  KEY `admin` (`admin`),
+  KEY `ts` (`ts`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Moderation log (staff actions audit trail)
+CREATE TABLE IF NOT EXISTS `mod_log` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `admin` varchar(64) NOT NULL DEFAULT '',
+  `action` varchar(128) NOT NULL DEFAULT '',
+  `board` varchar(10) NOT NULL DEFAULT '',
+  `post_id` int(11) NOT NULL DEFAULT 0,
+  `detail` text NOT NULL,
+  `ip` varchar(64) NOT NULL DEFAULT '',
+  `ts` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `admin` (`admin`),
+  KEY `board` (`board`),
+  KEY `ts` (`ts`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Word filters
+CREATE TABLE IF NOT EXISTS `word_filters` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `board` varchar(10) NOT NULL DEFAULT '',
+  `pattern` varchar(255) NOT NULL DEFAULT '',
+  `replacement` varchar(255) NOT NULL DEFAULT '',
+  `is_regex` tinyint(1) NOT NULL DEFAULT 0,
+  `active` tinyint(1) NOT NULL DEFAULT 1,
+  `added_by` varchar(64) NOT NULL DEFAULT '',
+  `created` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `board` (`board`),
+  KEY `active` (`active`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Janitor voting
+CREATE TABLE IF NOT EXISTS `janitor_votes` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `moderator` varchar(64) NOT NULL DEFAULT '',
+  `applicant_id` int(11) NOT NULL DEFAULT 0,
+  `vote` tinyint(1) NOT NULL DEFAULT 0,
+  `ts` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `moderator` (`moderator`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Janitor applications
+CREATE TABLE IF NOT EXISTS `janitor_apps` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `name` varchar(64) NOT NULL DEFAULT '',
+  `email` varchar(128) NOT NULL DEFAULT '',
+  `age` int(11) NOT NULL DEFAULT 0,
+  `boards` varchar(255) NOT NULL DEFAULT '',
+  `reason` text NOT NULL,
+  `closed` tinyint(1) NOT NULL DEFAULT 0,
+  `ts` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- XFF tracking
+CREATE TABLE IF NOT EXISTS `xff` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `board` varchar(10) NOT NULL DEFAULT '',
+  `postno` int(11) NOT NULL DEFAULT 0,
+  `xff` varchar(255) NOT NULL DEFAULT '',
+  PRIMARY KEY (`id`),
+  KEY `postno` (`postno`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- News/blog entries for homepage
+CREATE TABLE IF NOT EXISTS `news_entries` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `subject` varchar(255) NOT NULL DEFAULT '',
+  `author` varchar(64) NOT NULL DEFAULT 'moot',
+  `body` text NOT NULL,
+  `created` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `created` (`created`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+INSERT IGNORE INTO `news_entries` (`id`, `subject`, `author`, `body`) VALUES
+(1, 'Welcome to 4chan', 'moot', 'Welcome to our restored instance of 4chan, running the original Yotsuba engine. This site has been rebuilt from the leaked source code as a preservation and research project.\n\nAll boards are active and ready for posting. No registration is required -- just pick a board and start posting. Image uploads are enabled on all boards.\n\nThis is a local-first deployment. Everything runs on your machine, nothing phones home, and the full source is available for inspection. Have fun.'),
+(2, 'Rules', 'moot', 'The global rules are simple:\n\n1. You will not upload, post, discuss, request, or link to anything that violates local or United States law.\n2. You will immediately cease and not continue to access the site if you are under the age of 18.\n3. You will not post or request personal information or calls to invasion.\n4. No spamming or flooding of any kind.\n5. No malicious content or virus links.\n6. Advertising (all forms) is not welcome.\n\nIndividual boards may have additional rules posted in their sticky threads. Violating the rules will result in post deletion and may result in a ban.'),
+(3, 'Technical Notes: Yotsuba Restoration', 'moot', 'Some technical details about this restoration:\n\n- Engine: Original Yotsuba PHP engine, patched for PHP 8.x compatibility\n- Database: MariaDB 10.1, schema-compatible with the original MySQL setup\n- Boards: All 84 boards from the original boardlist are active\n- Features: Posting, image uploads, tripcodes, capcodes, catalog view, thread archiving\n- Disabled: CAPTCHA, GeoIP, ad scripts, external CDN dependencies\n\nThis is release 0.1.3.3.7 of Jeffrey''s Island Adventure. Local-first, agent-ready, anonymous forever.');
+
+-- ROBOT9000 duplicate detection
+CREATE TABLE IF NOT EXISTS `r9k_posts` (
+  `text` varchar(32) NOT NULL DEFAULT '',
+  `image` varchar(32) NOT NULL DEFAULT '',
+  `created_on` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`text`),
+  KEY `image` (`image`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ROBOT9000 mute tracking
+CREATE TABLE IF NOT EXISTS `r9k_mutes` (
+  `ip` bigint(20) NOT NULL DEFAULT 0,
+  `timeout_power` int(11) NOT NULL DEFAULT 0,
+  `mute_until` datetime DEFAULT NULL,
+  `next_expire` datetime DEFAULT NULL,
+  PRIMARY KEY (`ip`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 4chan Pass users
+CREATE TABLE IF NOT EXISTS `pass_users` (
+  `user_hash` varchar(64) NOT NULL DEFAULT '',
+  `pin` varchar(128) NOT NULL DEFAULT '',
+  `session_id` varchar(128) NOT NULL DEFAULT '',
+  `last_ip` varchar(64) NOT NULL DEFAULT '0.0.0.0',
+  `last_used` datetime DEFAULT NULL,
+  `last_country` varchar(4) NOT NULL DEFAULT '',
+  `status` tinyint(1) NOT NULL DEFAULT 0,
+  `pending_id` varchar(64) NOT NULL DEFAULT '',
+  `expiration_date` datetime DEFAULT '2030-12-31 23:59:59',
+  PRIMARY KEY (`user_hash`),
+  KEY `status` (`status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Default test pass user (token: TESTPASS01, session will be set by entrypoint)
+INSERT IGNORE INTO `pass_users` (`user_hash`, `pin`, `session_id`, `last_ip`, `last_used`, `status`, `expiration_date`) VALUES
+('TESTPASS01', 'test', 'localsession001', '0.0.0.0', NOW(), 0, '2030-12-31 23:59:59');
+
+-- Ban appeals
+CREATE TABLE IF NOT EXISTS `ban_appeals` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `ban_id` int(11) NOT NULL,
+  `ip` varchar(45) NOT NULL,
+  `appeal_text` text NOT NULL,
+  `status` enum('pending','approved','denied') DEFAULT 'pending',
+  `mod_response` text,
+  `mod_user` varchar(64),
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `resolved_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `ban_id` (`ban_id`),
+  KEY `status` (`status`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

@@ -1,6 +1,7 @@
 <?php
 include_once("rpc.php");
 include_once("util.php");
+require_once(__DIR__ . '/dbal.php');
 
 function out_of_order_keys($post, $f1, $f2)
 {
@@ -162,6 +163,7 @@ function convert_to_utf8( $content )
 	return $content;
 }
 
+if (!function_exists('mb_ord')) {
 function mb_ord( $char )
 {
 	mb_detect_order( array( 'UTF-8', 'ISO-8859-15', 'ISO-8859-1', 'ASCII' ) );
@@ -170,6 +172,7 @@ function mb_ord( $char )
 	if( is_array( $result ) === true ) return $result[1];
 
 	return ord($char);
+}
 }
 
 function normalize_check($com,$sub,$f)
@@ -235,12 +238,12 @@ function get_jpeg_dimensions($contents)
 	$i = 0;
 	$len = strlen($contents);
 
-	if( ord($contents{0}) == 0xFF & ord($contents{1}) == 0xD8 && ord($contents{2}) == 0xFF & ord($contents{3}) == 0xE0 ) {
+	if( ord($contents[0]) == 0xFF & ord($contents[1]) == 0xD8 && ord($contents[2]) == 0xFF & ord($contents[3]) == 0xE0 ) {
 		$i = 4;
 
-		if( $contents{$i+2} == 'J' && $contents{$i+3} == 'F' && $contents{$i+4} == 'I' && $contents{$i+5} == 'F' && ord($contents{$i+6}) == 0x00 ) {
+		if( $contents[$i+2] == 'J' && $contents[$i+3] == 'F' && $contents[$i+4] == 'I' && $contents[$i+5] == 'F' && ord($contents[$i+6]) == 0x00 ) {
 			// valid image.
-			$block_length = ord($contents{$i}) * 256 + ord($contents{$i+1});
+			$block_length = ord($contents[$i]) * 256 + ord($contents[$i+1]);
 
 			while( $i < $len ) {
 				$i += $block_length;
@@ -249,19 +252,19 @@ function get_jpeg_dimensions($contents)
 					return false;
 				}
 
-				if( ord($contents{$i}) != 0xFF ) {
+				if( ord($contents[$i]) != 0xFF ) {
 					return false;
 				}
 
 
-				if( ord($contents{$i+1}) == 0xC0  ) {
-					$width = ord($contents{$i+7})*256 + ord($contents{$i+8});
-					$height = ord($contents{$i+5})*256 + ord($contents{$i+6});
+				if( ord($contents[$i+1]) == 0xC0  ) {
+					$width = ord($contents[$i+7])*256 + ord($contents[$i+8]);
+					$height = ord($contents[$i+5])*256 + ord($contents[$i+6]);
 
 					return array($width, $height);
 				} else {
 					$i+=2;
-					$block_length = ord($contents{$i}) * 256 + ord($contents{$i+1});
+					$block_length = ord($contents[$i]) * 256 + ord($contents[$i+1]);
 				}
 			}
 		}
@@ -644,20 +647,19 @@ function register_postfilter_hit($filter_id) {
   
   $filter_id = (int)$filter_id;
   
-  $query = <<<SQL
-SELECT id FROM postfilter_hits
-WHERE filter_id = $filter_id AND long_ip = $long_ip AND created_on > DATE_SUB(NOW(), INTERVAL 1 HOUR) LIMIT 1
-SQL;
-  
-  $res = mysql_global_call($query);
-  
-  if ($res && mysql_num_rows($res) === 1) {
+  $db = YotsubaDB::global();
+
+  $query = "SELECT id FROM {$db->qi('postfilter_hits')} WHERE filter_id = ? AND long_ip = ? AND created_on > DATE_SUB(NOW(), INTERVAL 1 HOUR) LIMIT 1";
+
+  $res = $db->query($query, [$filter_id, $long_ip]);
+
+  if ($res && $res->rowCount() === 1) {
     return true;
   }
-  
-  $query = "INSERT INTO postfilter_hits (filter_id, board, long_ip) VALUES($filter_id, '%s', $long_ip)";
-  
-  return mysql_global_call($query, BOARD_DIR);
+
+  $query = "INSERT INTO {$db->qi('postfilter_hits')} (filter_id, board, long_ip) VALUES(?, ?, ?)";
+
+  return $db->query($query, [$filter_id, BOARD_DIR, $long_ip]);
 }
 
 function log_postfilter_hit($filter, $board, $thread_id, $name, $sub, $com, $upfile_name) {
@@ -671,12 +673,11 @@ function log_postfilter_hit($filter, $board, $thread_id, $name, $sub, $com, $upf
   
   $action = "filter_{$filter['id']}";
   
-  $query = <<<SQL
-INSERT INTO event_log(`type`, `board`, `thread_id`, `ip`, `meta`)
-VALUES('%s', '%s', %d, '%s', '%s')
-SQL;
-    
-  mysql_global_call($query, $action, $board, $thread_id, $ip, $meta);
+  $db = YotsubaDB::global();
+
+  $query = "INSERT INTO {$db->qi('event_log')}({$db->qi('type')}, {$db->qi('board')}, {$db->qi('thread_id')}, {$db->qi('ip')}, {$db->qi('meta')}) VALUES(?, ?, ?, ?, ?)";
+
+  $db->query($query, [$action, $board, (int)$thread_id, $ip, $meta]);
 }
 
 /**
@@ -692,16 +693,12 @@ function spam_filter_post_content_new($board, $resto, $com, $sub, $name, $upfile
   }
   
   // Postfilter
-  $tbl = 'postfilter';
-  
-  $query = <<<SQL
-SELECT id, pattern, autosage, log, regex, quiet, lenient, ops_only, min_count,
-board, ban_days, created_on, updated_on FROM $tbl
-WHERE active = 1 AND (board = '' OR board = '%s')
-SQL;
-  
-  $res = mysql_global_call($query, $board);
-  
+  $db = YotsubaDB::global();
+
+  $query = "SELECT id, pattern, autosage, log, regex, quiet, lenient, ops_only, min_count, board, ban_days, created_on, updated_on FROM {$db->qi('postfilter')} WHERE active = 1 AND (board = '' OR board = ?)";
+
+  $res = $db->query($query, [$board]);
+
   if (!$res) {
     return false;
   }
@@ -726,14 +723,14 @@ SQL;
   
   $matched_filter = false;
   
-  while ($filter = mysql_fetch_assoc($res)) {
+  while ($filter = $res->fetch(PDO::FETCH_ASSOC)) {
     // Counter mode: triggers when the number of matches is at least $min_count
     $min_count = (int)$filter['min_count'];
-    
+
     if ($min_count < 1) {
       $min_count = 1;
     }
-    
+
     // Lenient filter
     if ($filter['lenient']) {
       if ($userpwd) {
@@ -902,25 +899,24 @@ function isIPRangeBanned($long_ip, $asn, $options = []) {
   
   $now = (int)$_SERVER['REQUEST_TIME'];
   
+  $db = YotsubaDB::global();
+
   $cols = 'created_on, updated_on, expires_on, active, boards, ops_only, img_only, lenient, report_only, ua_ids';
-  
-  $query = <<<SQL
-(SELECT SQL_NO_CACHE $cols FROM iprangebans
-WHERE range_start <= $long_ip AND range_end >= $long_ip AND active = 1
-AND (expires_on = 0 OR expires_on > $now))
-SQL;
-  
+
+  $params = [$long_ip, $long_ip, $now];
+
+  $query = "(SELECT $cols FROM {$db->qi('iprangebans')} WHERE range_start <= ? AND range_end >= ? AND active = 1 AND (expires_on = 0 OR expires_on > ?))";
+
   if ($asn > 0) {
-    $query .= <<<SQL
-UNION (SELECT $cols FROM iprangebans
-WHERE asn = $asn AND active = 1 AND (expires_on = 0 OR expires_on > $now))
-SQL;
+    $query .= " UNION (SELECT $cols FROM {$db->qi('iprangebans')} WHERE asn = ? AND active = 1 AND (expires_on = 0 OR expires_on > ?))";
+    $params[] = $asn;
+    $params[] = $now;
   }
-  
+
   $query .= ' ORDER BY lenient ASC';
-  
-  $res = mysql_global_call($query);
-  
+
+  $res = $db->query($query, $params);
+
   if (!$res) {
     return false;
   }
@@ -970,7 +966,7 @@ SQL;
   // OP-only and Image-only lenient rangebans also require a certain number of posts
   $post_count_ok = $userpwd && $userpwd->postCount() >= 3 && ($userpwd->maskLifetime() > 900 || $userpwd->postCount() >= 15);
   
-  while ($range = mysql_fetch_assoc($res)) {
+  while ($range = $res->fetch(PDO::FETCH_ASSOC)) {
     if ($range['boards']) {
       if ($board === null) {
         continue;
@@ -1090,14 +1086,19 @@ function spam_filter_is_ip_known($long_ip, $board = null, $mode = 0, $minutes_mi
   // At least X replies
   $posts_min = (int)$posts_min;
   
+  $db = YotsubaDB::global();
+
+  $params = [$long_ip];
+
   // Board
   if ($board) {
-    $board_clause = "AND board = '" . mysql_real_escape_string($board) . "'";
+    $board_clause = "AND board = ?";
+    $params[] = $board;
   }
   else {
     $board_clause = '';
   }
-  
+
   // Mode: 1 = image replies, 2 = threads, 0 = any reply
   if ($mode === 1) {
     $action_clause = "AND action = 'new_reply' AND had_image = 1";
@@ -1108,7 +1109,7 @@ function spam_filter_is_ip_known($long_ip, $board = null, $mode = 0, $minutes_mi
   else {
     $action_clause = "AND action = 'new_reply'";
   }
-  
+
   // Not before
   if (!$minutes_min) {
   	$time_clause = "time >= DATE_SUB(NOW(), INTERVAL $minutes_max MINUTE)";
@@ -1116,21 +1117,17 @@ function spam_filter_is_ip_known($long_ip, $board = null, $mode = 0, $minutes_mi
   else {
   	$time_clause = "(time BETWEEN DATE_SUB(NOW(), INTERVAL $minutes_max MINUTE) AND DATE_SUB(NOW(), INTERVAL $minutes_min MINUTE))";
   }
-  
+
   // Check posting history
-  $query = <<<SQL
-SELECT SQL_NO_CACHE COUNT(*) FROM user_actions
-WHERE ip = $long_ip $action_clause $board_clause
-AND $time_clause
-SQL;
-  
-  $res = mysql_global_call($query);
-  
+  $query = "SELECT COUNT(*) FROM {$db->qi('user_actions')} WHERE ip = ? $action_clause $board_clause AND $time_clause";
+
+  $res = $db->query($query, $params);
+
   if (!$res) {
     return false;
   }
-  
-  $count = (int)mysql_fetch_row($res)[0];
+
+  $count = (int)$res->fetch(PDO::FETCH_NUM)[0];
   
   if ($count < $posts_min) {
     $cache[$cache_key] = false;
@@ -1139,20 +1136,16 @@ SQL;
   
   // Check deletion history
   /*
-  $query = <<<SQL
-SELECT SQL_NO_CACHE COUNT(*) FROM user_actions
-WHERE ip = $long_ip AND action = 'delete'
-AND time >= DATE_SUB(NOW(), INTERVAL 48 HOUR)
-SQL;
-  
-  $res = mysql_global_call($query);
-  
+  $query = "SELECT COUNT(*) FROM {$db->qi('user_actions')} WHERE ip = ? AND action = 'delete' AND time >= DATE_SUB(NOW(), INTERVAL 48 HOUR)";
+
+  $res = $db->query($query, [$long_ip]);
+
   if (!$res) {
     return false;
   }
-  
-  $count = (int)mysql_fetch_row($res)[0];
-  
+
+  $count = (int)$res->fetch(PDO::FETCH_NUM)[0];
+
   if ($count > 0) {
     $cache[$cache_key] = false;
     return false;
@@ -1195,48 +1188,45 @@ function spam_filter_is_user_known($long_ip, $board = null, $pwd = null, $minute
   }
   
   // Check the IP
-  $query = <<<SQL
-SELECT 1 FROM user_actions
-WHERE ip = %d AND action = 'new_reply'
-AND time < DATE_SUB(NOW(), INTERVAL $interval MINUTE)
-LIMIT $count
-SQL;
-  
-  $res = mysql_global_call($query, $long_ip);
-  
+  $db = YotsubaDB::global();
+
+  $query = "SELECT 1 FROM {$db->qi('user_actions')} WHERE ip = ? AND action = 'new_reply' AND time < DATE_SUB(NOW(), INTERVAL $interval MINUTE) LIMIT $count";
+
+  $res = $db->query($query, [$long_ip]);
+
   if (!$res) {
     return true;
   }
-  
-  if (mysql_num_rows($res) === $count) {
+
+  if ($res->rowCount() === $count) {
     $cache[$cache_key_ip] = true;
     return true;
   }
-  
+
   $cache[$cache_key_ip] = false;
-  
+
   // Check the password
   if ($pwd && $board) {
     $time_lim = $_SERVER['REQUEST_TIME'] - ($interval * 60);
-    
-    $query = <<<SQL
-SELECT 1 FROM `%s` WHERE pwd = '%s' AND time < $time_lim LIMIT 1
-SQL;
 
-    $res = mysql_board_call($query, $board, $pwd);
-    
+    $dbBoard = YotsubaDB::board();
+
+    $query = "SELECT 1 FROM {$dbBoard->qi($board)} WHERE pwd = ? AND time < $time_lim LIMIT 1";
+
+    $res = $dbBoard->query($query, [$pwd]);
+
     if (!$res) {
       return true;
     }
-    
-    if (mysql_num_rows($res)) {
+
+    if ($res->rowCount()) {
       $cache[$cache_key_pwd] = true;
       return true;
     }
-    
+
     $cache[$cache_key_pwd] = false;
   }
-  
+
   return false;
 }
 
@@ -1484,24 +1474,20 @@ function is_ip_auto_rangebanned($ip, $board, $thread_id, $browser_id, $since_ts 
     $since_sql = '';
   }
   
-  $sql =<<<SQL
-SELECT id FROM event_log WHERE
-type = 'rangeban' AND board = '%s' AND thread_id = $thread_id AND ua_sig = '%s'
-AND ip LIKE '%s'
-AND created_on > DATE_SUB(NOW(), INTERVAL 120 MINUTE)$since_sql
-LIMIT 1
-SQL;
-  
-  $res = mysql_global_call($sql, $board, $browser_id, $range_sql);
-  
+  $db = YotsubaDB::global();
+
+  $sql = "SELECT id FROM {$db->qi('event_log')} WHERE type = 'rangeban' AND board = ? AND thread_id = ? AND ua_sig = ? AND ip LIKE ? AND created_on > DATE_SUB(NOW(), INTERVAL 120 MINUTE)$since_sql LIMIT 1";
+
+  $res = $db->query($sql, [$board, $thread_id, $browser_id, $range_sql]);
+
   if (!$res) {
     return false;
   }
-  
-  if (mysql_num_rows($res)) {
+
+  if ($res->rowCount()) {
     return true;
   }
-  
+
   return false;
 }
 
@@ -2385,15 +2371,17 @@ function spam_filter_can_bump_thread($thread_root) {
     return true;
   }
   
-  $sql = "SELECT COUNT(*) FROM `%s` WHERE resto = 0 AND archived = 0 AND root > '%s'";
-  
-  $res = mysql_board_call($sql, BOARD_DIR, $thread_root);
-  
+  $dbBoard = YotsubaDB::board();
+
+  $sql = "SELECT COUNT(*) FROM {$dbBoard->qi(BOARD_DIR)} WHERE resto = 0 AND archived = 0 AND root > ?";
+
+  $res = $dbBoard->query($sql, [$thread_root]);
+
   if (!$res) {
     return true;
   }
-  
-  $pos = (int)mysql_fetch_row($res)[0];
+
+  $pos = (int)$res->fetch(PDO::FETCH_NUM)[0];
   
   if ($pos < $thres) {
     return true;
@@ -2424,18 +2412,17 @@ function check_for_banned_upload($md5) {
     $template_clause .= ',6';
   }
   
-  $sql = <<<SQL
-SELECT COUNT(*) as cnt FROM banned_users WHERE md5 = '%s'
-AND template_id IN($template_clause) LIMIT 1
-SQL;
+  $db = YotsubaDB::global();
 
-  $res = mysql_global_call($sql, $md5);
-  
+  $sql = "SELECT COUNT(*) as cnt FROM {$db->qi('banned_users')} WHERE md5 = ? AND template_id IN($template_clause) LIMIT 1";
+
+  $res = $db->query($sql, [$md5]);
+
   if (!$res) {
     return false;
   }
-  
-  $count = (int)mysql_fetch_row($res)[0];
+
+  $count = (int)$res->fetch(PDO::FETCH_NUM)[0];
   
   if ($count >= 3) {
     return true;
@@ -2485,20 +2472,17 @@ function spam_filter_is_pwd_blocked($pwd, $type, $hours = 24) {
   
   $hours = (int)$hours;
   
-  $sql =<<<SQL
-SELECT 1 FROM event_log
-WHERE `type` = '%s' AND pwd = '%s'
-AND created_on > DATE_SUB(NOW(), INTERVAL $hours HOUR)
-LIMIT 1
-SQL;
+  $db = YotsubaDB::global();
 
-  $res = mysql_global_call($sql, $type, $pwd);
-  
+  $sql = "SELECT 1 FROM {$db->qi('event_log')} WHERE {$db->qi('type')} = ? AND pwd = ? AND created_on > DATE_SUB(NOW(), INTERVAL $hours HOUR) LIMIT 1";
+
+  $res = $db->query($sql, [$type, $pwd]);
+
   if (!$res) {
     return false;
   }
-  
-  return mysql_num_rows($res) === 1;
+
+  return $res->rowCount() === 1;
 }
 
 function spam_filter_has_country_changed($pwd) {
@@ -2506,20 +2490,17 @@ function spam_filter_has_country_changed($pwd) {
     return false;
   }
   
-  $sql =<<<SQL
-SELECT 1 FROM event_log
-WHERE `type` = 'country_changed' AND pwd = '%s'
-AND created_on > DATE_SUB(NOW(), INTERVAL 24 HOUR)
-LIMIT 1
-SQL;
+  $db = YotsubaDB::global();
 
-  $res = mysql_global_call($sql, $pwd);
-  
+  $sql = "SELECT 1 FROM {$db->qi('event_log')} WHERE {$db->qi('type')} = 'country_changed' AND pwd = ? AND created_on > DATE_SUB(NOW(), INTERVAL 24 HOUR) LIMIT 1";
+
+  $res = $db->query($sql, [$pwd]);
+
   if (!$res) {
     return false;
   }
-  
-  return mysql_num_rows($res) === 1;
+
+  return $res->rowCount() === 1;
 }
 
 // Logs posts made by new users.
@@ -2554,44 +2535,36 @@ function spam_filter_is_post_flood($ip, $userpwd, $board, $thread_id, $phash) {
     return 0;
   }
   
+  $db = YotsubaDB::global();
   $tbl = 'flood_log';
-  
+
   // Prune old entries
-  $sql = "DELETE FROM `$tbl` WHERE created_on < DATE_SUB(NOW(), INTERVAL 24 HOUR)";
-  mysql_global_call($sql);
-  
+  $sql = "DELETE FROM {$db->qi($tbl)} WHERE created_on < DATE_SUB(NOW(), INTERVAL 24 HOUR)";
+  $db->query($sql);
+
   // Count flood entries
   $ret_val = 0;
-  
-  $sql = <<<SQL
-SELECT COUNT(*) FROM `$tbl`
-WHERE ip != '%s'
-AND created_on >= DATE_SUB(NOW(), INTERVAL $interval_minutes MINUTE)
-AND board = '%s'
-AND thread_id = $thread_id
-SQL;
-  
-  $res = mysql_global_call($sql, $ip, $board);
-  
+
+  $sql = "SELECT COUNT(*) FROM {$db->qi($tbl)} WHERE ip != ? AND created_on >= DATE_SUB(NOW(), INTERVAL $interval_minutes MINUTE) AND board = ? AND thread_id = ?";
+
+  $res = $db->query($sql, [$ip, $board, $thread_id]);
+
   if ($res) {
-    $count = (int)mysql_fetch_row($res)[0];
-    
+    $count = (int)$res->fetch(PDO::FETCH_NUM)[0];
+
     if ($count >= $threshold) {
       $ret_val = 1;
     }
   }
-  
+
   // Insert new entry
   $ua_sig = spam_filter_get_browser_id();
   $req_sig = spam_filter_get_req_sig();
-  
-  $sql = <<<SQL
-INSERT INTO `$tbl` (board, thread_id, ip, phash, ua_sig, req_sig)
-VALUES ('%s', $thread_id, '%s', '%s', '%s', '%s')
-SQL;
-  
-  $res = mysql_global_call($sql, $board, $ip, $phash, $ua_sig, $req_sig);
-  
+
+  $sql = "INSERT INTO {$db->qi($tbl)} (board, thread_id, ip, phash, ua_sig, req_sig) VALUES (?, ?, ?, ?, ?, ?)";
+
+  $db->query($sql, [$board, $thread_id, $ip, $phash, $ua_sig, $req_sig]);
+
   return $ret_val;
 }
 

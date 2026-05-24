@@ -6,9 +6,14 @@ final class L {
   
   private static $blue = '4chan.org'; // Domain for worksafe boards
   private static $red = '4chan.org'; // Domain for nws boards
-  
+
   static public function d($board) {
     return isset(self::$nws[$board]) ? self::$red : self::$blue;
+  }
+
+  // Build a local board base URL (no external domain)
+  static public function board_url($board) {
+    return '/' . $board . '/';
   }
 }
 

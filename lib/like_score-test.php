@@ -112,18 +112,20 @@ function like_update_post_score() {
     $user_id = $_SERVER['REMOTE_ADDR'];
   }
   
-  $query = <<<SQL
-INSERT INTO `like_user_scores` (`user_id`, `user_score`)
-VALUES ('%s', $add_score)
-ON DUPLICATE KEY UPDATE user_score = user_score + $add_score
-SQL;
-  
-  $res = mysql_global_call($query, $user_id);
-  
+  $db = YotsubaDB::global();
+  [$sql, $params] = $db->buildUpsert(
+    'like_user_scores',
+    ['user_id' => $user_id, 'user_score' => $add_score],
+    'user_id',
+    ['user_score' => 'user_score + ' . intval($add_score)]
+  );
+
+  $res = $db->query($sql, $params);
+
   if (!$res) {
     return false;
   }
-  
+
   return true;
 }
 
@@ -132,28 +134,30 @@ function like_update_like_score($user_id, $target_user_id, $board, $post_id, $is
   $add_score_giver = LIKE_GIVE_SCORE;
   
   // Insert log entry
-  $query = <<<SQL
-INSERT INTO `like_user_log` (`user_id`, `target_user_id`, `suspicious`, `board`, `post_id`)
-VALUES ('%s', '%s', $is_suspicious, '$board', $post_id)
-SQL;
-  
-  $res = mysql_global_call($query, $user_id, $target_user_id);
-  
+  $db = YotsubaDB::global();
+  $dbBoard = YotsubaDB::board();
+
+  $res = $db->query(
+    "INSERT INTO " . $db->qi('like_user_log') . " (" . $db->qi('user_id') . ", " . $db->qi('target_user_id') . ", " . $db->qi('suspicious') . ", " . $db->qi('board') . ", " . $db->qi('post_id') . ") VALUES (?, ?, ?, ?, ?)",
+    [$user_id, $target_user_id, $is_suspicious, $board, $post_id]
+  );
+
   if (!$res) {
     die("0\nDatabase Error (luls2).");
   }
-  
+
   // Update post like count
-  $query = "SELECT email, resto, archived FROM `$board` WHERE no = $post_id LIMIT 1";
-  
-  $res = mysql_board_call($query);
-  
+  $res = $dbBoard->query(
+    "SELECT email, resto, archived FROM " . $dbBoard->qi($board) . " WHERE no = ? LIMIT 1",
+    [$post_id]
+  );
+
   if (!$res) {
     die("0\nDatabase Error (luls0).");
   }
-  
-  $post = mysql_fetch_assoc($res);
-  
+
+  $post = $res->fetch(PDO::FETCH_ASSOC);
+
   if (!$post) {
     die("0\nThis post doesn't exist anymore.");
   }
@@ -172,11 +176,12 @@ SQL;
   }
   
   $email = "$user_score.$post_likes";
-  
-  $query = "UPDATE `$board` SET email = '$email' WHERE no = $post_id LIMIT 1";
-  
-  $res = mysql_board_call($query);
-  
+
+  $res = $dbBoard->query(
+    "UPDATE " . $dbBoard->qi($board) . " SET email = ? WHERE no = ? LIMIT 1",
+    [$email, $post_id]
+  );
+
   if (!$res) {
     die("0\nDatabase Error (luls1).");
   }
@@ -190,27 +195,29 @@ SQL;
   }
   
   // Update user score
-  $query = <<<SQL
-INSERT INTO `like_user_scores` (`user_id`, `user_score`)
-VALUES ('%s', $add_score_giver)
-ON DUPLICATE KEY UPDATE user_score = user_score + $add_score_giver
-SQL;
-  
-  $res = mysql_global_call($query, $user_id);
-  
+  [$sql, $params] = $db->buildUpsert(
+    'like_user_scores',
+    ['user_id' => $user_id, 'user_score' => $add_score_giver],
+    'user_id',
+    ['user_score' => 'user_score + ' . intval($add_score_giver)]
+  );
+
+  $res = $db->query($sql, $params);
+
   if (!$res) {
     die("0\nDatabase Error (luls2).");
   }
-  
+
   // Update target user score
-  $query = <<<SQL
-INSERT INTO `like_user_scores` (`user_id`, `user_score`)
-VALUES ('%s', $add_score)
-ON DUPLICATE KEY UPDATE user_score = user_score + $add_score
-SQL;
-  
-  $res = mysql_global_call($query, $target_user_id);
-  
+  [$sql, $params] = $db->buildUpsert(
+    'like_user_scores',
+    ['user_id' => $target_user_id, 'user_score' => $add_score],
+    'user_id',
+    ['user_score' => 'user_score + ' . intval($add_score)]
+  );
+
+  $res = $db->query($sql, $params);
+
   if (!$res) {
     die("0\nDatabase Error (luls3).");
   }
@@ -220,34 +227,24 @@ SQL;
 
 function like_is_abusive($ip, $user_id, $target_user_id, $post_id, $pass_user = false) {
   // Check cooldown
-  if ($user_id !== $ip) {
-    $or_clause = "OR user_id = '%s'";
-  }
-  else {
-    $or_clause = '';
-  }
-  
+  $db = YotsubaDB::global();
   $cd = LIKE_COOLDOWN_SEC;
-  
-  $query = <<<SQL
-SELECT id FROM like_user_log
-WHERE (user_id = '%s' $or_clause)
-AND created_on > DATE_SUB(NOW(), INTERVAL $cd SECOND)
-LIMIT 1
-SQL;
-  
-  if ($or_clause) {
-    $res = mysql_global_call($query, $user_id, $ip);
+  $dateExpr = $db->dateInterval('NOW()', $cd, 'SECOND');
+
+  if ($user_id !== $ip) {
+    $sql = "SELECT id FROM " . $db->qi('like_user_log') . " WHERE (user_id = ? OR user_id = ?) AND created_on > $dateExpr LIMIT 1";
+    $res = $db->query($sql, [$user_id, $ip]);
   }
   else {
-    $res = mysql_global_call($query, $user_id);
+    $sql = "SELECT id FROM " . $db->qi('like_user_log') . " WHERE user_id = ? AND created_on > $dateExpr LIMIT 1";
+    $res = $db->query($sql, [$user_id]);
   }
-  
+
   if (!$res) {
     die("0\nDabase Error (lia0)");
   }
-  
-  if (mysql_num_rows($res)) {
+
+  if ($res->rowCount()) {
     return true;
   }
   
@@ -310,16 +307,18 @@ SQL;
 }
 
 function like_get_target_user_id($board, $post_id) {
-  // board and post_id params should already be escaped
-  $query = "SELECT host, 4pass_id FROM `$board` WHERE no = $post_id AND resto > 0 AND archived = 0 LIMIT 1";
-  
-  $res = mysql_board_call($query);
-  
+  $db = YotsubaDB::board();
+
+  $res = $db->query(
+    "SELECT host, 4pass_id FROM " . $db->qi($board) . " WHERE no = ? AND resto > 0 AND archived = 0 LIMIT 1",
+    [$post_id]
+  );
+
   if (!$res) {
     die("0\nDabase Error (lgtu)");
   }
-  
-  $row = mysql_fetch_row($res);
+
+  $row = $res->fetch(PDO::FETCH_NUM);
   
   if (!$row) {
     return false;
@@ -336,16 +335,18 @@ function like_get_target_user_id($board, $post_id) {
 }
 
 function like_is_duplicate($user_id, $board, $post_id) {
-  // board and post_id params should already be escaped
-  $query = "SELECT id FROM like_user_log WHERE user_id = '%s' AND board = '$board' AND post_id = $post_id LIMIT 1";
-  
-  $res = mysql_global_call($query, $user_id);
-  
+  $db = YotsubaDB::global();
+
+  $res = $db->query(
+    "SELECT id FROM " . $db->qi('like_user_log') . " WHERE user_id = ? AND board = ? AND post_id = ? LIMIT 1",
+    [$user_id, $board, $post_id]
+  );
+
   if (!$res) {
     die("0\nDabase Error (lid)");
   }
-  
-  return mysql_num_rows($res) === 1;
+
+  return $res->rowCount() === 1;
 }
 
 function like_is_ip_suspicious($ip) {
@@ -383,15 +384,18 @@ function like_is_ip_suspicious($ip) {
 }
 
 function like_is_ip_known($ip) {
-  $query = "SELECT id FROM like_user_log WHERE user_id = '%s' LIMIT 1";
-  
-  $res = mysql_global_call($query, $ip);
-  
+  $db = YotsubaDB::global();
+
+  $res = $db->query(
+    "SELECT id FROM " . $db->qi('like_user_log') . " WHERE user_id = ? LIMIT 1",
+    [$ip]
+  );
+
   if (!$res) {
     die("0\nDabase Error (lik)");
   }
-  
-  return mysql_num_rows($res) === 1;
+
+  return $res->rowCount() === 1;
 }
 
 function like_get_user_score($no_cache = false) {
@@ -413,15 +417,18 @@ function like_get_user_score($no_cache = false) {
     $user_id = $_SERVER['REMOTE_ADDR'];
   }
   
-  $query = "SELECT user_score FROM like_user_scores WHERE user_id = '%s'";
-  
-  $res = mysql_global_call($query, $user_id);
-  
+  $db = YotsubaDB::global();
+
+  $res = $db->query(
+    "SELECT user_score FROM " . $db->qi('like_user_scores') . " WHERE user_id = ?",
+    [$user_id]
+  );
+
   if (!$res) {
     return 0;
   }
-  
-  $row = mysql_fetch_row($res);
+
+  $row = $res->fetch(PDO::FETCH_NUM);
   
   if ($row) {
     $current_score = (int)$row[0];
@@ -441,12 +448,15 @@ function like_decrease_user_score($ip, $passid, $multiplier) {
     $user_id = $ip;
   }
   
-  $query = <<<SQL
-UPDATE like_user_scores SET user_score = CEIL(user_score * $multiplier)
-WHERE user_id = '%s' LIMIT 1
-SQL;
+  $db = YotsubaDB::global();
+  $safeMultiplier = floatval($multiplier);
 
-  return !!mysql_global_call($query, $user_id);
+  $res = $db->query(
+    "UPDATE " . $db->qi('like_user_scores') . " SET user_score = CEIL(user_score * $safeMultiplier) WHERE user_id = ? LIMIT 1",
+    [$user_id]
+  );
+
+  return !!$res;
 }
 
 function like_get_perks_state($current_score = null, $only_unlocked = false) {

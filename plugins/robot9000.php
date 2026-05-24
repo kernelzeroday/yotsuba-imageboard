@@ -58,169 +58,150 @@ function r9k_process($com, $md5, $ip) {
   if ($md5 == 'd41d8cd98f00b204e9800998ecf8427e') {
     $md5 = null;
   }
-  
+
   if ($com === ''){
     return R9K_EMPTY_COM;
   }
-  
+
 	if (preg_match('/[\\x80-\\xFF]/', $com)) {
 		return R9K_ASCII_ONLY;
 	}
-  
+
+  $db = YotsubaDB::board();
+
   $table_mutes = ROBOT9000_MUTES;
   $table_posts = ROBOT9000_POSTS;
-  
+
   $ip = (int)$ip;
-  
+
   $mute = false;
   $demute = false;
   $timeout_power = 0;
-  
-  $query = <<<SQL
-SELECT timeout_power,
-UNIX_TIMESTAMP(mute_until) as mute_until,
-UNIX_TIMESTAMP(next_expire) as next_expire
-FROM `$table_mutes` WHERE ip = $ip
-SQL;
-  
-  $res = mysql_board_call($query);
-  
-  if (!$res) {
-    //return R9K_OK;
+
+  $mute_until_expr = $db->unixTimestamp('mute_until');
+  $next_expire_expr = $db->unixTimestamp('next_expire');
+
+  $query = "SELECT timeout_power, {$mute_until_expr} as mute_until, {$next_expire_expr} as next_expire FROM {$db->qi($table_mutes)} WHERE ip = ?";
+
+  try {
+    $res = $db->query($query, [$ip]);
+  } catch (PDOException $e) {
     return R9K_DB_ERROR;
   }
-  
-  $row = mysql_fetch_assoc($res);
-  
+
+  $row = $res->fetch(PDO::FETCH_ASSOC);
+
   if ($row) {
     $now = time();
     $timeout_power = $row['timeout_power'];
-    
+
     if ($row['mute_until'] > $now) {
       $duration = r9k_pretty_duration($row['mute_until'] - $now);
       $when = strftime(R9K_DATE_FORMAT, $row['mute_until']);
       return sprintf(R9K_MUTED, $when, $duration);
     }
-    
+
     if ($row['next_expire'] < $now){
       $demute = true;
     }
   }
-  
+
   $txt = strtolower($com);
-  
+
   // Strip HTML
   $stxt=preg_replace('/<.*?>/s','', $txt);
-  
+
   // Original byte length
   $olength = strlen($stxt);
-  
+
   // Strip >>123 quotelinks
   $stxt = preg_replace('/&gt;&gt;\d+/', '', $stxt);
-  
+
   // Strip html entities
   $stxt = preg_replace('/&#?\w+;/', '', $stxt);
-  
+
   // Strip non-alnum chars
   $stxt = preg_replace('/[^a-z\d-]+/', '', $stxt);
-  
+
   // Trim leading and trailing numeric characters
   $stxt = preg_replace('/^\d*(.*)\d*$/', '\1', $stxt);
-  
+
   // Compress repeated characters: aaa -> a
   $stxt = preg_replace('/(.)\\1{2,}/', '\\1', $stxt);
-  
+
   // Check signal ratio
   if (strlen($txt) > R9K_SNR_MIN_LEN) {
     $ratio = strlen($stxt) / $olength;
-    
+
     if ($ratio < R9K_SIGNAL_RATIO) {
       $mute = sprintf(R9K_LOW_SNR, $ratio * 100.0);
     }
   }
-  
+
   if ($mute === false) {
     $txt_hash = md5($stxt);
-    
+
     // Check if hashes match
-    $query = "SELECT text, image FROM `$table_posts` WHERE text = '%s'";
-    /*
-    if ($md5) {
-      $query .= " OR image = '%s'";
-      $res = mysql_board_call($query, $txt_hash, $md5);
-    }
-    else {*/
-      $res = mysql_board_call($query, $txt_hash);
-    //}
-    
-    if (!$res) {
-      //return R9K_OK;
+    $query = "SELECT {$db->qi('text')}, {$db->qi('image')} FROM {$db->qi($table_posts)} WHERE {$db->qi('text')} = ?";
+
+    try {
+      $res = $db->query($query, [$txt_hash]);
+    } catch (PDOException $e) {
       return R9K_DB_ERROR;
     }
-    
+
     // Post is good. Insert hashes.
-    if (mysql_num_rows($res) < 1) {
-      $query = "INSERT INTO `$table_posts` (text) VALUES('%s')";
-      mysql_board_call($query, $txt_hash);
+    if ($res->rowCount() < 1) {
+      $db->query("INSERT INTO {$db->qi($table_posts)} ({$db->qi('text')}) VALUES(?)", [$txt_hash]);
     }
     // Duplicates found.
     else {
-      //$row = mysql_fetch_assoc($res);
-      
-      //if ($row['text'] === $txt_hash) {
-        $mute = R9K_DUP_TXT;
-      //}
-      //else if ($md5 && $row['image'] === $md5) {
-      //  $mute = R9K_DUP_IMG;
-      //}
-      
+      $mute = R9K_DUP_TXT;
+
       // Update the hash with a new timestamp
-      $query = "UPDATE `$table_posts` SET created_on = NOW() WHERE text = '%s' LIMIT 1";
-      mysql_board_call($query, $txt_hash);
+      $db->query("UPDATE {$db->qi($table_posts)} SET created_on = {$db->now()} WHERE {$db->qi('text')} = ? LIMIT 1", [$txt_hash]);
     }
   }
-  
+
   // Muted
   if ($mute !== false) {
     ++$timeout_power;
-    
+
     $mute_duration = pow(2, $timeout_power);
-    
+
     if ($mute_duration > R9K_MAX_DURATION) {
       $timeout_power--;
       $mute_duration = R9K_MAX_DURATION;
     }
-    
-    $next_expire = R9K_DEMUTE_PERIOD;
-    
-    $query = <<<SQL
-INSERT INTO `$table_mutes` (ip, timeout_power, mute_until, next_expire)
-VALUES ($ip, $timeout_power, DATE_ADD(NOW(), INTERVAL $mute_duration SECOND),
-DATE_ADD(NOW(), INTERVAL $mute_duration SECOND))
-ON DUPLICATE KEY
-UPDATE timeout_power = $timeout_power, mute_until = VALUES(mute_until),
-next_expire = VALUES(next_expire)
-SQL;
-    
-    $res = mysql_board_call($query);
-    
+
+    $mute_until_date = $db->dateAdd($db->now(), $mute_duration, 'SECOND');
+
+    // DATE_ADD expressions can't be passed as bound params, so build the upsert manually
+    $query = "INSERT INTO {$db->qi($table_mutes)} ({$db->qi('ip')}, {$db->qi('timeout_power')}, {$db->qi('mute_until')}, {$db->qi('next_expire')}) VALUES (?, ?, {$mute_until_date}, {$mute_until_date})";
+
+    if ($db->getDriver() === 'pgsql') {
+      $query .= " ON CONFLICT ({$db->qi('ip')}) DO UPDATE SET {$db->qi('timeout_power')} = ?, {$db->qi('mute_until')} = EXCLUDED.{$db->qi('mute_until')}, {$db->qi('next_expire')} = EXCLUDED.{$db->qi('next_expire')}";
+      $db->query($query, [$ip, $timeout_power, $timeout_power]);
+    } else {
+      $query .= " ON DUPLICATE KEY UPDATE timeout_power = ?, mute_until = VALUES(mute_until), next_expire = VALUES(next_expire)";
+      $db->query($query, [$ip, $timeout_power, $timeout_power]);
+    }
+
     return sprintf(R9K_MUTE_ERROR, r9k_pretty_duration($mute_duration), $mute);
   }
   // Not muted
   else {
     if ($demute === true) {
       $next_expire = R9K_DEMUTE_PERIOD;
-      
-      $query = <<<SQL
-UPDATE `$table_mutes` SET
-timeout_power = IF(timeout_power > 0, timeout_power - 1, 0),
-next_expire = DATE_ADD(NOW(), INTERVAL $next_expire SECOND)
-WHERE ip = $ip
-SQL;
-      
-      $res = mysql_board_call($query);
+
+      $tp_expr = $db->ifExpr('timeout_power > 0', 'timeout_power - 1', '0');
+      $next_expire_date = $db->dateAdd($db->now(), $next_expire, 'SECOND');
+
+      $query = "UPDATE {$db->qi($table_mutes)} SET timeout_power = {$tp_expr}, next_expire = {$next_expire_date} WHERE ip = ?";
+
+      $db->query($query, [$ip]);
     }
-    
+
     return R9K_OK;
   }
 }

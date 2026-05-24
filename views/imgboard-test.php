@@ -511,20 +511,20 @@ function updatelog_real( $resno = 0, $noidx = 0, $lazy_rebuild = false )
 				$middle_reply_idx = 0;
 			}
 			
-			while (list($resrow) = each($sorted_replies)) {
+			foreach ($sorted_replies as $resrow => $_unused) {
 				if( $s > 0 ) {
 					$s--;
 					continue;
 				}
-				
+
 				if (!$log[$resrow]['no']) {
 					break;
 				}
-				
+
 				$dat .= renderPostHtml($resrow, $resno);
-				
+
 				$repCount++;
-				
+
 				if ($repCount == $middle_reply_idx) {
 					$dat .= $inter_ad_html;
 				}

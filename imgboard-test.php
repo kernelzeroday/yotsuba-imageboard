@@ -425,12 +425,13 @@ FROM blotter_messages
 ORDER BY id DESC LIMIT $msg_limit
 SQL;
   
-  $res = mysql_global_call($query);
-  
+  $db = YotsubaDB::global();
+  $res = $db->query($query);
+
   $mtime = 0;
-  
-  if ($res && mysql_num_rows($res) > 0) {
-    while ($row = mysql_fetch_assoc($res)) {
+
+  if ($res && $res->rowCount() > 0) {
+    while ($row = $res->fetch(PDO::FETCH_ASSOC)) {
       if ($mtime === 0) {
         $mtime = $row['date'];
       }
@@ -446,9 +447,7 @@ SQL;
   }
   
   $blotter .= '</tbody><tfoot><tr><td colspan="2">[<a data-utc="' . $mtime
-    . '" id="toggleBlotter" href="#">Hide</a>]<span> [<a href="//www.'
-    . L::d(BOARD_DIR)
-    . '/blotter" target="_blank">Show All</a>]</span></td></tr></tfoot></table>';
+    . '" id="toggleBlotter" href="#">Hide</a>]<span> [<a href="/blotter" target="_blank">Show All</a>]</span></td></tr></tfoot></table>';
   
   return $blotter;
 }
@@ -628,13 +627,14 @@ function valid( $action = 'moderator', $no = 0 )
 	if( !isset( $valid_cache ) ) {
 		$valid_cache = $access_level['none'];
 		if( isset( $_COOKIE['4chan_auser'] ) && isset( $_COOKIE['apass'] ) ) {
-			$user = mysql_real_escape_string( $_COOKIE['4chan_auser'] );
+			$user = $_COOKIE['4chan_auser'];
 			$pass = $_COOKIE['apass'];
 		}
 		if( $user && $pass ) {
-			$result = mysql_global_call( "SELECT allow,deny,password_expired,username,password FROM " . SQLLOGMOD . " WHERE username='$user' LIMIT 1" );
-			list( $allow, $deny, $expired, $username, $password ) = mysql_fetch_row( $result );
-			mysql_free_result( $result );
+			$db = YotsubaDB::global();
+			$result = $db->query( "SELECT allow,deny,password_expired,username,password FROM " . SQLLOGMOD . " WHERE username=? LIMIT 1", [$user] );
+			list( $allow, $deny, $expired, $username, $password ) = $result->fetch(PDO::FETCH_NUM);
+			$result->closeCursor();
 			
       $admin_salt = file_get_contents('/www/keys/2014_admin.salt');
       
@@ -716,9 +716,10 @@ function valid( $action = 'moderator', $no = 0 )
 				return true;
 			} // if they're a janitor on another board, check for illegal post unlock
 			else if( $valid_cache >= $access_level['janitor'] ) {
-				$query         = mysql_global_do( "SELECT COUNT(*) from reports WHERE board='" . BOARD_DIR . "' AND no=$no AND cat=2" );
-				$illegal_count = mysql_result( $query, 0, 0 );
-				mysql_free_result( $query );
+				$db_g = YotsubaDB::global();
+				$query         = $db_g->query( "SELECT COUNT(*) from reports WHERE board=? AND no=? AND cat=2", [BOARD_DIR, $no] );
+				$illegal_count = $query->fetch(PDO::FETCH_NUM)[0];
+				$query->closeCursor();
 
 				return $illegal_count >= 3;
 			}
@@ -737,7 +738,8 @@ function valid( $action = 'moderator', $no = 0 )
 
 function iplog_add( $board, $no, $ip, $time, $is_thread, $tim, $had_image )
 {
-	mysql_global_call( "INSERT INTO user_actions (board,postno,ip,time,uploaded,action,had_image) VALUES ('%s',%d,%d,from_unixtime(%d),%d,'%s',%d)",$board, $no, ip2long($ip), $time, $tim, $is_thread ? "new_thread" : "new_reply", $had_image);
+	$db = YotsubaDB::global();
+	$db->query( "INSERT INTO user_actions (board,postno,ip,time,uploaded,action,had_image) VALUES (?,?,?,from_unixtime(?),?,?,?)", [$board, $no, ip2long($ip), $time, $tim, $is_thread ? "new_thread" : "new_reply", $had_image]);
 }
 
 function clean_log_bool( &$row )
@@ -890,7 +892,8 @@ function log_cache($invalidate = 0, $thread = 0, $archive_mode = 0) {
 
   $ips = array();
   
-	mysql_board_call( "SET read_buffer_size=1048576" );
+	$db = YotsubaDB::board();
+	$db->exec( "SET read_buffer_size=1048576" );
 	$mysql_unbuffered_reads = 1;
 	
 	$query_archived = false;
@@ -938,10 +941,10 @@ function log_cache($invalidate = 0, $thread = 0, $archive_mode = 0) {
   
 	$sql_cache = "sql_no_cache";
 	
-	$query  = mysql_board_call( "SELECT $sql_cache $fields FROM `" . SQLLOG . "`" . $where );
+	$query  = $db->query( "SELECT $sql_cache $fields FROM " . $db->qi(SQLLOG) . $where );
 	$offset = 0;
-	
-	while( $row = mysql_fetch_assoc( $query ) ) {
+
+	while( $row = $query->fetch(PDO::FETCH_ASSOC) ) {
 		if (!$query_archived) $row['archived'] = $archive_mode;
 		clean_log_row( $row );
 		
@@ -990,7 +993,7 @@ function log_cache($invalidate = 0, $thread = 0, $archive_mode = 0) {
 	unset($ips);
 
 	$mysql_unbuffered_reads = 0;
-	mysql_board_call( "SET read_buffer_size=131072" );
+	$db->exec( "SET read_buffer_size=131072" );
 
 	if (!$thread) {
     if ($optimised_indexes) {
@@ -1000,14 +1003,14 @@ function log_cache($invalidate = 0, $thread = 0, $archive_mode = 0) {
       
       $_thread_ids = implode(',', $_thread_ids);
       
-      $query = mysql_board_call("SELECT resto, COUNT(*) AS r_count, SUM(IF(fsize > 0 AND filedeleted = 0, 1, 0)) AS i_count FROM `" . SQLLOG . "` WHERE resto IN($_thread_ids) GROUP BY resto");
-      
-      while ($row = mysql_fetch_assoc($query)) {
+      $query = $db->query("SELECT resto, COUNT(*) AS r_count, SUM(IF(fsize > 0 AND filedeleted = 0, 1, 0)) AS i_count FROM " . $db->qi(SQLLOG) . " WHERE resto IN($_thread_ids) GROUP BY resto");
+
+      while ($row = $query->fetch(PDO::FETCH_ASSOC)) {
         $log[$row['resto']]['imgreplycount'] = (int)$row['i_count'];
         $log[$row['resto']]['replycount'] = (int)$row['r_count'];
       }
       
-      $query = mysql_board_call("SELECT no FROM `" . SQLLOG . "` WHERE no IN($_thread_ids) ORDER BY root DESC");
+      $query = $db->query("SELECT no FROM " . $db->qi(SQLLOG) . " WHERE no IN($_thread_ids) ORDER BY root DESC");
     }
     else {
       if ($archive_mode === 1) {
@@ -1015,14 +1018,14 @@ function log_cache($invalidate = 0, $thread = 0, $archive_mode = 0) {
       } else {
         $archived = "archived = 0";
       }
-      $query = mysql_board_call("SELECT no FROM `" . SQLLOG . "` WHERE $archived AND resto = 0 AND root > 0 ORDER BY root DESC");
+      $query = $db->query("SELECT no FROM " . $db->qi(SQLLOG) . " WHERE $archived AND resto = 0 AND root > 0 ORDER BY root DESC");
     }
     
     $threads = array(); // IDs
     
-    while ($row = mysql_fetch_row($query)) {
+    while ($row = $query->fetch(PDO::FETCH_NUM)) {
       $no = (int)$row[0];
-      
+
       if (isset($log[$no])) {
         $threads[] = $no;
       }
@@ -1226,10 +1229,10 @@ function do_move_thread() {
   $ret = move_thread($_POST['id'], $_POST['board'], $del);
   
   if (is_array($ret)) {
-    $message = 'Thread moved to <a target="_blank" href="//boards.'
-      . L::d($ret[0]) . '/' . $ret[0] . '/thread/' . $ret[1]
+    $message = 'Thread moved to <a target="_blank" href="/'
+      . $ret[0] . '/thread/' . $ret[1]
       . '">/' . $ret[0] . '/' . $ret[1] . '</a>';
-    
+
     echo headless_message($message, true);
   }
   else {
@@ -1261,13 +1264,16 @@ function do_copy_threads() {
   } else if ($to_board === 'f' || $to_board === 'j') {
     $ret = "The destination board doesn't support this feature.";
   } else {
-	$threads = mysql_column_array(mysql_board_call("SELECT no FROM `%s` WHERE resto = 0 AND archived = 0", BOARD_DIR));
+	$_db = YotsubaDB::board();
+	$_res = $_db->query("SELECT no FROM " . $_db->qi(BOARD_DIR) . " WHERE resto = 0 AND archived = 0");
+	$threads = array();
+	while ($_r = $_res->fetch(PDO::FETCH_NUM)) { $threads[] = $_r[0]; }
 	foreach ($threads as $thread) {$ret = copy_thread($thread, $to_board); _print("$thread<br>\n");}
   }
   
   if (is_array($ret)) {
-    $message = 'Thread copied to <a target="_blank" href="//boards.'
-      . L::d($ret[0]) . '/' . $ret[0] . '/thread/' . $ret[1]
+    $message = 'Thread copied to <a target="_blank" href="/'
+      . $ret[0] . '/thread/' . $ret[1]
       . '">/' . $ret[0] . '/' . $ret[1] . '</a>';
     
     echo headless_message($message, true);
@@ -1289,110 +1295,112 @@ function copy_thread($thread_id, $to_board, $delete = false) {
     return 'Invalid destination board.';
   }
   
-  $query = "SELECT COUNT(*) FROM boardlist WHERE dir = '%s' LIMIT 1";
-  
-  $res = mysql_global_call($query, $to_board);
-  
+  $db_g = YotsubaDB::global();
+  $db = YotsubaDB::board();
+
+  $res = $db_g->query("SELECT COUNT(*) FROM boardlist WHERE dir = ? LIMIT 1", [$to_board]);
+
   if (!$res) {
     return "Database Error (1)";
   }
-  
-  if (mysql_num_rows($res) < 1) {
+
+  if ($res->rowCount() < 1) {
     return "Destination board doesn't exist.";
   }
-  
+
   // ---
-    
+
   // Fetch the whole thread
   $posts = array();
-  
-  $res = mysql_board_call("SELECT * FROM `%s` WHERE no = %d AND resto = 0", BOARD_DIR, $thread_id);
+
+  $res = $db->query("SELECT * FROM " . $db->qi(BOARD_DIR) . " WHERE no = ? AND resto = 0", [$thread_id]);
   if (!$res) {
     return "Database Error (3)";
   }
-  
-  $row = mysql_fetch_assoc($res);
+
+  $row = $res->fetch(PDO::FETCH_ASSOC);
   if (!$row) {
     return "Thread not found.";
   }
-  
+
   $posts[] = $row;
-  $res = mysql_board_call("SELECT * FROM `%s` WHERE resto = %d", BOARD_DIR, $thread_id);
+  $res = $db->query("SELECT * FROM " . $db->qi(BOARD_DIR) . " WHERE resto = ?", [$thread_id]);
   if (!$res) {
     return "Database Error (4)";
   }
-  
-  while ($row = mysql_fetch_assoc($res)) {
+
+  while ($row = $res->fetch(PDO::FETCH_ASSOC)) {
     if (!$row) {
       continue;
     }
     $posts[] = $row;
   }
-  
+
   // Copy posts to the other board
-  mysql_board_call('START TRANSACTION');
-  
+  $db->beginTransaction();
+
   $new_resto = 0;
-  
+
   $from_pids = array();
   $to_pids = array();
-  
+
   foreach ($posts as &$post) {
     $comment = str_replace($from_pids, $to_pids, $post['com']);
-    
+
     if ($new_resto === 0) {
       $root_time = $post['root'];
     }
     else {
       $root_time = 0;
     }
-    
-    $query = "INSERT INTO `$to_board`(now,name,sub,com,host,pwd,filename,ext,w,
+
+    $query = "INSERT INTO " . $db->qi($to_board) . "(now,name,sub,com,host,pwd,filename,ext,w,
 h,tn_w,tn_h, tim,time,last_modified,md5,fsize,root,resto,capcode,
 4pass_id,since4pass,filedeleted,tmd5,id,sticky,closed,country)
-VALUE (" .
-    "'" . $post['now'] . "'," .
-    "'" . mysql_real_escape_string($post['name']) . "'," .
-    "'" . mysql_real_escape_string($post['sub']) . "'," .
-    "'" . mysql_real_escape_string($comment) . "'," .
-    "'" . mysql_real_escape_string($post['host']) . "'," .
-    "'" . mysql_real_escape_string($post['pwd']) . "'," .
-    "'" . mysql_real_escape_string($post['filename']) . "'," .
-    "'" . $post['ext'] . "'," .
-    (int)$post['w'] . "," .
-    (int)$post['h'] . "," .
-    (int)$post['tn_w'] . "," .
-    (int)$post['tn_h'] . "," .
-    "'" . $post['tim'] . "'," .
-    (int)$post['time'] . "," .
-    (int)$post['time'] . "," .
-    "'" . $post['md5'] . "'," .
-    (int)$post['fsize'] . "," .
-    "'" . $root_time . "'," .
-    $new_resto . "," .
-    "'" . $post['capcode'] . "'," .
-    "'" . $post['4pass_id'] . "'," .
-    (int)$post['since4pass'] . "," .
-    (int)$post['filedeleted'] . "," .
-    "'" . $post['tmd5'] . "'," .
-    "'" . mysql_real_escape_string($post['id']) . "'," .
-    (int)$post['sticky'] . "," .
-    (int)$post['closed'] . "," .
-    "'XX')";
-    
-    $res = mysql_board_call($query);
+VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
+
+    $res = $db->query($query, [
+      $post['now'],
+      $post['name'],
+      $post['sub'],
+      $comment,
+      $post['host'],
+      $post['pwd'],
+      $post['filename'],
+      $post['ext'],
+      (int)$post['w'],
+      (int)$post['h'],
+      (int)$post['tn_w'],
+      (int)$post['tn_h'],
+      $post['tim'],
+      (int)$post['time'],
+      (int)$post['time'],
+      $post['md5'],
+      (int)$post['fsize'],
+      $root_time,
+      $new_resto,
+      $post['capcode'],
+      $post['4pass_id'],
+      (int)$post['since4pass'],
+      (int)$post['filedeleted'],
+      $post['tmd5'],
+      $post['id'],
+      (int)$post['sticky'],
+      (int)$post['closed'],
+      'XX'
+    ]);
     if (!$res) {
       if ($new_resto === 0) {
-        mysql_board_call('ROLLBACK');
+        $db->rollBack();
         return 'Database Error (5)';
       }
-      
+
       $post['ext'] = null;
-      
+
       continue;
     }
-    
-    $new_pid = mysql_board_insert_id();
+
+    $new_pid = $db->lastInsertIdForTable($to_board);
     
     if ($new_resto === 0) {
       $new_resto = $new_pid;
@@ -1406,39 +1414,39 @@ VALUE (" .
   
   unset($post);
   
-  mysql_board_call('COMMIT');
-  
+  $db->commit();
+
   // Copy files
   // If the file already exists, update the database and set it as "deleted"
   $to_img_dir = preg_replace('/' . BOARD_DIR . '\/$/', '', IMG_ROOT) . $to_board . '/';
   $to_thumb_dir = preg_replace('/' . BOARD_DIR . '\/$/', '', THUMB_ROOT) . $to_board . '/';
-  
+
   $dup_pids = array();
-  
+
   foreach ($posts as $post) {
     if (!$post['ext'] || $post['filedeleted']) {
       continue;
     }
-    
+
     $src_thumb = THUMB_DIR . $post['tim'] . 's.jpg';
     $dest_thumb = $to_thumb_dir . $post['tim'] . 's.jpg';
-    
+
     if (file_exists($dest_thumb)) {
       //$dup_pids[] = $post['new_id'];
       continue;
     }
-    
+
     $src_img = IMG_DIR . $post['tim'] . $post['ext'];
     $dest_img = $to_img_dir . $post['tim'] . $post['ext'];
-    
+
     @copy($src_thumb, $dest_thumb);
     @copy($src_img, $dest_img);
   }
-  
+
   if (!empty($dup_pids)) {
     $dup_clause = implode(',', $dup_pids);
-    $query = "UPDATE `$to_board` SET filedeleted = 1, ext = '' WHERE no IN($dup_clause)";
-    $res = mysql_board_call($query);
+    $query = "UPDATE " . $db->qi($to_board) . " SET filedeleted = 1, ext = '' WHERE no IN($dup_clause)";
+    $res = $db->query($query);
   }
   
   // Ask the destination board to build the new thread
@@ -1476,144 +1484,177 @@ function move_thread($thread_id, $to_board, $delete = false) {
     return 'Invalid destination board.';
   }
   
-  $query = "SELECT COUNT(*) FROM boardlist WHERE dir = '%s' LIMIT 1";
-  
-  $res = mysql_global_call($query, $to_board);
-  
+  $db_g = YotsubaDB::global();
+  $db = YotsubaDB::board();
+
+  $res = $db_g->query("SELECT COUNT(*) FROM boardlist WHERE dir = ? LIMIT 1", [$to_board]);
+
   if (!$res) {
     return "Database Error (1)";
   }
-  
-  if (mysql_num_rows($res) < 1) {
+
+  if ($res->rowCount() < 1) {
     return "Destination board doesn't exist.";
   }
-  
+
   // ---
-  
-  $board = mysql_real_escape_string(BOARD_DIR);
-  
+
+  $board = BOARD_DIR;
+
   // Lock the thread immediately
-  $query = "UPDATE `$board` SET closed = 1 WHERE no = $thread_id";
-  
-  $res = mysql_board_call($query);
-  
+  $res = $db->query("UPDATE " . $db->qi($board) . " SET closed = 1 WHERE no = ?", [$thread_id]);
+
   if (!$res) {
     return "Database Error (2)";
   }
-  
-  if (mysql_affected_rows() !== 1) {
+
+  if ($res->rowCount() !== 1) {
     return "This thread is locked.";
   }
-  
+
   // Fetch the whole thread
   $posts = array();
-  
-  $query = "SELECT * FROM `$board` WHERE no = $thread_id AND resto = 0";
-  
-  $res = mysql_board_call($query);
-  
+
+  $res = $db->query("SELECT * FROM " . $db->qi($board) . " WHERE no = ? AND resto = 0", [$thread_id]);
+
   if (!$res) {
     return "Database Error (3)";
   }
-  
-  $row = mysql_fetch_assoc($res);
-  
+
+  $row = $res->fetch(PDO::FETCH_ASSOC);
+
   if (!$row) {
     return "Thread not found.";
   }
-  
+
   if ($row['archived'] !== '0') {
     return "You cannot move archived threads.";
   }
-  
+
   $posts[] = $row;
-  
-  $query = "SELECT * FROM `$board` WHERE resto = $thread_id";
-  
-  $res = mysql_board_call($query);
-  
+
+  $res = $db->query("SELECT * FROM " . $db->qi($board) . " WHERE resto = ?", [$thread_id]);
+
   if (!$res) {
     return "Database Error (4)";
   }
-  
-  while ($row = mysql_fetch_assoc($res)) {
+
+  while ($row = $res->fetch(PDO::FETCH_ASSOC)) {
     if (!$row) {
       continue;
     }
     $posts[] = $row;
   }
-  
+
   // Copy posts to the other board
-  mysql_board_call('START TRANSACTION');
-  
+  $db->beginTransaction();
+
   $new_resto = 0;
-  
+
   $from_pids = array();
   $to_pids = array();
-  
+
   foreach ($posts as &$post) {
     $comment = str_replace($from_pids, $to_pids, $post['com']);
-    
+
     if ($new_resto === 0) {
       $root_time = 'NOW()';
     }
     else {
       $root_time = 0;
     }
-    
+
     if (SHOW_COUNTRY_FLAGS && $post['board_flag'] == '') {
       $flag_val = $post['country'];
     }
     else {
       $flag_val = 'XX';
     }
-    
-    $query = "INSERT INTO `$to_board`(now,name,sub,com,host,pwd,email,filename,ext,w,
+
+    // For root_time, we need to handle NOW() specially
+    if ($root_time === 'NOW()') {
+      $query = "INSERT INTO " . $db->qi($to_board) . "(now,name,sub,com,host,pwd,email,filename,ext,w,
 h,tn_w,tn_h, tim,time,last_modified,md5,fsize,root,resto,capcode,
 4pass_id,since4pass,filedeleted,tmd5,id,country)
-VALUE (" .
-    "'" . $post['now'] . "'," .
-    "'" . mysql_real_escape_string($post['name']) . "'," .
-    "'" . mysql_real_escape_string($post['sub']) . "'," .
-    "'" . mysql_real_escape_string($comment) . "'," .
-    "'" . mysql_real_escape_string($post['host']) . "'," .
-    "'" . mysql_real_escape_string($post['pwd']) . "'," .
-    "'" . mysql_real_escape_string($post['email']) . "'," .
-    "'" . mysql_real_escape_string($post['filename']) . "'," .
-    "'" . $post['ext'] . "'," .
-    (int)$post['w'] . "," .
-    (int)$post['h'] . "," .
-    (int)$post['tn_w'] . "," .
-    (int)$post['tn_h'] . "," .
-    "'" . $post['tim'] . "'," .
-    (int)$post['time'] . "," .
-    (int)$post['time'] . "," .
-    "'" . $post['md5'] . "'," .
-    (int)$post['fsize'] . "," .
-    $root_time . "," .
-    $new_resto . "," .
-    "'" . $post['capcode'] . "'," .
-    "'" . $post['4pass_id'] . "'," .
-    (int)$post['since4pass'] . "," .
-    (int)$post['filedeleted'] . "," .
-    "'" . $post['tmd5'] . "'," .
-    "''," .
-    "'" . $flag_val . "')";
-    
-    $res = mysql_board_call($query);
-    
+VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NOW(),?,?,?,?,?,?,?,?)";
+
+      $res = $db->query($query, [
+        $post['now'],
+        $post['name'],
+        $post['sub'],
+        $comment,
+        $post['host'],
+        $post['pwd'],
+        $post['email'],
+        $post['filename'],
+        $post['ext'],
+        (int)$post['w'],
+        (int)$post['h'],
+        (int)$post['tn_w'],
+        (int)$post['tn_h'],
+        $post['tim'],
+        (int)$post['time'],
+        (int)$post['time'],
+        $post['md5'],
+        (int)$post['fsize'],
+        $new_resto,
+        $post['capcode'],
+        $post['4pass_id'],
+        (int)$post['since4pass'],
+        (int)$post['filedeleted'],
+        $post['tmd5'],
+        '',
+        $flag_val
+      ]);
+    } else {
+      $query = "INSERT INTO " . $db->qi($to_board) . "(now,name,sub,com,host,pwd,email,filename,ext,w,
+h,tn_w,tn_h, tim,time,last_modified,md5,fsize,root,resto,capcode,
+4pass_id,since4pass,filedeleted,tmd5,id,country)
+VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
+
+      $res = $db->query($query, [
+        $post['now'],
+        $post['name'],
+        $post['sub'],
+        $comment,
+        $post['host'],
+        $post['pwd'],
+        $post['email'],
+        $post['filename'],
+        $post['ext'],
+        (int)$post['w'],
+        (int)$post['h'],
+        (int)$post['tn_w'],
+        (int)$post['tn_h'],
+        $post['tim'],
+        (int)$post['time'],
+        (int)$post['time'],
+        $post['md5'],
+        (int)$post['fsize'],
+        $root_time,
+        $new_resto,
+        $post['capcode'],
+        $post['4pass_id'],
+        (int)$post['since4pass'],
+        (int)$post['filedeleted'],
+        $post['tmd5'],
+        '',
+        $flag_val
+      ]);
+    }
+
     if (!$res) {
       if ($new_resto === 0) {
-        mysql_board_call('ROLLBACK');
+        $db->rollBack();
         return 'Database Error (5)';
       }
-      
+
       $post['ext'] = null;
-      
+
       continue;
     }
-    
-    $new_pid = mysql_board_insert_id();
+
+    $new_pid = $db->lastInsertIdForTable($to_board);
     
     if ($new_resto === 0) {
       $new_resto = $new_pid;
@@ -1627,11 +1668,11 @@ VALUE (" .
   
   unset($post);
   
-  mysql_board_call('COMMIT');
-  
+  $db->commit();
+
   // Log the action
   $thread = $posts[0];
-  
+
   $log_com = "<b>From /$board/$thread_id to /$to_board/$new_resto</b>";
   
   if ($thread['com'] !== '') {
@@ -1678,29 +1719,30 @@ VALUE (" .
   
   if (!empty($dup_pids)) {
     $dup_clause = implode(',', $dup_pids);
-    $query = "UPDATE `$to_board` SET filedeleted = 1, ext = '' WHERE no IN($dup_clause)";
-    $res = mysql_board_call($query);
+    $query = "UPDATE " . $db->qi($to_board) . " SET filedeleted = 1, ext = '' WHERE no IN($dup_clause)";
+    $res = $db->query($query);
   }
-  
+
   // Insert notification post if deletion is not requested
   if (!$delete) {
     $msg = sprintf(S_THREAD_MOVED, "&gt;&gt;&gt;/$to_board/$new_resto");
-    
+
     $post_time = $_SERVER['REQUEST_TIME'];
     $tim = generate_tim();
-    
-    $query = "INSERT INTO `$board`(now,name,sub,com,host,pwd,filename,ext,w,
+
+    $query = "INSERT INTO " . $db->qi($board) . "(now,name,sub,com,host,pwd,filename,ext,w,
 h,tn_w,tn_h, tim,time,last_modified,md5,fsize,resto,capcode,
 4pass_id,tmd5,id)
-VALUE (" .
-  "'" . date('m/d/y(D)H:i:s', $post_time) . "'," .
-  "'" . S_ANONAME . "'," .
-  "''," .
-  "'" . mysql_real_escape_string($msg) . "'," .
-  "'', '', '', '', 0, 0, 0, 0, '" . $tim . "'," . $post_time . "," .
-  $post_time . ", '',0," . $thread_id . ", 'mod', '', '', '')";
-  
-    $res = mysql_board_call($query);
+VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
+
+    $res = $db->query($query, [
+      date('m/d/y(D)H:i:s', $post_time),
+      S_ANONAME,
+      '',
+      $msg,
+      '', '', '', '', 0, 0, 0, 0, $tim, $post_time,
+      $post_time, '', 0, $thread_id, 'mod', '', '', ''
+    ]);
   }
   
   // Ask the destination board to build the new thread
@@ -1748,132 +1790,120 @@ function archive_thread($thread_id) {
   
   $thread_id = (int)$thread_id;
   
-  $board = mysql_real_escape_string(BOARD_DIR);
-  
+  $db = YotsubaDB::board();
+  $db_g = YotsubaDB::global();
+  $board = BOARD_DIR;
+
   if (!$thread_id) {
     return;
   }
-  
+
   // Regenerate the user ID before clearing the IP
   $uid = '';
-  
+  $uid_params = [];
+
   if (DISP_ID && DISP_ID_PER_THREAD && !DISP_ID_RANDOM) {
     $th = null;
-    
+
     if (!IS_REBUILDD && isset($log[$thread_id])) {
       $th = $log[$thread_id];
     }
     else {
-      $query = 'SELECT id, host FROM `' . BOARD_DIR . "` WHERE no = $thread_id";
-      
-      $res = mysql_board_call($query);
-      
+      $res = $db->query('SELECT id, host FROM ' . $db->qi(BOARD_DIR) . " WHERE no = ?", [$thread_id]);
+
       if ($res) {
-        $th = mysql_fetch_assoc($res);
+        $th = $res->fetch(PDO::FETCH_ASSOC);
       }
     }
-    
+
     if ($th && $th['id'] !== '' && $th['host']) {
-      $uid = generate_uid($thread_id, $_SERVER['REQUEST_TIME'], $th['host']);
-      $uid = ", id = '" . mysql_real_escape_string($uid) . "'";
+      $uid_val = generate_uid($thread_id, $_SERVER['REQUEST_TIME'], $th['host']);
+      $uid = ", id = ?";
+      $uid_params[] = $uid_val;
     }
   }
-  
+
   // Update the OP. "root" is used for archive pruning.
-  $query = <<<SQL
-UPDATE `$board`
+  $query = "UPDATE " . $db->qi($board) . "
 SET archived = 1, closed = 1, sticky = 0, email = '', host = '', 4pass_id = '', pwd = '', root = NOW()$uid
-WHERE no = $thread_id
-LIMIT 1
-SQL;
-  
-  $res = mysql_board_call($query);
-  
+WHERE no = ?
+LIMIT 1";
+
+  $params = array_merge($uid_params, [$thread_id]);
+  $res = $db->query($query, $params);
+
   if (!$res) {
     return;
   }
-  
+
   // Update replies
-  $query = <<<SQL
-UPDATE `$board`
+  $res = $db->query("UPDATE " . $db->qi($board) . "
 SET archived = 1, email = '', host = '', 4pass_id = '', pwd = ''
-WHERE resto = $thread_id
-SQL;
-  
-  $res = mysql_board_call($query);
-  
+WHERE resto = ?", [$thread_id]);
+
   // Update cached $log
   if (isset($log[$thread_id])) {
     $log[$thread_id]['archived'] = true;
     $log[$thread_id]['archived_on'] = time();
-    
+
     $thread_key = array_search($thread_id, $log['THREADS']);
-    
+
     if ($thread_key !== false) {
       unset($log['THREADS'][$thread_key]);
     }
   }
-  
+
   // Rebuild the thread
   rebuild_archived_thread($thread_id);
-  
+
   /**
    * Clear reports (only posts with less than 3 "illegal" reports)
    */
   // Get all post ids
-  $query = "SELECT no FROM `$board` WHERE no = $thread_id OR resto = $thread_id";
-  
-  $res = mysql_board_call($query);
-  
-  if (!$res || !mysql_num_rows($res)) {
+  $res = $db->query("SELECT no FROM " . $db->qi($board) . " WHERE no = ? OR resto = ?", [$thread_id, $thread_id]);
+
+  if (!$res || !$res->rowCount()) {
     return;
   }
-  
+
   // Get ids of reported posts, with less than 3 "illegal" reports
   $post_ids = array();
-  
-  while ($row = mysql_fetch_row($res)) {
+
+  while ($row = $res->fetch(PDO::FETCH_NUM)) {
     $post_ids[] = $row[0];
   }
-  
+
   $in_clause_all = implode(',', $post_ids);
-  
-  $query = <<<SQL
-SELECT postid FROM reports_for_posts
-WHERE board = '$board' AND num_illegal < 3 AND postid IN($in_clause_all)
-SQL;
-  
-  $res = mysql_global_call($query);
-  
-  if (!$res || !mysql_num_rows($res)) {
+
+  $res = $db_g->query("SELECT postid FROM reports_for_posts
+WHERE board = ? AND num_illegal < 3 AND postid IN($in_clause_all)", [$board]);
+
+  if (!$res || !$res->rowCount()) {
     return;
   }
-  
+
   // Delete reports for posts with less than 3 "illegal" reports
   $post_ids = array();
-  
-  while ($row = mysql_fetch_row($res)) {
+
+  while ($row = $res->fetch(PDO::FETCH_NUM)) {
     $post_ids[] = $row[0];
   }
-  
+
   $in_clause_reports = implode(',', $post_ids);
-  
-  $query = "DELETE FROM reports WHERE board = '$board' AND no IN($in_clause_reports)";
-  mysql_global_call($query);
-  
-  $query = "DELETE FROM reports_for_posts WHERE board = '$board' AND postid IN($in_clause_reports)";
-  mysql_global_call($query);
-  
+
+  $db_g->query("DELETE FROM reports WHERE board = ? AND no IN($in_clause_reports)", [$board]);
+
+  $db_g->query("DELETE FROM reports_for_posts WHERE board = ? AND postid IN($in_clause_reports)", [$board]);
+
   // Handle XFF entries
   if (SAVE_XFF) {
-    $query = "UPDATE xff SET is_live = 0 WHERE board = '$board' AND postno IN($in_clause_all)";
-    mysql_global_call($query);
+    $db_g->query("UPDATE xff SET is_live = 0 WHERE board = ? AND postno IN($in_clause_all)", [$board]);
   }
 }
 
 function thumb_url()
 {
-	return "//" . THUMB_DIR2_PART;
+	return THUMB_DIR2;
 }
 
 function display_no( $no )
@@ -2109,8 +2139,7 @@ function renderPostHtml($no, $in_thread, $sorted_replies = null, $reply_count = 
 			$tn_h         = '100';
 		}
 		else {
-			//$imgthumb_src = thumb_url() . $tim . 's.jpg';
-			$imgthumb_src = '//' . THUMB_DIR2_PART . $tim . 's.jpg';
+			$imgthumb_src = THUMB_DIR2 . $tim . 's.jpg';
 		}
 		
     if (MOBILE_IMG_RESIZE && $m_img) {
@@ -2185,19 +2214,19 @@ HTML;
         $cur = 1;
         
         while ($s >= $cur) {
-          list($row) = each($sorted_replies);
-          
+          $row = key($sorted_replies); next($sorted_replies);
+
           if ($log[$row]['fsize'] && !$log[$row]['filedeleted']) {
             $t++;
           }
-          
+
           $cur++;
         }
-        
+
         $total_t = $t;
-        
+
         while ($reply_count >= $cur) {
-          list($row) = each($sorted_replies);
+          $row = key($sorted_replies); next($sorted_replies);
           
           if ($log[$row]['fsize'] && !$log[$row]['filedeleted']) {
             $total_t++;
@@ -2583,18 +2612,16 @@ function delete_post($resno, $pwd, $imgonly = 0, $automatic = 0, $children = 1, 
           $tool = '';
         }
         
-        mysql_global_do( "INSERT INTO " . SQLLOGDEL . " (imgonly,postno,resto,board,name,sub,com,img,filename,admin,admin_ip,template_id,tool) values('%s',%d, %d,'%s','%s','%s','%s','%s','%s','%s', '%s', %d, '%s')", $imgonly, $resno, $row['resto'], SQLLOG, $adname, $row["sub"], $row["com"], $adfsize, $row["filename"].$row["ext"], $auser, $remote_addr, $template_id, $tool );
+        $db_g = YotsubaDB::global();
+        $db_g->query( "INSERT INTO " . SQLLOGDEL . " (imgonly,postno,resto,board,name,sub,com,img,filename,admin,admin_ip,template_id,tool) values(?,?,?,?,?,?,?,?,?,?,?,?,?)", [$imgonly, $resno, $row['resto'], SQLLOG, $adname, $row["sub"], $row["com"], $adfsize, $row["filename"].$row["ext"], $auser, $remote_addr, $template_id, $tool] );
       }
       
       // Clear the report queue if only the file is deleted
       if ($imgonly) {
-        $query = "DELETE FROM reports WHERE board = '" . SQLLOG . "' AND no = " . (int)$resno;
-        
-        $res = mysql_global_call($query);
-        
-        $query = "DELETE FROM reports_for_posts WHERE board = '" . SQLLOG . "' AND postid = " . (int)$resno;
-        
-        $res = mysql_global_call($query);
+        if (!isset($db_g)) $db_g = YotsubaDB::global();
+        $db_g->query("DELETE FROM reports WHERE board = ? AND no = ?", [SQLLOG, (int)$resno]);
+
+        $db_g->query("DELETE FROM reports_for_posts WHERE board = ? AND postid = ?", [SQLLOG, (int)$resno]);
       }
     }
     // Staff member is deleting a post that is his, or other type of deletions
@@ -2623,19 +2650,20 @@ function delete_post($resno, $pwd, $imgonly = 0, $automatic = 0, $children = 1, 
     $up_col .= ',m_img';
   }
   
-	$result = mysql_board_call( "select no,resto,tim,ext$up_col from `" . SQLLOG . "` where no=$resno $restoq" );
-	
+	$db_b = YotsubaDB::board();
+	$result = $db_b->query( "select no,resto,tim,ext$up_col from " . $db_b->qi(SQLLOG) . " where no=? $restoq", [$resno] );
+
 	// Array of threads to update after one or more replies were deleted.
 	$updated_threads = array();
 	// Array of post number for report and xff clearing
 	$deleted_threads = array();
 	$deleted_replies = array();
-		
+
 	$purge_files = array();
-	
+
 	$img_webroot = 'http://i.4cdn.org/' . BOARD_DIR . '/';
-	
-	while( $delrow = mysql_fetch_array( $result ) ) {
+
+	while( $delrow = $result->fetch(PDO::FETCH_BOTH) ) {
 		// delete
 		if( $delrow['ext'] ) {
 			if (UPLOAD_BOARD) {
@@ -2675,11 +2703,11 @@ function delete_post($resno, $pwd, $imgonly = 0, $automatic = 0, $children = 1, 
 			}
 		}
 		if( $imgonly ) {
-			mysql_board_call( "UPDATE `" . SQLLOG . "` SET filedeleted=1,root=root,last_modified=%d WHERE no=%d", $_SERVER['REQUEST_TIME'], $delrow['no'] );
+			$db_b->query( "UPDATE " . $db_b->qi(SQLLOG) . " SET filedeleted=1,root=root,last_modified=? WHERE no=?", [$_SERVER['REQUEST_TIME'], $delrow['no']] );
 			$log[$delrow['no']]['filedeleted'] = TRUE;
-			
+
 			if ($delrow['resto']) {
-				mysql_board_call( "UPDATE `" . SQLLOG . "` SET root=root,last_modified=%d WHERE no=%d", $_SERVER['REQUEST_TIME'], $delrow['resto'] );
+				$db_b->query( "UPDATE " . $db_b->qi(SQLLOG) . " SET root=root,last_modified=? WHERE no=?", [$_SERVER['REQUEST_TIME'], $delrow['resto']] );
 				if (isset($log[$delrow['resto']]))
 					$log[$delrow['resto']]['last_modified'] = (int)$_SERVER['REQUEST_TIME'];
 			}
@@ -2724,7 +2752,7 @@ function delete_post($resno, $pwd, $imgonly = 0, $automatic = 0, $children = 1, 
 	
 	// Updating last_modified field (threads)
 	foreach ($updated_threads as $thread_id => $true) {
-		mysql_board_call("UPDATE `".SQLLOG."` set root=root,last_modified=%d where no=%d", $_SERVER['REQUEST_TIME'], $thread_id);
+		$db_b->query("UPDATE " . $db_b->qi(SQLLOG) . " set root=root,last_modified=? where no=?", [$_SERVER['REQUEST_TIME'], $thread_id]);
 		
 		if (isset($log[$thread_id]))
 			$log[$thread_id]['last_modified'] = (int)$_SERVER['REQUEST_TIME'];
@@ -2733,23 +2761,24 @@ function delete_post($resno, $pwd, $imgonly = 0, $automatic = 0, $children = 1, 
 	}
 	
 	// Clearing reports and xff
+	if (!isset($db_g)) $db_g = YotsubaDB::global();
 	if ($deleted_replies) {
 		$in_clause = 'IN(' . implode(',', $deleted_replies) . ')';
-		mysql_global_do("DELETE FROM reports WHERE board='" . BOARD_DIR . "' AND no " . $in_clause);
-		mysql_global_do("DELETE FROM reports_for_posts WHERE board='" . BOARD_DIR . "' AND postid " . $in_clause);
-		
+		$db_g->query("DELETE FROM reports WHERE board=? AND no " . $in_clause, [BOARD_DIR]);
+		$db_g->query("DELETE FROM reports_for_posts WHERE board=? AND postid " . $in_clause, [BOARD_DIR]);
+
     if (SAVE_XFF) {
-      mysql_global_do("UPDATE xff SET is_live = 0 WHERE board='" . BOARD_DIR . "' AND postno " . $in_clause);
+      $db_g->query("UPDATE xff SET is_live = 0 WHERE board=? AND postno " . $in_clause, [BOARD_DIR]);
     }
 	}
-	
+
 	if ($deleted_threads) {
 		$in_clause = 'IN(' . implode(',', $deleted_threads) . ')';
-		mysql_global_do("DELETE FROM reports WHERE board='" . BOARD_DIR . "' AND (no $in_clause OR resto $in_clause)");
-		mysql_global_do("DELETE FROM reports_for_posts WHERE board='" . BOARD_DIR . "' AND (postid $in_clause OR threadid $in_clause)");
-		
+		$db_g->query("DELETE FROM reports WHERE board=? AND (no $in_clause OR resto $in_clause)", [BOARD_DIR]);
+		$db_g->query("DELETE FROM reports_for_posts WHERE board=? AND (postid $in_clause OR threadid $in_clause)", [BOARD_DIR]);
+
     if (SAVE_XFF) {
-      mysql_global_do("UPDATE xff SET is_live = 0 WHERE board='" . BOARD_DIR . "' AND postno " . $in_clause);
+      $db_g->query("UPDATE xff SET is_live = 0 WHERE board=? AND postno " . $in_clause, [BOARD_DIR]);
     }
 	}
   
@@ -2767,9 +2796,9 @@ function delete_post($resno, $pwd, $imgonly = 0, $automatic = 0, $children = 1, 
   
 	//delete from DB
 	if( $delete_children ) // delete thread and children
-		$result = mysql_board_call( "delete from `" . SQLLOG . "` where no=$resno or resto=$resno" );
+		$result = $db_b->query( "delete from " . $db_b->qi(SQLLOG) . " where no=? or resto=?", [$resno, $resno] );
 	elseif( !$imgonly ) // just delete the post
-		$result = mysql_board_call( "delete from `" . SQLLOG . "` where no=$resno" );
+		$result = $db_b->query( "delete from " . $db_b->qi(SQLLOG) . " where no=?", [$resno] );
 
 	rpc_task();
 	if( $imgonly && $row['resto'] == 0 ) {
@@ -2812,20 +2841,19 @@ function trim_archive() {
   
   $interval = (int)ARCHIVE_MAX_AGE;
   
-  $query = <<<SQL
-SELECT no FROM `%s`
+  $db = YotsubaDB::board();
+  $query = "SELECT no FROM " . $db->qi(BOARD_DIR) . "
 WHERE archived = 1
 AND resto = 0
-AND root < DATE_SUB(NOW(), INTERVAL $interval HOUR)
-SQL;
-  
-  $res = mysql_board_call($query, BOARD_DIR);
-  
-  if (!$res || !mysql_num_rows($res)) {
+AND root < DATE_SUB(NOW(), INTERVAL $interval HOUR)";
+
+  $res = $db->query($query);
+
+  if (!$res || !$res->rowCount()) {
     return;
   }
-  
-  while ($row = mysql_fetch_row($res)) {
+
+  while ($row = $res->fetch(PDO::FETCH_NUM)) {
     delete_post((int)$row[0], '', 0, 1, 1, 0, false, true);
   }
 }
@@ -2867,15 +2895,16 @@ function trim_db()
 		$exp_order = 'no';
 		if( EXPIRE_NEGLECTED == 1 ) $exp_order = 'root';
 		//logtime( 'trim_db before select threads' );
-		$result = mysql_board_call( "SELECT no FROM `" . SQLLOG . "` WHERE archived=0 AND sticky=0 AND undead=0 AND resto=0 ORDER BY $exp_order ASC" );
+		$db = YotsubaDB::board();
+		$result = $db->query( "SELECT no FROM " . $db->qi(SQLLOG) . " WHERE archived=0 AND sticky=0 AND undead=0 AND resto=0 ORDER BY $exp_order ASC" );
 		//logtime( 'trim_db after select threads' );
-		$threadcount = mysql_num_rows( $result );
-		
+		$threadcount = $result->rowCount();
+
 		if (!$threadcount && $rebuild_archive_list) {
 		  $rebuild_archive_list = false;
 		}
-		
-		while( $row = mysql_fetch_array( $result ) and $threadcount > $maxthreads ) {
+
+		while( $row = $result->fetch(PDO::FETCH_BOTH) and $threadcount > $maxthreads ) {
 			if (ENABLE_ARCHIVE) {
         $rebuild_archive_json = true;
 			  archive_thread($row['no']);
@@ -2887,8 +2916,8 @@ function trim_db()
 			$threadcount--;
 		}
     
-		mysql_free_result( $result );
-		
+		$result->closeCursor();
+
     if (ENABLE_ARCHIVE) {
       if ($rebuild_archive_list) {
         rebuild_archive_list();
@@ -2905,16 +2934,17 @@ function trim_db()
 		$stickies = array(); // keys are stickied thread numbers
 		$undead   = array();
 		// COMBINE FOR MAXIMUM EFFICIENCY!
-		$result = mysql_board_call( "SELECT no from `" . SQLLOG . "` where (sticky=1 OR undead=1) and resto=0" );
-		while( $row = mysql_fetch_array( $result ) ) {
+		if (!isset($db)) $db = YotsubaDB::board();
+		$result = $db->query( "SELECT no from " . $db->qi(SQLLOG) . " where (sticky=1 OR undead=1) and resto=0" );
+		while( $row = $result->fetch(PDO::FETCH_BOTH) ) {
 			if( $row['sticky'] ) $stickies[$row['no']] = 1;
 			if( $row['undead'] ) $undead[$row['no']] = 1;
 		}
 
 		// FIXME these if ... continue checks need to be SQL conditions!
-		$result    = mysql_board_call( "SELECT no,resto,sticky FROM `" . SQLLOG . "` ORDER BY no ASC" );
-		$postcount = mysql_num_rows( $result );
-		while( $row = mysql_fetch_array( $result ) and $postcount >= $maxposts ) {
+		$result    = $db->query( "SELECT no,resto,sticky FROM " . $db->qi(SQLLOG) . " ORDER BY no ASC" );
+		$postcount = $result->rowCount();
+		while( $row = $result->fetch(PDO::FETCH_BOTH) and $postcount >= $maxposts ) {
 			// don't delete if this is a sticky thread or is undeletable
 			if( $row['sticky'] == 1 || $row['undead'] == 1 ) continue;
 			// don't delete if this is a REPLY to a sticky or is in an undeletable thread
@@ -2923,22 +2953,21 @@ function trim_db()
 			$threads[$row['no']] = 1;
 			$postcount--;
 		}
-		mysql_free_result( $result );
+		$result->closeCursor();
 	}
 }
 
 // FIXME archives
 // debug function, deletes all archived threads
 function purge_archive() {
-  $query = "SELECT no FROM `test` WHERE archived = 1 AND resto = 0";
-  
-  $res = mysql_board_call($query);
-  
+  $db = YotsubaDB::board();
+  $res = $db->query("SELECT no FROM " . $db->qi('test') . " WHERE archived = 1 AND resto = 0");
+
   if (!$res) {
     return;
   }
-  
-  while ($thread = mysql_fetch_assoc($res)) {
+
+  while ($thread = $res->fetch(PDO::FETCH_ASSOC)) {
     echo "Deleting {$thread['no']}<br>";
     delete_post((int)$thread['no'], '', 0, 0, 1, true, false, true);
   }
@@ -2990,13 +3019,13 @@ function rebuild_archived_thread($thread_id) {
   // Render replies
   $repCount = 0;
   
-  while (list($resrow) = each($sorted_replies)) {
+  foreach ($sorted_replies as $resrow => $_unused) {
     if (!$log[$resrow]['no']) {
       break;
     }
-    
+
     $dat .= renderPostHtml($resrow, $thread_id, null, null, null, true);
-    
+
     $repCount++;
   }
   
@@ -3111,8 +3140,9 @@ function rebuild_archived_thread($thread_id) {
 function calculate_indexes_to_rebuild( $updated_thread )
 {
 	global $index_rbl;
-	$query     = mysql_board_call( "SELECT COUNT(no) FROM `%s` WHERE archived = 0 AND root > (SELECT root FROM `%s` WHERE no=%d)", SQLLOG, SQLLOG, $updated_thread );
-	$index_rbl = floor( mysql_result( $query, 0, 0 ) / DEF_PAGES );
+	$db = YotsubaDB::board();
+	$query     = $db->query( "SELECT COUNT(no) FROM " . $db->qi(SQLLOG) . " WHERE archived = 0 AND root > (SELECT root FROM " . $db->qi(SQLLOG) . " WHERE no=?)", [$updated_thread] );
+	$index_rbl = floor( $query->fetch(PDO::FETCH_NUM)[0] / DEF_PAGES );
 }
 
 function rebuild_indexes_daemon()
@@ -3123,8 +3153,9 @@ function rebuild_indexes_daemon()
 	$index_rbl = PAGE_MAX;
 
 	// Get latest thread
-	$query = mysql_board_call( "SELECT max(no) last_post, max(resto) last_thread FROM `%s` WHERE archived = 0", SQLLOG );
-	$q = mysql_fetch_assoc( $query );
+	$db = YotsubaDB::board();
+	$query = $db->query( "SELECT max(no) last_post, max(resto) last_thread FROM " . $db->qi(SQLLOG) . " WHERE archived = 0" );
+	$q = $query->fetch(PDO::FETCH_ASSOC);
 
 	$latest_thread = $q['last_thread'];
 	$latest_post   = $q['last_post'];
@@ -3200,7 +3231,7 @@ function fix_board_nav($nav, $fix_protocol = false) {
     $protocol = '';
   }
   
-  return preg_replace('/href="\/([a-z0-9]+)\/"/', "href=\"$protocol//boards." . L::d(BOARD_DIR) . "/$1/\"", $nav);
+  return preg_replace('/href="\/([a-z0-9]+)\/"/', 'href="/$1/"', $nav);
 }
 
 // Same but for /archive lmao
@@ -3618,14 +3649,14 @@ JS;
 	}
 	
 	if ($is_arclist) {
-		$canonical = '<link rel="canonical" href="https://boards.' . L::d(BOARD_DIR) . '/' . BOARD_DIR.'/archive">';
+		$canonical = '<link rel="canonical" href="/' . BOARD_DIR.'/archive">';
   }
 	else if (!$res) {
 	  if ($page > 0) {
-		  $canonical = '<link rel="canonical" href="https://boards.' . L::d(BOARD_DIR) . '/' . BOARD_DIR.'/' . (($page / DEF_PAGES) + 1) . '">';
+		  $canonical = '<link rel="canonical" href="/' . BOARD_DIR.'/' . (($page / DEF_PAGES) + 1) . '">';
 	  }
 	  else {
-		  $canonical = '<link rel="canonical" href="https://boards.' . L::d(BOARD_DIR) . '/' .BOARD_DIR.'/">';
+		  $canonical = '<link rel="canonical" href="/' .BOARD_DIR.'/">';
 	  }
 	}
 	elseif ($res) {
@@ -3635,7 +3666,7 @@ JS;
       $href_context = "/$href_context";
     }
 	  
-		$canonical = '<link rel="canonical" href="https://boards.' . L::d(BOARD_DIR) . '/' .BOARD_DIR.'/thread/'.$res.$href_context . '">';
+		$canonical = '<link rel="canonical" href="/' .BOARD_DIR.'/thread/'.$res.$href_context . '">';
 	}
 	else {
 	  $canonical = '';
@@ -3803,14 +3834,14 @@ function error($mes, $unused = '') {
 	
 	$dat .= '<table style="text-align: center; width: 100%; height: 300px;"><tr valign="middle"><td align="center" style="font-size: x-large; font-weight: bold;"><span id="errmsg" style="color: red;">' . $mes . '</span><br><br>[<a href=';
 	
-	if (preg_match('#^' . $protocol . '//boards.' . L::d(BOARD_DIR) . '/' . BOARD_DIR . '/thread/([0-9]+)#', $_SERVER["HTTP_REFERER"], $m)) {
+	if (preg_match('#/' . BOARD_DIR . '/thread/([0-9]+)#', $_SERVER["HTTP_REFERER"], $m)) {
 	  $thread_part = 'thread/' . (int)$m[1];
 	}
 	else {
 	  $thread_part = '';
 	}
 	
-	$dat .= $protocol . '//boards.' . L::d(BOARD_DIR) . '/' . BOARD_DIR . '/' . $thread_part . ">" . S_RELOAD . "</a>]</td></tr></table><br><br><hr size=1>";
+	$dat .= '/' . BOARD_DIR . '/' . $thread_part . ">" . S_RELOAD . "</a>]</td></tr></table><br><br><hr size=1>";
 	
 	foot( $dat, true );
 	
@@ -3840,7 +3871,7 @@ function error_redirect($mes, $redirect, $timeout = 3000) {
 </script>
 HTML;
 	$dat .= '<table style="text-align: center; width: 100%; height: 300px;"><tr valign="middle"><td align="center" style="font-size: x-large; font-weight: bold;"><span id="errmsg" style="color: red;">' . $mes . '</span><br><br>[<a href=';
-	$dat .= '//boards.' . L::d(BOARD_DIR) . '/' . BOARD_DIR . "/>"
+	$dat .= '/' . BOARD_DIR . "/>"
     . S_RELOAD . "</a>]</td></tr></table><br><br><hr size=1>";
 	foot( $dat );
 	
@@ -3906,12 +3937,13 @@ function post_resto($no) {
     return $log[$no]['resto'];
   }
   
-  $q = mysql_board_call('SELECT resto FROM `%s` WHERE no=%d', SQLLOG, $no);
-  if (!mysql_num_rows($q)) {
+  $db = YotsubaDB::board();
+  $q = $db->query('SELECT resto FROM ' . $db->qi(SQLLOG) . ' WHERE no=?', [$no]);
+  if (!$q->rowCount()) {
     $log[$no] = array('resto' => false);
     return false;
   }
-  $r = (int)mysql_fetch_row($q)[0];
+  $r = (int)$q->fetch(PDO::FETCH_NUM)[0];
   $log[$no] = array('resto' => $r);
   return $r;
   
@@ -3964,16 +3996,22 @@ function other_board_resto( $board, $resno )
 
 	static $boardlist = array();
 
-	if( !$boardlist )
-		$boardlist = array_flip( mysql_column_array( mysql_global_call( "select sql_cache dir from boardlist" ) ) );
+	if( !$boardlist ) {
+		$db_g = YotsubaDB::global();
+		$_res = $db_g->query( "select sql_cache dir from boardlist" );
+		$_dirs = array();
+		while ($_r = $_res->fetch(PDO::FETCH_NUM)) { $_dirs[] = $_r[0]; }
+		$boardlist = array_flip( $_dirs );
+	}
 
 	if( $board != BOARD_DIR && !isset( $boardlist[$board] ) )
 		return false;
 
-	$q = mysql_board_call( "select resto from `%s` where no=%d", $board, $resno );
-	if( !mysql_num_rows( $q ) )
+	$db = YotsubaDB::board();
+	$q = $db->query( "select resto from " . $db->qi($board) . " where no=?", [$resno] );
+	if( !$q->rowCount() )
 		return false;
-	$r = mysql_result( $q, 0 );
+	$r = $q->fetch(PDO::FETCH_NUM)[0];
 
 	return $r;
 }
@@ -4020,7 +4058,7 @@ function interboard_catalog_link_cb( $m )
 	if( $lsearchquery == "catalog" ) {
 		return "<a href=\"/$board/catalog\" class=\"quotelink\">$original</a>";
 	} elseif( $lsearchquery == 'rules' ) {
-		return '<a href="//www.' . L::d($board) . '/rules#' . $board . '" class="quotelink">' . $original . '</a>';
+		return '<a href="/rules#' . $board . '" class="quotelink">' . $original . '</a>';
 	} else {
 		return "<a href=\"/$board/catalog#s=$lsearchquery\" class=\"quotelink\">$original</a>";
 	}
@@ -4094,11 +4132,11 @@ function auto_link_static_cb($matches) {
 				$ruleno = substr( $resno, $ruleloc + 1 );
 			}
 			
-			$parsed_link = '//www.' . L::d($inter_board) . "/rules#$inter_board$ruleno";
+			$parsed_link = "/rules#$inter_board$ruleno";
 			$target      = ' target="_blank"';
 		}
 		else if (in_array($inter_board, $boards_matching_arr)) {
-			$parsed_link = '//boards.' . L::d($inter_board) . "/$inter_board/";
+			$parsed_link = "/$inter_board/";
 			
 			if( $inter_board == 'f' && $url == 'catalog' ) return $full_link;
 			
@@ -4216,9 +4254,9 @@ function parse_interboard_link( $post, $inter_board, $no )
 	if( $resto === false ) { // dead link
 		$url = '';
 	} elseif( $resto ) { // different thread
-		$url = '//boards.' . L::d($inter_board) . "/{$inter_board}/thread/$resto#p$resno";
+		$url = "/{$inter_board}/thread/$resto#p$resno";
 	} else { // same thread
-		$url = '//boards.' . L::d($inter_board) . "/{$inter_board}/thread/$resno#p$resno";
+		$url = "/{$inter_board}/thread/$resno#p$resno";
 	}
 
 	$disable = BOARD_DIR == 'mlp' && ( $inter_board == 'b' || $inter_board == 'co' );
@@ -4240,9 +4278,9 @@ function trans_same_board_links( &$com )
 	$dir      = BOARD_DIR;
 	$com .= '~';
 
-	while( isset( $com{$i} ) ) {
+	while( isset( $com[$i] ) ) {
 
-		if( is_numeric( $com{$i + $len} ) ) {
+		if( is_numeric( $com[$i + $len] ) ) {
 			// Match, replace out
 			$com = substr_replace( $com, '>>', $i, $len );
 
@@ -4276,15 +4314,15 @@ function auto_link_parser( $post, $resno )
 
 	$dbg = "";
 
-	while( isset( $post{$i} ) ) {
+	while( isset( $post[$i] ) ) {
 		$seen_gt_this = false;
-		$c            = $post{$i};
+		$c            = $post[$i];
 
 		if( !$in_link ) {
 			// Not in a link, find &gt;
 
 			if( $c == '&' ) {
-				if( $post{$i + 1} == 'g' && $post{$i + 2} == 't' && $post{$i + 3} == ';' ) {
+				if( $post[$i + 1] == 'g' && $post[$i + 2] == 't' && $post[$i + 3] == ';' ) {
 					if( $gt_count < 3 ) $gt_count++;
 
 					$i = $i + 4;
@@ -4406,32 +4444,32 @@ function check_md5_blacklist($md5, $original_md5, $post, $dest) {
     $ws_clause = '';
   }
   
-  $sql =<<<SQL
-SELECT SQL_NO_CACHE * FROM blacklist
-WHERE active = 1 AND (boardrestrict = '' OR boardrestrict = '$board'$ws_clause)
-AND field = 'md5' AND contents = '%s' LIMIT 1
-SQL;
-  
+  $db_g = YotsubaDB::global();
+
+  $sql = "SELECT * FROM blacklist
+WHERE active = 1 AND (boardrestrict = '' OR boardrestrict = ?$ws_clause)
+AND field = 'md5' AND contents = ? LIMIT 1";
+
   // Check MD5
-  $query = mysql_global_call($sql, $md5);
-  
+  $query = $db_g->query($sql, [$board, $md5]);
+
   // Check original MD5 if provided
-  if (!mysql_num_rows($query)) {
+  if (!$query->rowCount()) {
     if ($original_md5 && $original_md5 !== $md5) {
-      $query = mysql_global_call($sql, $original_md5);
-      
-      if (!mysql_num_rows($query)) {
+      $query = $db_g->query($sql, [$board, $original_md5]);
+
+      if (!$query->rowCount()) {
         return false;
       }
-      
+
       $md5 = $original_md5;
     }
     else {
       return false;
     }
   }
-  
-  $row = mysql_fetch_assoc($query);
+
+  $row = $query->fetch(PDO::FETCH_ASSOC);
   
   if (!$row) {
     return false;
@@ -4493,18 +4531,17 @@ SQL;
   else if ($row['ban'] == '2') {
     $ip = ip2long($_SERVER['REMOTE_ADDR']);
     
-    $query = "SELECT ip FROM user_actions WHERE action = 'fail_dmca' AND ip = %d AND time >= DATE_SUB(NOW(), INTERVAL 1 DAY)";
-    
-    $res = mysql_global_call($query, $ip);
-    
-    if ($res && mysql_num_rows($res) > 0) {
+    $query = "SELECT ip FROM user_actions WHERE action = 'fail_dmca' AND ip = ? AND time >= DATE_SUB(NOW(), INTERVAL 1 DAY)";
+
+    $res = $db_g->query($query, [$ip]);
+
+    if ($res && $res->rowCount() > 0) {
       $private_reason = "DMCA complaint from {$row['description']} (blacklist ID: {$row['id']})";
       auto_ban_poster($ban_name, 3, 1, $private_reason, S_DMCABANREASON, true, $pwd, $pass_id);
-      error_redirect(S_BANNED, 'https://www.' . L::d(BOARD_DIR) . '/banned');
+      error_redirect(S_BANNED, '/banned');
     }
     else {
-      $query = "INSERT INTO user_actions (board,postno,ip,time,uploaded,action) VALUES ('%s', %d, %d, NOW(), 0, 'fail_dmca')";
-      mysql_global_call($query, $board, 0, $ip);
+      $db_g->query("INSERT INTO user_actions (board,postno,ip,time,uploaded,action) VALUES (?,?,?,NOW(),0,'fail_dmca')", [$board, 0, $ip]);
     }
     
     error(S_DMCAFAIL, $dest);
@@ -4530,19 +4567,23 @@ function check_blacklist($post, $dest, $file_ext = '', $resto = 0, $pwd = null, 
     $ws_clause = '';
   }
   
-	$querystr = "SELECT SQL_NO_CACHE * FROM blacklist WHERE active=1 AND (boardrestrict='' or boardrestrict='$board'$ws_clause) AND (0 ";
+	$db_g = YotsubaDB::global();
+	$querystr = "SELECT * FROM blacklist WHERE active=1 AND (boardrestrict='' or boardrestrict=?$ws_clause) AND (0 ";
+	$params = [$board];
 	foreach( $post as $field => $contents ) {
 		if( $contents ) {
-			$contents = mysql_real_escape_string( html_entity_decode( $contents ) );
-			$querystr .= "OR (field='$field' AND contents='$contents') ";
+			$contents = html_entity_decode( $contents );
+			$querystr .= "OR (field=? AND contents=?) ";
+			$params[] = $field;
+			$params[] = $contents;
 		}
 	}
 	$querystr .= ") LIMIT 1";
-	
-	$query = mysql_global_call( $querystr );
-	if( mysql_num_rows( $query ) == 0 ) return false;
-	
-	$row       = mysql_fetch_assoc( $query );
+
+	$query = $db_g->query( $querystr, $params );
+	if( $query->rowCount() == 0 ) return false;
+
+	$row       = $query->fetch(PDO::FETCH_ASSOC);
 	$prvreason = "Blacklisted ${row['field']} - " . htmlspecialchars( $row['contents'] );
 	
 	if ($row['field'] == 'md5') {
@@ -4562,20 +4603,17 @@ function check_blacklist($post, $dest, $file_ext = '', $resto = 0, $pwd = null, 
   else if ($row['ban'] == '2') {
     $ip = ip2long($_SERVER['REMOTE_ADDR']);
     
-    $query = "SELECT ip FROM user_actions WHERE action = 'fail_dmca' AND ip = %d AND time >= DATE_SUB(NOW(), INTERVAL 1 DAY)";
-    
-    $res = mysql_global_call($query, $ip);
-    
-    if ($res && mysql_num_rows($res) > 0) {
+    $res = $db_g->query("SELECT ip FROM user_actions WHERE action = 'fail_dmca' AND ip = ? AND time >= DATE_SUB(NOW(), INTERVAL 1 DAY)", [$ip]);
+
+    if ($res && $res->rowCount() > 0) {
       $prvreason = "DMCA complaint from {$row['description']} (blacklist ID: {$row['id']})";
-      
+
       auto_ban_poster($post['trip'] ? $post['nametrip'] : $post['name'], 3, 1, $prvreason, S_DMCABANREASON, true, $pwd, $pass_id);
-      
-      error_redirect(S_BANNED, 'https://www.' . L::d(BOARD_DIR) . '/banned');
+
+      error_redirect(S_BANNED, '/banned');
     }
     else {
-      $query = "INSERT INTO user_actions (board,postno,ip,time,uploaded,action) VALUES ('%s',%d,%d,NOW(),0,'fail_dmca')";
-      mysql_global_call($query, $board, 0, $ip);
+      $db_g->query("INSERT INTO user_actions (board,postno,ip,time,uploaded,action) VALUES (?,?,?,NOW(),0,'fail_dmca')", [$board, 0, $ip]);
     }
     
     error(S_DMCAFAIL, $dest);
@@ -4599,10 +4637,11 @@ function check_blacklist($post, $dest, $file_ext = '', $resto = 0, $pwd = null, 
 function check_fail_floodcheck($info)
 {
 	$ip = ip2long($_SERVER['REMOTE_ADDR']);
-	mysql_global_call("insert into user_actions (ip,board,action,time) values (%d,'%s','fail_floodcheck',now())", $ip, '');
-	$query = mysql_global_call("select count(*)>%d from user_actions where ip=%d and action='fail_floodcheck' and time >= subdate(now(), interval 1 hour)", LOGIN_FAIL_HOURLY, $ip);
+	$db_g = YotsubaDB::global();
+	$db_g->query("insert into user_actions (ip,board,action,time) values (?,?,'fail_floodcheck',now())", [$ip, '']);
+	$query = $db_g->query("select count(*)>? from user_actions where ip=? and action='fail_floodcheck' and time >= subdate(now(), interval 1 hour)", [LOGIN_FAIL_HOURLY, $ip]);
 	quick_log_to("/www/perhost/floodchecks.log", $info);
-	if(mysql_result($query,0,0)) {
+	if($query->fetch(PDO::FETCH_NUM)[0]) {
 		auto_ban_poster("Anonymous", 1, 1, "got a flood check warning 5 times in an hour", "Sending an excessive number of server requests");
 	}
 }
@@ -4654,7 +4693,8 @@ function logtime( $desc )
 	}
 	$board = BOARD_DIR;
 	$time  = microtime( true );
-	mysql_global_call( "INSERT INTO profiling_times VALUES ('$board',$run,$time,'$desc')" );
+	$db_g = YotsubaDB::global();
+	$db_g->query( "INSERT INTO profiling_times VALUES (?,?,?,?)", [$board, $run, $time, $desc] );
 }
 
 function time_log($r) {
@@ -4711,54 +4751,45 @@ function parse_vip_capcode($capcode) {
     // Flood check
     $longip = ip2long($_SERVER['REMOTE_ADDR']);
     
-    $query = <<<SQL
-SELECT COUNT(*) FROM user_actions
-WHERE ip = %d AND action = 'fail_login'
-AND time >= SUBDATE(NOW(), INTERVAL 1 HOUR)
-SQL;
-    
-    $res = mysql_global_call($query, $longip);
-    
+    $db_g = YotsubaDB::global();
+
+    $res = $db_g->query("SELECT COUNT(*) FROM user_actions
+WHERE ip = ? AND action = 'fail_login'
+AND time >= SUBDATE(NOW(), INTERVAL 1 HOUR)", [$longip]);
+
     if (!$res) {
       return false;
     }
-    
-    $count = mysql_fetch_row($res)[0];
-    
+
+    $count = $res->fetch(PDO::FETCH_NUM)[0];
+
     if ($count >= 3) {
       return false;
     }
-    
+
     // Now check the capcode
     list($_, $user_id, $user_key) = explode('!', $capcode, 3);
-    
+
     if (!$user_id || !$user_key) {
       return false;
     }
-    
-    $query = "SELECT name, user_key FROM vip_capcodes WHERE active = 1 AND user_id = '%s' LIMIT 1";
-    
-    $res = mysql_global_call($query, $user_id);
-    
+
+    $res = $db_g->query("SELECT name, user_key FROM vip_capcodes WHERE active = 1 AND user_id = ? LIMIT 1", [$user_id]);
+
     if (!$res) {
       return false;
     }
-    
-    $user = mysql_fetch_assoc($res);
-    
+
+    $user = $res->fetch(PDO::FETCH_ASSOC);
+
     if ($user && password_verify($user_key, $user['user_key'])) {
-      $query = "UPDATE vip_capcodes SET last_used = %d, last_ip = '%s' WHERE user_id = '%s' LIMIT 1";
-      mysql_global_call($query, $_SERVER['REQUEST_TIME'], $_SERVER['REMOTE_ADDR'], $user_id);
+      $db_g->query("UPDATE vip_capcodes SET last_used = ?, last_ip = ? WHERE user_id = ? LIMIT 1", [$_SERVER['REQUEST_TIME'], $_SERVER['REMOTE_ADDR'], $user_id]);
       return $user['name'];
     }
-    
+
     // Log the failure
-    $query = <<<SQL
-INSERT INTO user_actions (ip, board, action, time)
-VALUES (%d, '', 'fail_login', NOW())
-SQL;
-    
-    mysql_global_call($query, $longip);
+    $db_g->query("INSERT INTO user_actions (ip, board, action, time)
+VALUES (?, '', 'fail_login', NOW())", [$longip]);
     
     return false;
 }
@@ -4996,16 +5027,17 @@ function new_post( $name, $email, $sub, $com, $url, $pwd, $upfile, $upfile_name,
 	$locked_time = $time;
 	// check closed
 	if( $resto ) {
-		if( !$cchk = mysql_board_call( "select closed,sticky,undead,archived,sub,com from `" . SQLLOG . "` where no=" . $resto ) ) {
+		$db = YotsubaDB::board();
+		if( !$cchk = $db->query( "select closed,sticky,undead,archived,sub,com from " . $db->qi(SQLLOG) . " where no=?", [$resto] ) ) {
 			echo S_SQLFAIL;
 		}
-		list( $closed, $sticky, $undead, $is_archived, $_thread_sub, $_thread_com ) = mysql_fetch_row( $cchk );
+		list( $closed, $sticky, $undead, $is_archived, $_thread_sub, $_thread_com ) = $cchk->fetch(PDO::FETCH_NUM);
 		if ($is_archived) {
 		  error(S_MAYNOTREPLY, $upfile);
 		}
     	$is_undead_sticky = $sticky == 1 && $undead == 1;
 		if( $closed == 1 && !has_level() ) error( S_MAYNOTREPLY, $upfile );
-		mysql_free_result( $cchk );
+		$cchk->closeCursor();
 		
 		$sub = '';
 	}
@@ -5060,12 +5092,13 @@ function new_post( $name, $email, $sub, $com, $url, $pwd, $upfile, $upfile_name,
 			
 			// check image limit
 			if( $resto && !$sticky && !$undead && !has_level() ) {
-				if( !$result = mysql_board_call( "SELECT COUNT(*) FROM `" . SQLLOG . "` WHERE archived = 0 AND resto=$resto AND fsize!=0 AND filedeleted=0" ) ) {
+				if (!isset($db)) $db = YotsubaDB::board();
+				if( !$result = $db->query( "SELECT COUNT(*) FROM " . $db->qi(SQLLOG) . " WHERE archived = 0 AND resto=? AND fsize!=0 AND filedeleted=0", [$resto] ) ) {
 					echo S_SQLFAIL;
 				}
-				$countimgres = mysql_result( $result, 0, 0 );
+				$countimgres = $result->fetch(PDO::FETCH_NUM)[0];
 				if( $countimgres >= MAX_IMGRES && !has_level() ) error(S_MAXIMAGESREACHED, $upfile );
-				mysql_free_result( $result );
+				$result->closeCursor();
 			}
 
 			//upload processing
@@ -5297,7 +5330,9 @@ function new_post( $name, $email, $sub, $com, $url, $pwd, $upfile, $upfile_name,
 
 	$resto = (int)$resto;
 	if( $resto ) {
-		if( !mysql_result( mysql_board_call( "select count(no) from `" . SQLLOG . "` where root>0 and no=$resto" ), 0, 0 ) )
+		if (!isset($db)) $db = YotsubaDB::board();
+		$_tcheck = $db->query( "select count(no) from " . $db->qi(SQLLOG) . " where root>0 and no=?", [$resto] );
+		if( !$_tcheck->fetch(PDO::FETCH_NUM)[0] )
 			error( S_NOTHREADERR, $dest );
 	}
   
@@ -5311,6 +5346,9 @@ function new_post( $name, $email, $sub, $com, $url, $pwd, $upfile, $upfile_name,
 	// Standardize new character lines
 	$com = str_replace( "\r\n", "\n", $com );
 	$com = str_replace( "\r", "\n", $com );
+
+	// Convert literal \n to real newlines (lazy agents post it wrong)
+	$com = str_replace( '\n', "\n", $com );
 
 	$comlim  = has_level() ? MAX_COM_CHARS_AUTHED : MAX_COM_CHARS;
 	$longlim = has_level() ? 255 : 100;
@@ -5682,7 +5720,8 @@ function new_post( $name, $email, $sub, $com, $url, $pwd, $upfile, $upfile_name,
 	
   if ($user_is_banned) {
     if (!$captcha_bypass) {
-      mysql_global_call("INSERT INTO user_actions (board,ip,time,action) VALUES ('%s',%d,from_unixtime(%d),'%s')", BOARD_DIR, ip2long($host), $time, 'is_banned');
+      $db_g = YotsubaDB::global();
+      $db_g->query("INSERT INTO user_actions (board,ip,time,action) VALUES (?,?,from_unixtime(?),?)", [BOARD_DIR, ip2long($host), $time, 'is_banned']);
     }
     
     // Log banned phone ips
@@ -5692,7 +5731,7 @@ function new_post( $name, $email, $sub, $com, $url, $pwd, $upfile, $upfile_name,
       }
     }
     
-    $redirect = 'https://www.' . L::d(BOARD_DIR) . '/banned';
+    $redirect = '/banned';
     
     if ($user_is_banned == 1) {
       // Banned
@@ -5887,18 +5926,19 @@ function new_post( $name, $email, $sub, $com, $url, $pwd, $upfile, $upfile_name,
 		$may_flood = has_level( 'janitor' );
 
 		if (!$may_flood || (!has_level() && (META_BOARD || $_POST['name'] != ''))) {
+			if (!isset($db)) $db = YotsubaDB::board();
 			if( $com ) {
 				// Check for duplicate comments
-				$query  = "select sql_no_cache max(time) from `%s` where com='%s' " .
-					"and host='%s' " .
-					"and time>%d";
-				$result = mysql_board_call( $query, SQLLOG, $com, $host, $time - RENZOKU_DUPE );
-				if( $ltime = mysql_result( $result, 0, 0 ) ) {
+				$query  = "select max(time) from " . $db->qi(SQLLOG) . " where com=? " .
+					"and host=? " .
+					"and time>?";
+				$result = $db->query( $query, [$com, $host, $time - RENZOKU_DUPE] );
+				if( $ltime = $result->fetch(PDO::FETCH_NUM)[0] ) {
 					//check_fail_floodcheck($com);
 					$str = sprintf(S_RENZOKU_DUP, sec2hms( ( $ltime + RENZOKU_DUPE ) - $time, false, true ) );
 					error( $str, $dest );
 				}
-				mysql_free_result( $result );
+				$result->closeCursor();
 			}
 			
 			/**
@@ -5908,18 +5948,18 @@ function new_post( $name, $email, $sub, $com, $url, $pwd, $upfile, $upfile_name,
 				/**
 				 * New threads
 				 */
-				$query  = "select max(time) from `%s` where time>%d " .
-					"and host='%s' and root>0"; //root>0 == non-sticky
-				$result = mysql_board_call( $query, SQLLOG, ( $time - RENZOKU3 ), $host );
-				if( $ltime = mysql_result( $result, 0, 0 ) ) {
+				$query  = "select max(time) from " . $db->qi(SQLLOG) . " where time>? " .
+					"and host=? and root>0"; //root>0 == non-sticky
+				$result = $db->query( $query, [$time - RENZOKU3, $host] );
+				if( $ltime = $result->fetch(PDO::FETCH_NUM)[0] ) {
 					$str = sprintf(S_RENZOKU3, sec2hms( ( $ltime + RENZOKU3 ) - $time, false, true ) );
 					error( $str, $dest );
 				}
-				mysql_free_result( $result );
+				$result->closeCursor();
 				// Cross-board cooldown
-				$query = "SELECT 1 FROM user_actions WHERE ip = %d AND action = 'new_thread' AND board != '%s' AND time >= DATE_SUB(NOW(), INTERVAL 5 MINUTE)";
-				$result = mysql_global_call($query, ip2long($host), BOARD_DIR);
-				if (mysql_num_rows($result) > 0) {
+				$db_g = YotsubaDB::global();
+				$result = $db_g->query("SELECT 1 FROM user_actions WHERE ip = ? AND action = 'new_thread' AND board != ? AND time >= DATE_SUB(NOW(), INTERVAL 5 MINUTE)", [ip2long($host), BOARD_DIR]);
+				if ($result->rowCount() > 0) {
 					error( S_RENZOKU3, $dest ); // You must wait longer before posting another thread
 				}
 			}
@@ -5931,11 +5971,11 @@ function new_post( $name, $email, $sub, $com, $url, $pwd, $upfile, $upfile_name,
         
         // Check for same image flood first
         if ($has_image && $resto) {
-          $query  = "SELECT time FROM `%s` WHERE host = '%s' AND md5 = '%s' AND resto != %d ORDER BY no DESC LIMIT 1";
-          
-          $result = mysql_board_call($query, SQLLOG, $host, $md5, $resto);
-          
-          if ($flood_row = mysql_fetch_assoc($result)) {
+          $query  = "SELECT time FROM " . $db->qi(SQLLOG) . " WHERE host = ? AND md5 = ? AND resto != ? ORDER BY no DESC LIMIT 1";
+
+          $result = $db->query($query, [$host, $md5, $resto]);
+
+          if ($flood_row = $result->fetch(PDO::FETCH_ASSOC)) {
             $last_time = (int)$flood_row['time'];
             
             $cooldown = RENZOKU_DUPE;
@@ -5955,11 +5995,11 @@ function new_post( $name, $email, $sub, $com, $url, $pwd, $upfile, $upfile_name,
         }
         
         // Now the standard cooldown
-				$query  = "SELECT time, resto, fsize FROM `%s` WHERE host = '%s' AND resto > 0 ORDER BY no DESC LIMIT 1";
-				
-				$result = mysql_board_call($query, SQLLOG, $host);
-				
-				if ($flood_row = mysql_fetch_assoc($result)) {
+				$query  = "SELECT time, resto, fsize FROM " . $db->qi(SQLLOG) . " WHERE host = ? AND resto > 0 ORDER BY no DESC LIMIT 1";
+
+				$result = $db->query($query, [$host]);
+
+				if ($flood_row = $result->fetch(PDO::FETCH_ASSOC)) {
 					$last_time = (int)$flood_row['time'];
 					
 					if ($has_image) {
@@ -5986,8 +6026,9 @@ function new_post( $name, $email, $sub, $com, $url, $pwd, $upfile, $upfile_name,
 			/*
 			if (SAVE_XFF == 1 && $xff) {
 				// Check for multiple ips with same xff
-				$result = mysql_global_call( "select count(distinct ip)>2 from xff where xff='%s' and is_live=1", $xff );
-				if( mysql_result( $result, 0, 0 ) ) {
+				if (!isset($db_g)) $db_g = YotsubaDB::global();
+				$result = $db_g->query( "select count(distinct ip)>2 from xff where xff=? and is_live=1", [$xff] );
+				if( $result->fetch(PDO::FETCH_NUM)[0] ) {
 					auto_ban_poster( $name, 14, 1, "Detected 3 proxies for same IP", "Proxy/Tor exit node." );
 					error( S_GENERICERROR, $dest );
 				}
@@ -5996,10 +6037,9 @@ function new_post( $name, $email, $sub, $com, $url, $pwd, $upfile, $upfile_name,
       */
 			// Check for OP bump limiting
       if ($resto && RENZOKU_OP) {
-        $query = 'SELECT host, time FROM `%s` WHERE no = %d';
-        $query = mysql_board_call($query, SQLLOG, $resto);
+        $query = $db->query('SELECT host, time FROM ' . $db->qi(SQLLOG) . ' WHERE no = ?', [$resto]);
         if ($query) {
-          $result = mysql_fetch_assoc($query);
+          $result = $query->fetch(PDO::FETCH_ASSOC);
           // Poster is OP
           if ($result && $result['host'] === $host) {
             // OP can only bump his thread RENZOKU_OP_TIME seconds after its creation
@@ -6008,29 +6048,26 @@ function new_post( $name, $email, $sub, $com, $url, $pwd, $upfile, $upfile_name,
             }
             // OP can only bump his thread every RENZOKU_OP_TIME2 seconds
             else {
-              $query2 = "SELECT time FROM `%s` WHERE host = '%s' AND resto = %d ORDER BY no DESC LIMIT 1";
-              $query2 = mysql_board_call($query2, SQLLOG, $host, $resto);
+              $query2 = $db->query("SELECT time FROM " . $db->qi(SQLLOG) . " WHERE host = ? AND resto = ? ORDER BY no DESC LIMIT 1", [$host, $resto]);
               if ($query2) {
-                $result = mysql_fetch_assoc($query2);
+                $result = $query2->fetch(PDO::FETCH_ASSOC);
                 if ($result && $result['time'] > ($time - RENZOKU_OP_TIME2)) {
                   $is_sage = 1;
                 }
               }
-              mysql_free_result($query2);
+              $query2->closeCursor();
             }
           }
         }
-        mysql_free_result($query);
+        $query->closeCursor();
       }
 		}
 		
     // Minimal cooldowns for authed users (3s)
     if ($may_flood) {
-      $query = "SELECT time FROM `%s` WHERE host = '%s' ORDER BY no DESC LIMIT 1";
-      
-      $result = mysql_board_call($query, SQLLOG, $host);
-      
-      if ($flood_row = mysql_fetch_assoc($result)) {
+      $result = $db->query("SELECT time FROM " . $db->qi(SQLLOG) . " WHERE host = ? ORDER BY no DESC LIMIT 1", [$host]);
+
+      if ($flood_row = $result->fetch(PDO::FETCH_ASSOC)) {
         $last_time = (int)$flood_row['time'];
         
         $cooldown = 5;
@@ -6125,38 +6162,37 @@ function new_post( $name, $email, $sub, $com, $url, $pwd, $upfile, $upfile_name,
 
 		// Infrequent flood check (dupe image)
 		if( $has_image && (!$capcode || $capcode === 'none')) {
+			if (!isset($db)) $db = YotsubaDB::board();
 			if ($resto) {
-			  $result = mysql_board_call("SELECT sql_no_cache `no`,`resto` FROM `" . SQLLOG . "` WHERE archived = 0 and (resto = %d OR no = %d) AND `md5`='%s' AND filedeleted=0 limit 1", $resto, $resto, $md5);
+			  $result = $db->query("SELECT `no`,`resto` FROM " . $db->qi(SQLLOG) . " WHERE archived = 0 and (resto = ? OR no = ?) AND `md5`=? AND filedeleted=0 limit 1", [$resto, $resto, $md5]);
 			}
 			else {
-			  $result = mysql_board_call("SELECT sql_no_cache `no`,`resto` FROM `" . SQLLOG . "` WHERE archived = 0 AND resto = 0 AND `md5`='%s' AND filedeleted=0 limit 1", $md5);
+			  $result = $db->query("SELECT `no`,`resto` FROM " . $db->qi(SQLLOG) . " WHERE archived = 0 AND resto = 0 AND `md5`=? AND filedeleted=0 limit 1", [$md5]);
 			}
-			
-			if( mysql_num_rows( $result ) ) {
-				list( $dupeno, $duperesto ) = mysql_fetch_row( $result );
+
+			if( $result->rowCount() ) {
+				list( $dupeno, $duperesto ) = $result->fetch(PDO::FETCH_NUM);
 				if( !$duperesto ) $duperesto = $dupeno;
-				error( '' . S_DUPE . ' <a href="//boards.' . L::d(BOARD_DIR) . '/' . BOARD_DIR . "/thread/" . $duperesto . PHP_EXT2 . '#p' . $dupeno . '">here</a>.', $dest );
+				error( '' . S_DUPE . ' <a href="/' . BOARD_DIR . "/thread/" . $duperesto . PHP_EXT2 . '#p' . $dupeno . '">here</a>.', $dest );
 			}
-			
+
 			if ($resto && MAX_IMG_REPOST_COUNT > 0) {
-				$_query = 'SELECT COUNT(*) FROM `' . SQLLOG . "` WHERE archived = 0 AND resto != 0 AND `md5` = '%s' AND filedeleted = 0";
-				
-				$result = mysql_board_call($_query, $md5);
-				
+				$result = $db->query('SELECT COUNT(*) FROM ' . $db->qi(SQLLOG) . " WHERE archived = 0 AND resto != 0 AND `md5` = ? AND filedeleted = 0", [$md5]);
+
 				if ($result) {
-					$_count = (int)mysql_fetch_row($result)[0];
-					
+					$_count = (int)$result->fetch(PDO::FETCH_NUM)[0];
+
 					if ($_count >= MAX_IMG_REPOST_COUNT) {
 						error(S_DUPE);
 					}
 				}
 			}
-			
+
 			if ( defined('SQLLOGMD5') ) {
 				// TODO: There's a race here. This should just be INSERT and check for failure!
-				$result = mysql_board_call("SELECT sql_no_cache * FROM `%s` WHERE md5='%s' AND now > DATE_SUB(NOW(), INTERVAL 1 DAY) limit 1", SQLLOGMD5, $md5);
-				if ( mysql_num_rows( $result ) ) {
-					list( $dc_now, $dc_filename, $dc_md5p ) = mysql_fetch_row( $result );
+				$result = $db->query("SELECT * FROM " . $db->qi(SQLLOGMD5) . " WHERE md5=? AND now > DATE_SUB(NOW(), INTERVAL 1 DAY) limit 1", [$md5]);
+				if ( $result->rowCount() ) {
+					list( $dc_now, $dc_filename, $dc_md5p ) = $result->fetch(PDO::FETCH_NUM);
 					
 					if( $dc_now ) {
 						error('Error: You must wait longer before reposting this file.', $dest );
@@ -6480,7 +6516,7 @@ function new_post( $name, $email, $sub, $com, $url, $pwd, $upfile, $upfile_name,
         }
       }
       else {
-        $board_flag_code = mysql_real_escape_string($_POST['flag']);
+        $board_flag_code = $_POST['flag'];
       }
     }
     else {
@@ -6500,25 +6536,25 @@ function new_post( $name, $email, $sub, $com, $url, $pwd, $upfile, $upfile_name,
     
     // Remove old replies if the thread is sticky+undead
     if ($is_undead_sticky && STICKY_CAP > 1) {
-      $query = "SELECT MIN(no) FROM (SELECT no FROM `" . BOARD_DIR . "` WHERE resto = $resto ORDER BY no DESC LIMIT " . (STICKY_CAP - 1) . ") as subsel";
-      $result = mysql_board_call($query);
+      if (!isset($db)) $db = YotsubaDB::board();
+      $query = "SELECT MIN(no) FROM (SELECT no FROM " . $db->qi(BOARD_DIR) . " WHERE resto = ? ORDER BY no DESC LIMIT " . (STICKY_CAP - 1) . ") as subsel";
+      $result = $db->query($query, [$resto]);
       if ($result) {
-        $prune_row = mysql_fetch_row($result);
-        
-        mysql_free_result($result);
-        
+        $prune_row = $result->fetch(PDO::FETCH_NUM);
+
+        $result->closeCursor();
+
         $min_no = (int)$prune_row[0];
-        
+
         if ($min_no > $resto) {
-          $query = "SELECT no FROM `" . BOARD_DIR . "` WHERE resto = $resto AND no < $min_no";
-          $result = mysql_board_call($query);
-          
+          $result = $db->query("SELECT no FROM " . $db->qi(BOARD_DIR) . " WHERE resto = ? AND no < ?", [$resto, $min_no]);
+
           if ($result) {
-            while ($prune_row = mysql_fetch_assoc($result)) {
+            while ($prune_row = $result->fetch(PDO::FETCH_ASSOC)) {
               delete_post((int)$prune_row['no'], '', 0, 1, 1, 0);
             }
-            
-            mysql_free_result($result);
+
+            $result->closeCursor();
           }
         }
       }
@@ -6536,47 +6572,77 @@ function new_post( $name, $email, $sub, $com, $url, $pwd, $upfile, $upfile_name,
     */
     $user_meta = encode_user_meta($browser_id, substr($_req_sig, 0, 8), $userpwd);
     
+		if (!isset($db)) $db = YotsubaDB::board();
 		$insert_tries = 2;
 		do {
-			if( SKIP_DOUBLES == 1 ) mysql_board_call( "START TRANSACTION" );
-			$query = "insert into `" . SQLLOG . "` (now,name,sub,com,host,pwd,email,filename,ext,w,h,tn_w,tn_h,tim,time,last_modified,md5,fsize,root,resto$flag_cols,tmd5,id,country$board_flag_col) values (" .
-				"'" . $now . "'," .
-				"'" . mysql_real_escape_string( $name ) . "'," .
-				mysql_nullify( mysql_real_escape_string( $sub ) ) . "," .
-				"'" . mysql_real_escape_string( $com ) . "'," .
-				"'" . mysql_real_escape_string( $host ) . "'," .
-				"'" . mysql_real_escape_string( $pass ) . "'," .
-				"'" . mysql_real_escape_string($user_meta) . "'," .
-				"'" . mysql_real_escape_string( $insfile ) . "'," .
-				mysql_nullify( $ext ) . "," .
-				(int)$W . "," .
-				(int)$H . "," .
-				(int)$TN_W . "," .
-				(int)$TN_H . "," .
-				"'" . $tim . "'," .
-				(int)$time . "," .
-				(int)$time . "," .
-				mysql_nullify( $md5 ) . "," .
-				(int)$fsize . "," .
-				$rootpredicate . "," .
-				(int)$resto .
-				$flag_vals . "," .
-				mysql_nullify( $tmd5 ) . "," .
-				mysql_nullify( $uid ) . "," .
-				"'$country'$board_flag_val)";
+			if( SKIP_DOUBLES == 1 ) $db->beginTransaction();
 
-			if( !$result = mysql_board_call( $query ) ) {
+			// Build column list and params dynamically
+			$_ins_cols = "now,name,sub,com,host,pwd,email,filename,ext,w,h,tn_w,tn_h,tim,time,last_modified,md5,fsize,root,resto";
+			$_ins_params = [
+				$now, $name, $sub, $com, $host, $pass, $user_meta, $insfile,
+				$ext, (int)$W, (int)$H, (int)$TN_W, (int)$TN_H,
+				$tim, (int)$time, (int)$time, $md5, (int)$fsize
+			];
+
+			// root uses NOW() for OPs, 0 for replies - handle inline
+			if ($resto) {
+				$_root_sql = "?,?";
+				$_ins_params[] = 0;
+				$_ins_params[] = (int)$resto;
+			} else {
+				$_root_sql = "NOW(),?";
+				$_ins_params[] = (int)$resto;
+			}
+
+			// Flag columns are already built as comma-separated
+			$_ins_cols .= $flag_cols;
+			// $flag_vals is like ",'capcode_val','since4pass_val'" - parse and parameterize
+			if ($flag_vals) {
+				$_flag_parts = explode(',', ltrim($flag_vals, ','));
+				foreach ($_flag_parts as $_fv) {
+					$_fv = trim($_fv);
+					// Strip surrounding quotes
+					if (substr($_fv, 0, 1) === "'" && substr($_fv, -1) === "'") {
+						$_ins_params[] = substr($_fv, 1, -1);
+					} else {
+						$_ins_params[] = $_fv;
+					}
+				}
+			}
+
+			$_ins_cols .= ",tmd5,id,country";
+			$_ins_params[] = $tmd5;
+			$_ins_params[] = $uid;
+			$_ins_params[] = $country;
+
+			if ($board_flag_col) {
+				$_ins_cols .= $board_flag_col;
+				$_ins_params[] = $board_flag_code;
+			}
+
+			// Count params for placeholders (subtract 2 for root/resto which are handled specially)
+			$_ph_before_root = 18; // now through fsize
+			$_ph_after_root = count($_ins_params) - $_ph_before_root - ($resto ? 2 : 1);
+			$_placeholders = str_repeat('?,', $_ph_before_root) . $_root_sql;
+			if ($_ph_after_root > 0) {
+				$_placeholders .= ',' . implode(',', array_fill(0, $_ph_after_root, '?'));
+			}
+
+			$query = "INSERT INTO " . $db->qi(SQLLOG) . " ($_ins_cols) VALUES ($_placeholders)";
+
+			if( !$result = $db->query( $query, $_ins_params ) ) {
 				echo S_SQLFAIL;
 			} //post registration
 			time_log( "i" );
 
-			$insertid = mysql_board_insert_id();
+			$insertid = $db->lastInsertIdForTable(SQLLOG);
 			if( SKIP_DOUBLES == 1 ) {
 				if( has_doubles( $insertid ) ) {
-					mysql_board_call( "ROLLBACK" );
+					$db->rollBack();
 					// retry
 				} else {
-					mysql_board_call( "COMMIT" );
+					$db->commit();
 					$insert_tries = 0;
 				}
 			} else {
@@ -6656,8 +6722,8 @@ function new_post( $name, $email, $sub, $com, $url, $pwd, $upfile, $upfile_name,
     }
     
 		if( $resto ) { //sage or age action
-			$resline  = mysql_board_call( "select count(no) from `" . SQLLOG . "` where archived=0 and resto=" . $resto );
-			$countres = mysql_result( $resline, 0, 0 );
+			$resline  = $db->query( "select count(no) from " . $db->qi(SQLLOG) . " where archived=0 and resto=?", [$resto] );
+			$countres = $resline->fetch(PDO::FETCH_NUM)[0];
       
 			$permasage_hours = (int)PERMASAGE_HOURS;
       
@@ -6669,8 +6735,8 @@ function new_post( $name, $email, $sub, $com, $url, $pwd, $upfile, $upfile_name,
 			}
 			
       // FIXME: a similar query is done at line ~4723
-			$resline = mysql_board_call( "select {$time_col}sticky,permasage,permaage,root from `" . SQLLOG . "` where no=" . $resto );
-			$resline = mysql_fetch_assoc($resline);
+			$resline = $db->query( "select {$time_col}sticky,permasage,permaage,root from " . $db->qi(SQLLOG) . " where no=?", [$resto] );
+			$resline = $resline->fetch(PDO::FETCH_ASSOC);
 			
 			if ($resline['sticky'] || $resline['permasage']) {
 			  $root_col = '';
@@ -6696,7 +6762,7 @@ function new_post( $name, $email, $sub, $com, $url, $pwd, $upfile, $upfile_name,
         }
 		  }
 		  
-			mysql_board_call("update `" . SQLLOG . "` set {$root_col}last_modified=%d where no=%d", $_SERVER['REQUEST_TIME'], $resto);
+			$db->query("update " . $db->qi(SQLLOG) . " set {$root_col}last_modified=? where no=?", [$_SERVER['REQUEST_TIME'], $resto]);
 		}
 
 		if( defined( 'AUTOSTICKY' ) && AUTOSTICKY ) {
@@ -6704,27 +6770,27 @@ function new_post( $name, $email, $sub, $com, $url, $pwd, $upfile, $upfile_name,
 			if( $resto == 0 ) {
 				if( $insertid % 1000000 == 0 || in_array( $insertid, $autosticky ) ) {
 					$sticky = true;
-					mysql_board_call( "update " . SQLLOG . " set sticky=1,root=root where no=$insertid" );
+					$db->query( "update " . $db->qi(SQLLOG) . " set sticky=1,root=root where no=?", [$insertid] );
 				}
 			}
 		}
     
 		if( SAVE_XFF == 1 && $xff ) {
-			mysql_global_do( "INSERT INTO xff (tim,board,xff,ip,postno,is_live) VALUES ('%s','%s','%s',%d,%d,1)", $tim, BOARD_DIR, $xff, ip2long( $host ), $insertid );
+			if (!isset($db_g)) $db_g = YotsubaDB::global();
+			$db_g->query( "INSERT INTO xff (tim,board,xff,ip,postno,is_live) VALUES (?,?,?,?,?,1)", [$tim, BOARD_DIR, $xff, ip2long( $host ), $insertid] );
 		}
-		
+
 		if (UPLOAD_BOARD && $md5 ) {
-			$result = mysql_board_call( "insert ignore into `%s` (filename,md5) values('%s','%s')", SQLLOGMD5, $insfile, $md5 );
+			$result = $db->query( "insert ignore into " . $db->qi(SQLLOGMD5) . " (filename,md5) values(?,?)", [$insfile, $md5] );
 		}
 		
 		// determine url to redirect to
-		$proto = ( stripos( $_SERVER["HTTP_REFERER"], "https" ) !== false ) ? "https:" : "http:";
 		if( !$is_nonoko && !$resto ) {
-			$redirect = $proto . '//boards.' . L::d(BOARD_DIR) . '/' . BOARD_DIR . "/thread/" . $insertid . PHP_EXT2;
+			$redirect = '/' . BOARD_DIR . "/thread/" . $insertid . PHP_EXT2;
 		} else if( !$is_nonoko ) {
-			$redirect = $proto . '//boards.' . L::d(BOARD_DIR) . '/' . BOARD_DIR . "/thread/" . $resto . PHP_EXT2 . '#p' . $insertid;
+			$redirect = '/' . BOARD_DIR . "/thread/" . $resto . PHP_EXT2 . '#p' . $insertid;
 		} else {
-			$redirect = $proto . '//boards.' . L::d(BOARD_DIR) . '/' . BOARD_DIR . '/';
+			$redirect = '/' . BOARD_DIR . '/';
 		}
 		
 		// To let the JavaScript thread watcher know the newly created thread ID
@@ -6782,7 +6848,8 @@ function new_post( $name, $email, $sub, $com, $url, $pwd, $upfile, $upfile_name,
 	}
   /*
 	if( STATS_USER_JS ) {
-		mysql_global_do( "UPDATE `user_stats` SET `count` = `count`+1 WHERE name='%s'", $stats_ok );
+		if (!isset($db_g)) $db_g = YotsubaDB::global();
+	$db_g->query( "UPDATE `user_stats` SET `count` = `count`+1 WHERE name=?", [$stats_ok] );
 	}
   */
 }
@@ -6793,28 +6860,27 @@ function show_post_successful_fake($resto = 0, $captcha_passed = true) {
   $thread_id = (int)$resto;
   $insert_id = 0;
   
+  $db = YotsubaDB::board();
   if (!$resto) {
-    $query = 'SELECT resto FROM `' . BOARD_DIR . '` WHERE resto != 0 ORDER BY resto DESC LIMIT 1';
-    $res = mysql_board_call($query);
+    $res = $db->query('SELECT resto FROM ' . $db->qi(BOARD_DIR) . ' WHERE resto != 0 ORDER BY resto DESC LIMIT 1');
     if ($res) {
-      $row = mysql_fetch_row($res);
+      $row = $res->fetch(PDO::FETCH_NUM);
       $insert_id = (int)$row[0];
     }
   }
   else {
-    $query = 'SELECT no FROM `' . BOARD_DIR . '` ORDER BY no DESC LIMIT 1';
-    $res = mysql_board_call($query);
+    $res = $db->query('SELECT no FROM ' . $db->qi(BOARD_DIR) . ' ORDER BY no DESC LIMIT 1');
     if ($res) {
-      $row = mysql_fetch_row($res);
+      $row = $res->fetch(PDO::FETCH_NUM);
       $insert_id = (int)$row[0] + 1;
     }
   }
   
   if (!$thread_id) {
-    $redirect = 'https://boards.' . L::d(BOARD_DIR) . '/' . BOARD_DIR . "/thread/" . $insert_id . PHP_EXT2;
+    $redirect = '/' . BOARD_DIR . "/thread/" . $insert_id . PHP_EXT2;
   }
   else {
-    $redirect = 'https://boards.' . L::d(BOARD_DIR) . '/' . BOARD_DIR . "/thread/" . $thread_id . PHP_EXT2 . '#p' . $insert_id;
+    $redirect = '/' . BOARD_DIR . "/thread/" . $thread_id . PHP_EXT2 . '#p' . $insert_id;
   }
   
   $cookie_domain = '.' . L::d(BOARD_DIR);
@@ -6921,10 +6987,11 @@ function resredir( $res, $delete = 0, $no_exit = false ) {
 	
 	$res = (int)$res;
 	//mysql_board_lock( true );
-	if( !$redir = mysql_board_call( "select no,resto from `" . SQLLOG . "` where no=" . $res ) ) {
+	$db = YotsubaDB::board();
+	if( !$redir = $db->query( "select no,resto from " . $db->qi(SQLLOG) . " where no=?", [$res] ) ) {
 		echo S_SQLFAIL;
 	}
-	list( $no, $resto ) = mysql_fetch_row( $redir );
+	list( $no, $resto ) = $redir->fetch(PDO::FETCH_NUM);
 	
 	// if we're deleting and no post/resto (thread gone)
 	if( !$no && $delete ) {
@@ -6950,9 +7017,9 @@ function resredir( $res, $delete = 0, $no_exit = false ) {
 	}
 
 	if( $resto == "0" ) { // thread
-		$redirect = $proto . '//boards.' . L::d(BOARD_DIR) . '/' . BOARD_DIR . "/thread/" . $no . PHP_EXT2 . '#p' . $no;
+		$redirect = '/' . BOARD_DIR . "/thread/" . $no . PHP_EXT2 . '#p' . $no;
 	} else {
-		$redirect = $proto . '//boards.' . L::d(BOARD_DIR) . '/' . BOARD_DIR . "/thread/" . $resto . PHP_EXT2 . '#p' . $no;
+		$redirect = '/' . BOARD_DIR . "/thread/" . $resto . PHP_EXT2 . '#p' . $no;
 	}
 
 	$redirect = JANITOR_BOARD ? str_replace( 'boards.', 'sys.', $redirect ) : $redirect;
@@ -7023,12 +7090,9 @@ function tensorchan_log($board, $post_id, $thread_id, $file_id, $file_ext, $scor
   $thread_id = (int)$thread_id;
   $score = (float)$score;
   
-  $sql =<<<SQL
-INSERT INTO tensor_log(board, thread_id, post_id, file_id, file_ext, nsfw)
-VALUES('%s', $thread_id, $post_id, '%s', '%s', $score)
-SQL;
-  
-  return !!mysql_global_call($sql, $board, $file_id, $file_ext);
+  $db_g = YotsubaDB::global();
+  return !!$db_g->query("INSERT INTO tensor_log(board, thread_id, post_id, file_id, file_ext, nsfw)
+VALUES(?, ?, ?, ?, ?, ?)", [$board, $thread_id, $post_id, $file_id, $file_ext, $score]);
 }
 
 function tensorchan_predict($data) {
@@ -7334,7 +7398,7 @@ function sanitize_text( $str, $skip_bidi = 0, $allow_html = false )
 	}
 
 	$str = trim( $str ); //blankspace removal
-	if( get_magic_quotes_gpc() ) { //magic quotes is deleted (?)
+	if( function_exists('get_magic_quotes_gpc') && get_magic_quotes_gpc() ) {
 		$str = stripslashes( $str );
 	}
 
@@ -7476,11 +7540,10 @@ function arcdel($no, $redirect = false, $redirect_res = null) {
 
   $delno = array();
   $time = $_SERVER['REQUEST_TIME'];
-  reset( $_POST );
-  
-  while ($item = each($_POST)) {
-    if ($item[1] == 'delete') {
-      $delno[] = $item[0];
+
+  foreach ($_POST as $key => $value) {
+    if ($value == 'delete') {
+      $delno[] = $key;
     }
   }
   
@@ -7505,9 +7568,10 @@ function arcdel($no, $redirect = false, $redirect_res = null) {
   }
   
   if (!has_level('janitor')) {
-    mysql_global_call("INSERT INTO user_actions (ip,board,action,postno,time) VALUES (%d,'%s','delete',%d,now())", ip2long( $_SERVER["REMOTE_ADDR"] ), BOARD_DIR, $delno[0]);
+    $db_g = YotsubaDB::global();
+    $db_g->query("INSERT INTO user_actions (ip,board,action,postno,time) VALUES (?,?,?,?,now())", [ip2long( $_SERVER["REMOTE_ADDR"] ), BOARD_DIR, 'delete', $delno[0]]);
   }
-  
+
   if ($redirect) {
     if ($redirect_res) {
       resredir($redirect_res, 1, true);
@@ -7539,11 +7603,10 @@ function user_delete( $no, $pwd, $redirect = false, $redirect_res = null )
 	$delno = array();
 	$time = $_SERVER['REQUEST_TIME'];
 	$delflag = false;
-	reset( $_POST );
 
-	while( $item = each( $_POST ) ) {
-		if( $item[1] == 'delete' ) {
-			array_push( $delno, $item[0] );
+	foreach( $_POST as $key => $value ) {
+		if( $value == 'delete' ) {
+			array_push( $delno, $key );
 			$delflag = true;
 		}
 	}
@@ -7570,16 +7633,17 @@ function user_delete( $no, $pwd, $redirect = false, $redirect_res = null )
 	$flag = false;
 
 	if( !has_level( 'janitor' ) ) {
-		$n = mysql_global_call( "select count(*)>%d from user_actions where ip=%d and action='delete' and time >= subdate(now(), interval 1 hour)", RENZOKU_DEL_HOURLY, ip2long( $_SERVER['REMOTE_ADDR'] ) );
-		list( $h ) = mysql_fetch_row( $n );
+		$db_g = YotsubaDB::global();
+		$n = $db_g->query( "select count(*)>? from user_actions where ip=? and action='delete' and time >= subdate(now(), interval 1 hour)", [RENZOKU_DEL_HOURLY, ip2long( $_SERVER['REMOTE_ADDR'] )] );
+		list( $h ) = $n->fetch(PDO::FETCH_NUM);
 
 		if( $h ) {
 			//check_fail_floodcheck($no);
 			error(S_FLOOD_DEL);
 		}
 
-		$n = mysql_global_call( "select count(*)>%d from user_actions where ip=%d and action='delete' and time >= subdate(now(), interval 1 day)", RENZOKU_DEL_DAILY, ip2long( $_SERVER['REMOTE_ADDR'] ) );
-		list( $h ) = mysql_fetch_row( $n );
+		$n = $db_g->query( "select count(*)>? from user_actions where ip=? and action='delete' and time >= subdate(now(), interval 1 day)", [RENZOKU_DEL_DAILY, ip2long( $_SERVER['REMOTE_ADDR'] )] );
+		list( $h ) = $n->fetch(PDO::FETCH_NUM);
 
 		if( $h ) {
 			//check_fail_floodcheck($no);
@@ -7618,9 +7682,10 @@ function user_delete( $no, $pwd, $redirect = false, $redirect_res = null )
 	}
 	
 	if (!has_level('janitor')) {
-		mysql_global_call("INSERT INTO user_actions (ip,board,action,postno,time) VALUES (%d,'%s','delete',%d,now())", ip2long( $_SERVER["REMOTE_ADDR"] ), BOARD_DIR, $delno[0]);
+		if (!isset($db_g)) $db_g = YotsubaDB::global();
+		$db_g->query("INSERT INTO user_actions (ip,board,action,postno,time) VALUES (?,?,?,?,now())", [ip2long( $_SERVER["REMOTE_ADDR"] ), BOARD_DIR, 'delete', $delno[0]]);
 	}
-	
+
   if ($redirect) {
     if ($redirect_res) {
       resredir($redirect_res, 1, true);
@@ -7695,7 +7760,7 @@ function rebuild_catalog( $shutup = false )
 	$time = round( microtime( true ) - $start, 6 );
 
 	if( !$shutup ) {
-		echo 'Done!<br><br>Rebuilding took ' . $time . ' seconds.<br><br>Redirecting to catalog...<br><br><meta http-equiv="refresh" content="5;URL=//boards.' . L::d(BOARD_DIR) . '/' . BOARD_DIR .  '/catalog">';
+		echo 'Done!<br><br>Rebuilding took ' . $time . ' seconds.<br><br>Redirecting to catalog...<br><br><meta http-equiv="refresh" content="5;URL=/' . BOARD_DIR .  '/catalog">';
 		die();
 	}
 }
@@ -7707,7 +7772,8 @@ function rebuild_boards_json()
 	echo '<h1>Rebuilding boards.json...</h1>';
 
 	$start = microtime( true );
-	$query = mysql_global_call( "SELECT dir as board,name as title FROM boardlist ORDER BY board ASC" );
+	$db_g = YotsubaDB::global();
+	$query = $db_g->query( "SELECT dir as board,name as title FROM boardlist ORDER BY board ASC" );
 
 	$boards = array();
 
@@ -7717,7 +7783,7 @@ function rebuild_boards_json()
 	  'mode' => 'cataloginfo'
 	);
 
-	while( $row = mysql_fetch_assoc( $query ) ) {
+	while( $row = $query->fetch(PDO::FETCH_ASSOC) ) {
 		if( $row['board'] == 'vp' ) $row['title'] = 'Pokémon';
 		//cataloginfo
 		$url = "$host/{$row['board']}/imgboard.php";
@@ -7769,21 +7835,22 @@ function rebuild( $all = 0 )
 	_print(fancystyle());
 	$l = $all ? 'all' : 'missing';
 
-	_print( "Rebuilding $l replies and pages... <a href=\"//boards." . L::d(BOARD_DIR) . '/' . BOARD_DIR . "/\">Go back</a><br><br>\n" );
+	_print( "Rebuilding $l replies and pages... <a href=\"/" . BOARD_DIR . "/\">Go back</a><br><br>\n" );
 	log_cache();
 	trim_db();
 	trim_archive();
-	mysql_board_lock( true );
+	$db = YotsubaDB::board();
+	$db->lockTable(SQLLOG, 'READ');
 	$starttime = microtime( true );
-	$query = "SELECT no, resto FROM `" . SQLLOG . "` WHERE resto = 0 AND archived = 0 ORDER BY root DESC";
-	$treeline = mysql_board_call($query);
+	$query = "SELECT no, resto FROM " . $db->qi(SQLLOG) . " WHERE resto = 0 AND archived = 0 ORDER BY root DESC";
+	$treeline = $db->query($query);
 	if (!$treeline) {
 		echo S_SQLFAIL;
 	}
-	mysql_board_unlock();
+	$db->unlockTables();
 	_print( "Writing...<br>\n" );
 	if( $all ) {
-		while( list( $no, $resto ) = mysql_fetch_row( $treeline ) ) {
+		while( list( $no, $resto ) = $treeline->fetch(PDO::FETCH_NUM) ) {
 			if( !$resto ) {
 				_print( "Writing No.$no... " );
 				updatelog( $no, 1 );
@@ -7814,7 +7881,7 @@ function rebuild( $all = 0 )
 	$peakmem = memory_get_peak_usage(true) / (1024*1024.0);
 	$usedmem = memory_get_usage(true) / (1024*1024.0);
 	
-	$redir = '//boards.' . L::d(BOARD_DIR) . '/' . BOARD_DIR . '/';
+	$redir = '/' . BOARD_DIR . '/';
 	
 echo <<<END
 <br>Total running time (lock excluded): $totaltime seconds.
@@ -7839,15 +7906,16 @@ function rebuild_after_deletion( $no )
 {
 	if( !has_level() ) die();
 
-	mysql_board_lock( true );
+	$db = YotsubaDB::board();
+	$db->lockTable(SQLLOG, 'READ');
 
-	if( !$treeline = mysql_board_call( "SELECT no FROM `" . SQLLOG . "` WHERE no = %d", $no ) ) {
-		mysql_board_unlock();
+	if( !$treeline = $db->query( "SELECT no FROM " . $db->qi(SQLLOG) . " WHERE no = ?", [$no] ) ) {
+		$db->unlockTables();
 		die( S_POSTGONE );
 	}
 
 	log_cache( 0, $no );
-	mysql_board_unlock();
+	$db->unlockTables();
 
 	updatelog( $no, 1 );
 
@@ -7856,9 +7924,8 @@ function rebuild_after_deletion( $no )
 
 function updating_index()
 {
-	$proto = ( stripos( $_SERVER["HTTP_REFERER"], "https" ) !== false ) ? "https:" : "http:";
-	echo "<!doctype html><head><meta http-equiv=\"refresh\" content=\"2;URL=$proto"
-    . '//boards.' . L::d(BOARD_DIR) . '/' . BOARD_DIR . "/\"><title>"
+	echo "<!doctype html><head><meta http-equiv=\"refresh\" content=\"2;URL=/"
+    . BOARD_DIR . "/\"><title>"
     . S_UPDATING_INDEX . "</title></head><body><table style=\"font-family:times,serif;font-size:36pt;text-align:center;width:100%;height:300px;\"><td><strong>"
     . S_UPDATING_INDEX . "</strong></td></table>";
 }
@@ -8337,15 +8404,14 @@ function get_clean_jpg_size($file) {
  * Generates a "Pass User Since YEAR" string for pass users
  */
 function get_since_4chan($pass_id) {
-  $query = "SELECT UNIX_TIMESTAMP(purchase_date) FROM pass_users WHERE user_hash = '%s' ORDER BY purchase_date ASC LIMIT 1";
-  
-  $res = mysql_global_call($query, $pass_id);
-  
+  $db_g = YotsubaDB::global();
+  $res = $db_g->query("SELECT UNIX_TIMESTAMP(purchase_date) FROM pass_users WHERE user_hash = ? ORDER BY purchase_date ASC LIMIT 1", [$pass_id]);
+
   if (!$res) {
     return 0;
   }
-  
-  $row = mysql_fetch_row($res);
+
+  $row = $res->fetch(PDO::FETCH_NUM);
   
   $ts = (int)$row[0];
   
@@ -8364,15 +8430,14 @@ function get_since_4chan($pass_id) {
 /*
 // Halloween 2017
 function get_halloween_score($pass_id) {
-  $query = "SELECT score FROM halloween_tricks WHERE user_hash = '%s' LIMIT 1";
-  
-  $res = mysql_global_call($query, $pass_id);
-  
+  $db_g = YotsubaDB::global();
+  $res = $db_g->query("SELECT score FROM halloween_tricks WHERE user_hash = ? LIMIT 1", [$pass_id]);
+
   if (!$res) {
     return 0;
   }
-  
-  $row = mysql_fetch_row($res);
+
+  $row = $res->fetch(PDO::FETCH_NUM);
   
   if (!$row) {
     return 0;
@@ -8418,15 +8483,14 @@ function process_halloween_score($com, $thread_id, $this_pass_id, $this_pwd, $pa
       return;
     }
     
-    $query = 'SELECT host, pwd, 4pass_id FROM `' . SQLLOG . '` WHERE no = ' . $post_id . ' AND resto = ' . $thread_id;
-    
-    $res = mysql_board_call($query);
-    
+    $db = YotsubaDB::board();
+    $res = $db->query('SELECT host, pwd, 4pass_id FROM ' . $db->qi(SQLLOG) . ' WHERE no = ? AND resto = ?', [$post_id, $thread_id]);
+
     if (!$res) {
       return;
     }
-    
-    $row = mysql_fetch_assoc($res);
+
+    $row = $res->fetch(PDO::FETCH_ASSOC);
     
     if (!$row) {
       return;
@@ -8444,15 +8508,14 @@ function process_halloween_score($com, $thread_id, $this_pass_id, $this_pwd, $pa
     }
     
     // Check if already gave points
-    $query = "SELECT 1 FROM `halloween_votes` WHERE long_ip = $long_ip AND board = '" . BOARD_DIR . "' AND post_id = $post_id";
-    
-    $res = mysql_global_call($query);
-    
+    $db_g = YotsubaDB::global();
+    $res = $db_g->query("SELECT 1 FROM halloween_votes WHERE long_ip = ? AND board = ? AND post_id = ?", [$long_ip, BOARD_DIR, $post_id]);
+
     if (!$res) {
       return;
     }
-    
-    if (mysql_num_rows($res) > 0) {
+
+    if ($res->rowCount() > 0) {
       return;
     }
     
@@ -8462,16 +8525,10 @@ function process_halloween_score($com, $thread_id, $this_pass_id, $this_pwd, $pa
     }
     
     // Good to go
-    $query = <<<SQL
-INSERT INTO halloween_tricks (user_hash, score) VALUES ('%s', 1)
-ON DUPLICATE KEY UPDATE score = score + 1
-SQL;
-    
-    mysql_global_call($query, $row['4pass_id']);
-    
-    $query = "INSERT INTO halloween_votes (long_ip, board, post_id) VALUES ($long_ip, '" . BOARD_DIR . "', $post_id)";
-    
-    mysql_global_call($query);
+    $db_g->query("INSERT INTO halloween_tricks (user_hash, score) VALUES (?, 1)
+ON DUPLICATE KEY UPDATE score = score + 1", [$row['4pass_id']]);
+
+    $db_g->query("INSERT INTO halloween_votes (long_ip, board, post_id) VALUES (?, ?, ?)", [$long_ip, BOARD_DIR, $post_id]);
   }
 }
 
@@ -8483,23 +8540,21 @@ function decrease_halloween_score($post_id, $ratio = 0.75) {
     return;
   }
   
-  $query = 'SELECT 4pass_id FROM `' . SQLLOG . '` WHERE no = ' . $post_id;
-  
-  $res = mysql_board_call($query);
-  
+  $db = YotsubaDB::board();
+  $res = $db->query('SELECT 4pass_id FROM ' . $db->qi(SQLLOG) . ' WHERE no = ?', [$post_id]);
+
   if (!$res) {
     return;
   }
-  
-  $pass_id = mysql_fetch_row($res)[0];
-  
+
+  $pass_id = $res->fetch(PDO::FETCH_NUM)[0];
+
   if (!$pass_id) {
     return;
   }
-  
-  $query = "UPDATE halloween_tricks SET score = FLOOR(score * %.2f) WHERE user_hash = '%s' LIMIT 1";
-  
-  mysql_global_call($query, $ratio, $pass_id);
+
+  $db_g = YotsubaDB::global();
+  $db_g->query("UPDATE halloween_tricks SET score = FLOOR(score * ?) WHERE user_hash = ? LIMIT 1", [$ratio, $pass_id]);
 }
 
 // Halloween 2017
@@ -8532,36 +8587,41 @@ function get_halloween_css_cls($trick_count) {
  */
 function check_for_ban_request($ip, $pwd = null) {
   $time_lim = BLOCK_ON_BR_LEN;
-  
+  $db_g = YotsubaDB::global();
+
   $clauses = [];
-  
-  $clauses[] = "host = '" . mysql_real_escape_string($ip) . "'";
-  
+  $_br_params = [];
+
+  $clauses[] = "host = ?";
+  $_br_params[] = $ip;
+
   if ($pwd) {
-    $clauses[] = "pwd = '" . mysql_real_escape_string($pwd) . "'";
+    $clauses[] = "pwd = ?";
+    $_br_params[] = $pwd;
   }
-  
-  $board_sql = mysql_real_escape_string(BOARD_DIR);
-  
+
+  $board_sql = BOARD_DIR;
+  $_br_params[] = $board_sql;
+
   $clauses = implode(' OR ', $clauses);
-  
+
   $query = <<<SQL
 SELECT tpl_name, board, TIMESTAMPDIFF(MINUTE, NOW() - $time_lim, ts) diff
 FROM `ban_requests`
 WHERE ($clauses)
-AND (board = '$board_sql' OR global = 1)
+AND (board = ? OR global = 1)
 AND warn_req = 0
 AND (ts > DATE_SUB(NOW(), $time_lim) OR ban_template IN (1, 2, 123, 126))
 LIMIT 1
 SQL;
-  
-  $res = mysql_global_call($query);
-  
-  if (!$res || mysql_num_rows($res) !== 1) {
+
+  $res = $db_g->query($query, $_br_params);
+
+  if (!$res || $res->rowCount() !== 1) {
     return false;
   }
-  
-  $row = mysql_fetch_assoc($res);
+
+  $row = $res->fetch(PDO::FETCH_ASSOC);
   
   $time = (int)$row['diff'];
   
@@ -8596,22 +8656,21 @@ function check_for_ban($ip, $fields = array(), $thread_id = 0, $user_verified = 
   
   $is_banned = 0;
   
+  $db_g = YotsubaDB::global();
   foreach ($fields as $key => $value) {
-$query =<<<SQL
-SELECT no, global, board, post_num, template_id, 4pass_id, admin, reason,
+$query = "SELECT no, global, board, post_num, template_id, 4pass_id, admin, reason,
 UNIX_TIMESTAMP(now) as starts_on, UNIX_TIMESTAMP(length) as ends_on
 FROM banned_users
-WHERE active = 1 AND $key = '%s'
-SQL;
-    
-    $result = mysql_global_call($query, $value);
-    
+WHERE active = 1 AND $key = ?";
+
+    $result = $db_g->query($query, [$value]);
+
     // Not banned
-    if (mysql_num_rows($result) < 1) {
+    if ($result->rowCount() < 1) {
       continue;
     }
-    
-    while ($ban = mysql_fetch_assoc($result)) {
+
+    while ($ban = $result->fetch(PDO::FETCH_ASSOC)) {
       $end = (int)$ban['ends_on'];
       
       // Warning
@@ -8669,7 +8728,7 @@ SQL;
     
     $expired_ids = implode(',', $expired_ids);
     $query = "UPDATE banned_users SET active = 0, unbannedon = NOW(), unbannedby = 'expiration' WHERE no IN($expired_ids) LIMIT $lim";
-    $result = mysql_global_do($query);
+    $result = $db_g->query($query);
   }
   
   return $is_banned;
@@ -8926,20 +8985,21 @@ function thumb_webm($file, $ext) {
 function get_contest_banner() {
   $query = "SELECT file_id, file_ext, board FROM contest_banners WHERE is_live = 1 ORDER BY RAND() LIMIT 1";
   
-  $res = mysql_global_call($query);
-  
+  $db_g = YotsubaDB::global();
+  $res = $db_g->query($query);
+
   if (!$res) {
     return '';
   }
-  
-  $banner = mysql_fetch_assoc($res);
+
+  $banner = $res->fetch(PDO::FETCH_ASSOC);
   
   if (!$banner) {
     return '';
   }
   
   $img_url = STATIC_SERVER . "image/contest_banners/{$banner['file_id']}.{$banner['file_ext']}";
-  $link_url = '//boards.' . L::d($banner['board']) . '/' . $banner['board'] . '/';
+  $link_url = '/' . $banner['board'] . '/';
   
   return '<div><a href="' . $link_url . '"><img alt="" src="' . $img_url . '"></a></div>';
 }
@@ -8951,10 +9011,10 @@ function get_contest_banner() {
 
 function get_last_post_no() {
   $no = 0;
-  $query = "SELECT no FROM `j` ORDER BY no DESC LIMIT 1";
-  $res = mysql_board_call($query);
+  $db = YotsubaDB::board();
+  $res = $db->query("SELECT no FROM " . $db->qi('j') . " ORDER BY no DESC LIMIT 1");
   if ($res) {
-    if ($row = mysql_fetch_row($res)) {
+    if ($row = $res->fetch(PDO::FETCH_NUM)) {
       $no = (int)$row[0];
     }
   }
@@ -8965,15 +9025,14 @@ function get_last_post_no() {
  * Deletes partial jsons for all live threads
  */
 function purge_json_tails() {
-  $query = 'SELECT no FROM `' . SQLLOG . '` WHERE resto = 0 AND archived = 0';
-  
-  $res = mysql_board_call($query);
-  
+  $db = YotsubaDB::board();
+  $res = $db->query('SELECT no FROM ' . $db->qi(SQLLOG) . ' WHERE resto = 0 AND archived = 0');
+
   if (!$res) {
     return false;
   }
-  
-  while ($row = mysql_fetch_row($res)) {
+
+  while ($row = $res->fetch(PDO::FETCH_NUM)) {
     $thread_id = (int)$row[0];
     update_json_tail_deletion($thread_id, true);
   }
@@ -9187,14 +9246,14 @@ function forcearchive() {
   
   $tid = (int)$_POST['id'];
   
-  $query = 'SELECT resto, sticky, archived, no, name, sub, com, filename, ext FROM `%s` WHERE no = %d';
-  $res = mysql_board_call($query, BOARD_DIR, $tid);
-  
+  $db = YotsubaDB::board();
+  $res = $db->query('SELECT resto, sticky, archived, no, name, sub, com, filename, ext FROM ' . $db->qi(BOARD_DIR) . ' WHERE no = ?', [$tid]);
+
   if (!$res) {
     error('Database error.');
   }
-  
-  $thread = mysql_fetch_assoc($res);
+
+  $thread = $res->fetch(PDO::FETCH_ASSOC);
   
   if (!$thread || $thread['resto']) {
     error('Thread not found.');
@@ -9248,15 +9307,15 @@ function rebuild_threads_by_id() {
       continue;
     }
     
-    $query = "SELECT archived FROM `" . SQLLOG . "` WHERE no = $id LIMIT 1";
-    $res = mysql_board_call($query);
-    
+    if (!isset($db)) $db = YotsubaDB::board();
+    $res = $db->query("SELECT archived FROM " . $db->qi(SQLLOG) . " WHERE no = ? LIMIT 1", [$id]);
+
     if (!$res) {
       echo '0';
       return;
     }
-    
-    if (mysql_fetch_row($res)[0] === '1') {
+
+    if ($res->fetch(PDO::FETCH_NUM)[0] === '1') {
       rebuild_archived_thread($id);
     }
     else {
@@ -9294,17 +9353,16 @@ function rebuild_archive_list($print = false) {
   
   $thread_limit = 3000;
   
-  $query = <<<SQL
-SELECT no, sub, com
-FROM `$board`
+  $db = YotsubaDB::board();
+  $query = "SELECT no, sub, com
+FROM " . $db->qi($board) . "
 WHERE archived = 1 AND resto = 0 AND root >= DATE_SUB(NOW(), INTERVAL $hour_clause HOUR)
 ORDER BY root DESC
-LIMIT $thread_limit
-SQL;
-  
-  $res = mysql_board_call($query);
-  
-  $thread_count = mysql_num_rows($res);
+LIMIT $thread_limit";
+
+  $res = $db->query($query);
+
+  $thread_count = $res->rowCount();
   
   head($html, 0, 0, 0, 0, true);
   
@@ -9326,7 +9384,7 @@ SQL;
     <td class="postblock"></td>
   </tr></thead><tbody>';
   
-  while ($row = mysql_fetch_assoc($res)) {
+  while ($row = $res->fetch(PDO::FETCH_ASSOC)) {
     if (strpos($row['sub'], 'SPOILER<>') === 0) {
       $row['sub'] = substr($row['sub'], 9);
     }
@@ -9448,13 +9506,14 @@ function rebuild_search_page($print = false) {
   
   $query = 'SELECT dir, name FROM boardlist ORDER BY dir ASC';
   
-  $res = mysql_global_call($query);
-  
+  $db_g = YotsubaDB::global();
+  $res = $db_g->query($query);
+
   if (!$res) {
     error('Database Error (rsp0)');
   }
-  
-  while ($row = mysql_fetch_assoc($res)) {
+
+  while ($row = $res->fetch(PDO::FETCH_ASSOC)) {
     $board_select_html .= '<option value="' . $row['dir'] . '">/' . $row['dir'] . '/ - ' . htmlspecialchars($row['name'], ENT_QUOTES) . '</option>';
   }
   
@@ -9566,32 +9625,39 @@ function rebuild_search_page($print = false) {
  * error() if limit has been reached
  */
 function validate_user_thread_limit($ip, $password = null, $pass_id = null) {
+  $db = YotsubaDB::board();
   $clauses = array();
-  
-  $clauses[] = "host = '" . mysql_real_escape_string($ip) . "'";
-  
+  $_params = [];
+
+  $clauses[] = "host = ?";
+  $_params[] = $ip;
+
   if ($password) {
-    $clauses[] = "pwd = '" . mysql_real_escape_string($password) . "'";
+    $clauses[] = "pwd = ?";
+    $_params[] = $password;
   }
-  
+
   if ($pass_id) {
-    $clauses[] = "4pass_id = '" . mysql_real_escape_string($pass_id) . "'";
+    $clauses[] = "4pass_id = ?";
+    $_params[] = $pass_id;
   }
-  
+
   $ts = $_SERVER['REQUEST_TIME'] - ((int)MAX_USER_THREADS_PERIOD * 3600);
-  
+
   $clauses = implode(' OR ', $clauses);
-  
-  $query = 'SELECT COUNT(*) FROM `' . SQLLOG
-    . "` WHERE resto = 0 AND archived = 0 AND time > $ts AND ($clauses)";
-  
-  $res = mysql_board_call($query);
-  
+
+  $query = 'SELECT COUNT(*) FROM ' . $db->qi(SQLLOG)
+    . " WHERE resto = 0 AND archived = 0 AND time > ? AND ($clauses)";
+
+  array_unshift($_params, $ts);
+
+  $res = $db->query($query, $_params);
+
   if (!$res) {
     return true;
   }
-  
-  $count = (int)mysql_fetch_row($res)[0];
+
+  $count = (int)$res->fetch(PDO::FETCH_NUM)[0];
   
   if ($count >= (int)MAX_USER_THREADS) {
     $plural = MAX_USER_THREADS > 1 ? 's' : '';
@@ -9602,14 +9668,14 @@ function validate_user_thread_limit($ip, $password = null, $pass_id = null) {
 }
 
 function is_poster_op($host, $hashed_pwd, $resto) {
-  $query = 'SELECT host, pwd FROM `%s` WHERE no = %d';
-  $res = mysql_board_call($query, SQLLOG, $resto);
-  
+  $db = YotsubaDB::board();
+  $res = $db->query('SELECT host, pwd FROM ' . $db->qi(SQLLOG) . ' WHERE no = ?', [$resto]);
+
   if (!$res) {
     return false;
   }
-  
-  $post = mysql_fetch_assoc($res);
+
+  $post = $res->fetch(PDO::FETCH_ASSOC);
 
   if (!$post) {
     return false;
@@ -9656,15 +9722,14 @@ function spam_filter_check_qa_bot($board, $resto, $ip, $country, $com, $captcha_
   }
   
   if ($resto) {
-    $query = 'SELECT time FROM %s WHERE resto = %d ORDER BY no DESC LIMIT 1';
-    
-    $res = mysql_board_call($query, $board, $resto);
-    
+    $db = YotsubaDB::board();
+    $res = $db->query('SELECT time FROM ' . $db->qi($board) . ' WHERE resto = ? ORDER BY no DESC LIMIT 1', [$resto]);
+
     if (!$res) {
       return false;
     }
-    
-    $last_time = mysql_fetch_row($res);
+
+    $last_time = $res->fetch(PDO::FETCH_NUM);
     
     if (!$last_time) {
       return false;
@@ -9697,12 +9762,9 @@ function log_qa_spam_filter($is_hit, $thread_id, $ip, $country, $captcha_resp) {
 }
 
 function log_spam_filter_trigger($action, $board, $thread_id, $ip, $arg_num, $meta = '') {
-  $query = <<<SQL
-INSERT INTO event_log(`type`, `board`, `arg_num`, `thread_id`, `ip`, `meta`)
-VALUES('%s', '%s', %d, %d, '%s', '%s')
-SQL;
-    
-  mysql_global_call($query, $action, $board, $arg_num, $thread_id, $ip, $meta);
+  $db_g = YotsubaDB::global();
+  $db_g->query("INSERT INTO event_log(`type`, `board`, `arg_num`, `thread_id`, `ip`, `meta`)
+VALUES(?, ?, ?, ?, ?, ?)", [$action, $board, $arg_num, $thread_id, $ip, $meta]);
 }
 
 function preview_html() {
@@ -9798,15 +9860,14 @@ function count_thread_replies($board, $thread_id) {
     return 0;
   }
   
-  $sql = "SELECT COUNT(*) as cnt FROM `%s` WHERE resto = $thread_id";
-  
-  $res = mysql_board_call($sql, $board);
-  
+  $db = YotsubaDB::board();
+  $res = $db->query("SELECT COUNT(*) as cnt FROM " . $db->qi($board) . " WHERE resto = ?", [$thread_id]);
+
   if (!$res) {
     return 0;
   }
-  
-  return (int)mysql_fetch_row($res)[0];
+
+  return (int)$res->fetch(PDO::FETCH_NUM)[0];
 }
 
 // TODO: remove later
@@ -9819,15 +9880,14 @@ function check_safe_ua_sig($ua, $sig) {
   
   $ua_sig = "$ua.$sig";
   
-  $sql = "SELECT 1 FROM event_log WHERE type = 'log_safe_ua' AND ua_sig = '%s' LIMIT $thres";
-  
-  $res = mysql_global_call($sql, $ua_sig);
-  
+  $db_g = YotsubaDB::global();
+  $res = $db_g->query("SELECT 1 FROM event_log WHERE type = 'log_safe_ua' AND ua_sig = ? LIMIT $thres", [$ua_sig]);
+
   if (!$res) {
     return true;
   }
-  
-  if (mysql_num_rows($res) < $thres) {
+
+  if ($res->rowCount() < $thres) {
     return false;
   }
   
@@ -9954,13 +10014,14 @@ SELECT SUM(amount) as amount FROM april_stock_users
 WHERE user_id = '%s' AND stock = '%s'
 SQL;
 
-  $res = mysql_global_call($sql, $user_id, $stock);
-  
+  $db_g = YotsubaDB::global();
+  $res = $db_g->query($sql, [$user_id, $stock]);
+
   if (!$res) {
     return 0;
   }
-  
-  $val = (int)mysql_fetch_row($res)[0];
+
+  $val = (int)$res->fetch(PDO::FETCH_NUM)[0];
   
   if ($val < 0) {
     $val = 0;
@@ -9983,32 +10044,28 @@ SELECT stock, SUM(amount) as amount FROM april_stock_users
 WHERE user_id = '%s' GROUP BY stock HAVING amount > 0
 SQL;
 
-  $res = mysql_global_call($sql, $user_id);
-  
+  $db_g = YotsubaDB::global();
+  $res = $db_g->query($sql, [$user_id]);
+
   if (!$res) {
     return 0;
   }
-  
+
   $stocks = [];
-  
-  while ($row = mysql_fetch_row($res)) {
+
+  while ($row = $res->fetch(PDO::FETCH_NUM)) {
     $stocks[$row[0]] = (int)$row[1];
   }
-  
-  $sql =<<<SQL
-SELECT stock, price FROM april_stock_prices
-ORDER BY id DESC LIMIT 30
-SQL;
-  
-  $res = mysql_global_call($sql);
-  
+
+  $res = $db_g->query("SELECT stock, price FROM april_stock_prices ORDER BY id DESC LIMIT 30");
+
   if (!$res) {
     return 0;
   }
-  
+
   $prices = [];
-  
-  while ($row = mysql_fetch_row($res)) {
+
+  while ($row = $res->fetch(PDO::FETCH_NUM)) {
     if (isset($prices[$row[0]])) {
       continue;
     }
@@ -10106,19 +10163,18 @@ function get_random_real_name() {
     $type = 1;
   }
   
-  $query = "SELECT data FROM april_names WHERE nid = $first_name_nid AND type = $type";
-  $res = mysql_global_call($query);
-  $first_name = mysql_fetch_row($res)[0];
-  
+  $db_g = YotsubaDB::global();
+  $res = $db_g->query("SELECT data FROM april_names WHERE nid = ? AND type = ?", [$first_name_nid, $type]);
+  $first_name = $res->fetch(PDO::FETCH_NUM)[0];
+
   if (!$first_name) {
     $first_name = 'Alberto';
   }
-  
+
   $last_name_nid = mt_rand(1, 1000);
-  
-  $query = "SELECT data FROM april_names WHERE nid = $last_name_nid AND type = 3";
-  $res = mysql_global_call($query);
-  $last_name = mysql_fetch_row($res)[0];
+
+  $res = $db_g->query("SELECT data FROM april_names WHERE nid = ? AND type = 3", [$last_name_nid]);
+  $last_name = $res->fetch(PDO::FETCH_NUM)[0];
   
   if (!$last_name) {
     $last_name = 'Barbosa';
@@ -10132,12 +10188,9 @@ function log_mod_action($action_type, $post, $vip_capcode = false) {
   $mask_shift = 128;
   $action_id = $mask_shift + $action_type;
   
-  $query =<<<SQL
-INSERT INTO actions_log (oldmask, newmask, postno, board, name, sub, com, filename, admin)
-VALUES (0, %d, %d, '%s', '%s', '%s', '%s', '%s', '%s')
-SQL;
-  
-  mysql_global_call($query,
+  $db_g = YotsubaDB::global();
+  $db_g->query("INSERT INTO actions_log (oldmask, newmask, postno, board, name, sub, com, filename, admin)
+VALUES (0, ?, ?, ?, ?, ?, ?, ?, ?)", [
     $action_id,
     $post['no'],
     BOARD_DIR,
@@ -10146,7 +10199,7 @@ SQL;
     $post['com'],
     $post['filename'] . $post['ext'],
     $vip_capcode === false ? $_COOKIE['4chan_auser'] : ''
-  );
+  ]);
   
   return true;
 }
@@ -10179,15 +10232,14 @@ function validate_otp() {
   
   $otp = $_POST['otp'];
   
-  $query = "SELECT auth_secret FROM mod_users WHERE username = '%s' LIMIT 1";
-  
-  $res = mysql_global_call($query, $_COOKIE['4chan_auser']);
-  
+  $db_g = YotsubaDB::global();
+  $res = $db_g->query("SELECT auth_secret FROM mod_users WHERE username = ? LIMIT 1", [$_COOKIE['4chan_auser']]);
+
   if (!$res) {
     error("Database error.");
   }
-  
-  $user = mysql_fetch_assoc($res);
+
+  $user = $res->fetch(PDO::FETCH_ASSOC);
   
   if (!$user || !$user['auth_secret']) {
     error("Incorrect or expired OTP.");
@@ -10227,7 +10279,12 @@ function validate_referer($strict = false) {
   if (!$strict && (!isset($_SERVER['HTTP_REFERER']) || $_SERVER['HTTP_REFERER'] == '')) {
     return;
   }
-  
+
+  // Accept local referers (localhost, *.local, LAN IPs) in addition to 4chan.org
+  if (preg_match('/^https?:\/\/(localhost|[a-z0-9\-]+\.local)(:\d+)?(\/|$)/', $_SERVER['HTTP_REFERER'])) {
+    return;
+  }
+
   if (!preg_match('/^https?:\/\/([_a-z0-9]+)\.(4chan|4channel)\.org(\/|$)/', $_SERVER['HTTP_REFERER'])) {
     error('Bad Request.');
   }

@@ -31,28 +31,25 @@ function updatelog( $resno = 0, $rebuild = 0 )
 	
 	log_cache();
 	
+	$db = YotsubaDB::board();
 	if( $resno ) {
-		$result = mysql_board_call( "SELECT `no` FROM `$sqlog` WHERE `root` > 0 AND `no` = '$resno'" );
-		if( $result ) {
-			$find = mysql_fetch_row( $result );
-			mysql_free_result( $result );
-		}
+		$result = $db->query("SELECT {$db->qi('no')} FROM {$db->qi($sqlog)} WHERE {$db->qi('root')} > 0 AND {$db->qi('no')} = ?", [$resno]);
+		$find = $result->fetch(PDO::FETCH_NUM);
+		$result->closeCursor();
 
 		if( !$find ) {
-			$result2 = mysql_board_call( "SELECT `no`, `resto` FROM `$sqlog` WHERE `no` = '$resno'" );
+			$result2 = $db->query("SELECT {$db->qi('no')}, {$db->qi('resto')} FROM {$db->qi($sqlog)} WHERE {$db->qi('no')} = ?", [$resno]);
 
-			list( $chkno, $resto ) = mysql_fetch_row( $result2 );
+			list( $chkno, $resto ) = $result2->fetch(PDO::FETCH_NUM);
 			if( !$resto ) {
 				error( S_REPORTERR );
 			}
 
-			mysql_free_result( $result2 );
+			$result2->closeCursor();
 
-			$result3 = mysql_board_call( "SELECT `no` FROM `$sqlog` WHERE `no` = '$resto'" );
-			if( $result3 ) {
-				$chkfind = mysql_fetch_row( $result3 );
-				mysql_free_result( $result3 );
-			}
+			$result3 = $db->query("SELECT {$db->qi('no')} FROM {$db->qi($sqlog)} WHERE {$db->qi('no')} = ?", [$resto]);
+			$chkfind = $result3->fetch(PDO::FETCH_NUM);
+			$result3->closeCursor();
 
 			if( !$chkfind ) {
 				error( S_REPORTERR );
@@ -61,15 +58,10 @@ function updatelog( $resno = 0, $rebuild = 0 )
 	}
 
 	if( $resno ) {
-		if( !$treeline = mysql_board_call( "SELECT * FROM `$sqlog` WHERE `root` > 0 AND `no` = '$resno' ORDER BY `root` DESC" ) ) {
-			echo S_SQLFAIL;
-		}
-
+		$treeline = $db->query("SELECT * FROM {$db->qi($sqlog)} WHERE {$db->qi('root')} > 0 AND {$db->qi('no')} = ? ORDER BY {$db->qi('root')} DESC", [$resno]);
 
 	} else {
-		if( !$treeline = mysql_board_call( "SELECT * FROM `$sqlog` WHERE `root` > 0 ORDER BY `root` DESC" ) ) {
-			echo S_SQLFAIL;
-		}
+		$treeline = $db->query("SELECT * FROM {$db->qi($sqlog)} WHERE {$db->qi('root')} > 0 ORDER BY {$db->qi('root')} DESC");
 	}
 
 	if( $resno ) {
@@ -88,15 +80,12 @@ function updatelog( $resno = 0, $rebuild = 0 )
 		//logtime("Formatting index page");
 	}
 
-	if( !$result = mysql_board_call( "SELECT MAX(`no`) FROM `$sqlog`" ) ) {
-		echo S_SQLFAIL;
-	}
-
-	$row    = mysql_fetch_array( $result );
+	$result = $db->query("SELECT MAX({$db->qi('no')}) FROM {$db->qi($sqlog)}");
+	$row    = $result->fetch(PDO::FETCH_NUM);
 	$lastno = (int)$row[0];
-	mysql_free_result( $result );
+	$result->closeCursor();
 
-	$counttree = mysql_num_rows( $treeline );
+	$counttree = $treeline->rowCount();
 
 	if( !$counttree ) {
 		$logfilename = SELF_PATH2_FILE;
@@ -141,29 +130,24 @@ HTML;
 	$limit  = (int)round( DEF_PAGES * 0.83 );
 	$lim    = DEF_PAGES - $limit;
 
-	if( !$result = mysql_board_call( "SELECT COUNT(*) FROM `$sqlog` WHERE `resto` = '0'" ) ) {
-		echo S_SQLFAIL;
-	}
-
-	$row     = mysql_fetch_array( $result );
+	$result = $db->query("SELECT COUNT(*) FROM {$db->qi($sqlog)} WHERE {$db->qi('resto')} = 0");
+	$row     = $result->fetch(PDO::FETCH_NUM);
 	$countth = (int)$row[0];
 
 	if( $limit < $countth ) {
-		if( !$result = mysql_board_call( "SELECT `no` FROM `$sqlog` WHERE `resto` = '0' ORDER BY `no` ASC LIMIT $lim" ) ) {
-			echo S_SQLFAIL;
-		}
+		$result = $db->query("SELECT {$db->qi('no')} FROM {$db->qi($sqlog)} WHERE {$db->qi('resto')} = 0 ORDER BY {$db->qi('no')} ASC LIMIT {$lim}");
 
-		while( $row = mysql_fetch_array( $result ) ) {
+		while( $row = $result->fetch(PDO::FETCH_NUM) ) {
 			$delarr[] = (int)$row[0];
 		}
 	}
 
-	mysql_free_result( $result );
+	$result->closeCursor();
 
 	for( $i = $st; $i < $st + DEF_PAGES; $i++ ) { // NO PAGES FOR /f/ (apparently!)
 		//if( !mysql_fetch_assoc($treeline) ) continue;
 
-		$thistree = mysql_fetch_assoc( $treeline );
+		$thistree = $treeline->fetch(PDO::FETCH_ASSOC);
 		if( !$thistree ) break;
 
 		extract( $thistree );
@@ -309,11 +293,9 @@ HTML;
 			$extra = '';
 
 			$stickies = array();
-			if( !$result = mysql_board_call( "SELECT `no` FROM `$sqlog` WHERE `sticky` = '1'" ) ) {
-				echo S_SQLFAIL;
-			}
+			$result = $db->query("SELECT {$db->qi('no')} FROM {$db->qi($sqlog)} WHERE {$db->qi('sticky')} = 1");
 
-			while( $stickrow = mysql_fetch_row( $result ) ) {
+			while( $stickrow = $result->fetch(PDO::FETCH_NUM) ) {
 				list( $stickno ) = $stickrow;
 				$stickies[] = $stickno;
 			}
@@ -369,15 +351,13 @@ HTML;
 			
 HTML;
 
-			if( !$resline = mysql_board_call( "SELECT * FROM `$sqlog` WHERE `resto` = '$no' ORDER BY `no`" ) ) {
-				echo S_SQLFAIL;
-			}
+			$resline = $db->query("SELECT * FROM {$db->qi($sqlog)} WHERE {$db->qi('resto')} = ? ORDER BY {$db->qi('no')}", [$no]);
 
-			$countres = mysql_num_rows( $resline );
+			$countres = $resline->rowCount();
 			$s        = 0;
 
 
-			while( $resrow = mysql_fetch_assoc( $resline ) ) {
+			while( $resrow = $resline->fetch(PDO::FETCH_ASSOC) ) {
 				extract( $resrow );
 				//list($no,$sticky,$permasage,$closed,$now,$name,$email,$sub,$com,$host,$pwd,$filename,$ext,$w,$h,$tn_w,$tn_h,$tim,$time,$md5,$fsize,$root,$resto)=$resrow;
 
@@ -495,18 +475,16 @@ HTML;
 			$dat .= '</div><hr>';
 
 			//clearstatcache();
-			mysql_free_result( $resline );
+			$resline->closeCursor();
 			$p++;
 			break;
 		} else {
 
 			/** BUILD /f/ INDEX **/
 
-			if( !$resline = mysql_board_call( "SELECT * FROM `$sqlog` WHERE `resto` = '$no' ORDER BY `no`" ) ) {
-				echo S_SQLFAIL;
-			}
+			$resline = $db->query("SELECT * FROM {$db->qi($sqlog)} WHERE {$db->qi('resto')} = ? ORDER BY {$db->qi('no')}", [$no]);
 
-			$countres = mysql_num_rows( $resline );
+			$countres = $resline->rowCount();
 
 			if( $fsize >= 1048576 ) {
 				$kbsize = round( ( $fsize / 1048576 ), 2 ) . ' M';
@@ -638,7 +616,7 @@ HTML;
 			}
 
 			//clearstatcache();
-			mysql_free_result( $resline );
+			$resline->closeCursor();
 		} // end /f/
 	} // no pages for /f/
 
@@ -735,7 +713,7 @@ HTML;
 		print_page( $logfilename, $dat );
 	}
 
-	mysql_free_result( $treeline );
+	$treeline->closeCursor();
 }
 
 function form( &$dat, $resno, $admin = '' )
@@ -749,10 +727,9 @@ function form( &$dat, $resno, $admin = '' )
 	$tags    = upboard_tags();
 
 	if( $resno ) {
-		if( !$cchk = mysql_board_call( "select closed from `" . SQLLOG . "` where no=" . $resno ) ) {
-			echo S_SQLFAIL;
-		}
-		list( $closed ) = mysql_fetch_row( $cchk );
+		$db_form = YotsubaDB::board();
+		$cchk = $db_form->query("SELECT {$db_form->qi('closed')} FROM {$db_form->qi(SQLLOG)} WHERE {$db_form->qi('no')} = ?", [$resno]);
+		list( $closed ) = $cchk->fetch(PDO::FETCH_NUM);
 		
 		$msg .= '<div class="navLinks mobile">
 	<span class="mobileib button"><a href="/' . BOARD_DIR . '/" accesskey="a">' . S_RETURN . '</a></span> <span class="mobileib button"><a href="#bottom">' . S_BOTTOM . '</a></span> <span class="mobileib button"><a href="#top_r" id="refresh_top">' . S_REFRESH . '</a></span>

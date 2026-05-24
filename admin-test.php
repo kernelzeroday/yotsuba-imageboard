@@ -1,6 +1,7 @@
 <?
 include_once "yotsuba_config.php";
 require_once 'lib/util.php';
+require_once 'lib/dbal.php';
 /*
 if( isset( $_REQUEST["profile"] ) ) {
 	xhprof_enable( XHPROF_FLAGS_CPU | XHPROF_FLAGS_MEMORY );
@@ -48,18 +49,19 @@ unset( $update_avg_secs );
 $access_allow = '';
 $access_deny  = '';
 
-mysql_board_connect( BOARD_DIR );
+// DBAL connections are lazy-initialized via YotsubaDB::global() and YotsubaDB::board()
 
 function janitor_votes_left()
 {
 	$user = $_COOKIE[ '4chan_auser' ];
+	$db = YotsubaDB::global();
 
-	$high = mysql_global_do( "SELECT count(id) FROM janitor_votes WHERE moderator = '%s'", $user );
-	$high = mysql_result( $high, 0, 0 );
+	$res = $db->query("SELECT count(id) FROM {$db->qi('janitor_votes')} WHERE moderator = ?", [$user]);
+	$high = $res->fetch(PDO::FETCH_NUM)[0];
 
-	$howmany = mysql_global_do( "SELECT COUNT(id) FROM janitor_apps WHERE closed=0 AND age>17", $high );
+	$res2 = $db->query("SELECT COUNT(id) FROM {$db->qi('janitor_apps')} WHERE closed=0 AND age>17");
 
-	return mysql_result( $howmany, 0, 0 ) - $high;
+	return $res2->fetch(PDO::FETCH_NUM)[0] - $high;
 }
 
 function append_ban( $board, $ip )
@@ -98,22 +100,16 @@ function make_post_json($row)
 }
 
 function get_board_list() {
-  //mysql_global_call("SET character_set_results = 'utf8'");
-  
-  $query = "SELECT dir, name FROM boardlist ORDER BY dir ASC";
-  
-  $res = mysql_global_call($query);
-  
-  if (!$res) {
-    return array();
-  }
-  
+  $db = YotsubaDB::global();
+
+  $res = $db->query("SELECT dir, name FROM {$db->qi('boardlist')} ORDER BY dir ASC");
+
   $boards = array();
-  
-  while ($dir = mysql_fetch_row($res)) {
+
+  while ($dir = $res->fetch(PDO::FETCH_NUM)) {
     $boards[$dir[0]] = $dir[1];
   }
-  
+
   return $boards;
 }
 
@@ -121,40 +117,32 @@ function is_board_valid($board, $allow_hidden = false) {
   if (!$allow_hidden && ($board === 'test' || $board === 'j')) {
     return false;
   }
-  
-  $query = "SELECT dir FROM boardlist WHERE dir = '%s' LIMIT 1";
-  $res = mysql_global_call($query, $board);
-  
-  if (!$res) {
-    return false;
-  }
-  
-  if (mysql_num_rows($res) === 1) {
+
+  $db = YotsubaDB::global();
+  $res = $db->query("SELECT dir FROM {$db->qi('boardlist')} WHERE dir = ? LIMIT 1", [$board]);
+
+  if ($res->rowCount() === 1) {
     return true;
   }
-  
+
   return false;
 }
 
 function admin_clear_reports($board, $post_id) {
-  $query = "UPDATE reports SET cleared = 1 WHERE board = '%s' AND no = %d";
-  
-  mysql_global_call($query, $board, $post_id);
-  
-  $query = <<<SQL
-UPDATE reports_for_posts
-SET cleared = 1, clearedby = 'Auto-clear'
-WHERE board = '%s' AND postid = %d
-SQL;
-  
-  mysql_global_call($query, $board, $post_id);
+  $db = YotsubaDB::global();
+
+  $db->query("UPDATE {$db->qi('reports')} SET cleared = 1 WHERE board = ? AND no = ?", [$board, (int)$post_id]);
+
+  $db->query("UPDATE {$db->qi('reports_for_posts')} SET cleared = 1, clearedby = 'Auto-clear' WHERE board = ? AND postid = ?", [$board, (int)$post_id]);
 }
 
 function get_bans_summary($value, $by_pass = false) {
 	if (!$value) {
 		return array();
 	}
-	
+
+  $db = YotsubaDB::global();
+
   if ($by_pass === false) {
     $col = 'host';
     $col_active = '';
@@ -163,30 +151,20 @@ function get_bans_summary($value, $by_pass = false) {
     $col = '4pass_id';
     $col_active = '(active = 0 OR active = 1) AND '; // pass column doesn't have an index for itself
   }
-  
-  $query = <<<SQL
-SELECT UNIX_TIMESTAMP(`now`) as created_on,
-UNIX_TIMESTAMP(`length`) as expires_on,
-UNIX_TIMESTAMP(`unbannedon`) as unbanned_on
-FROM banned_users
-WHERE $col_active$col = '%s'
-SQL;
-  
-  $res = mysql_global_call($query, $value);
-  
-  if (!$res) {
-    return array();
-  }
-  
+
+  $query = "SELECT {$db->unixTimestamp($db->qi('now'))} as created_on, {$db->unixTimestamp($db->qi('length'))} as expires_on, {$db->unixTimestamp($db->qi('unbannedon'))} as unbanned_on FROM {$db->qi('banned_users')} WHERE {$col_active}{$db->qi($col)} = ?";
+
+  $res = $db->query($query, [$value]);
+
   $limit = $_SERVER['REQUEST_TIME'] - 31536000; // 1 year
-  
-  $total_count = mysql_num_rows($res);
+
+  $total_count = $res->rowCount();
   $recent_perma_count = 0;
   $recent_ban_count = 0;
   $recent_warn_count = 0;
   $recent_duration = 0; // in days
-  
-  while ($ban = mysql_fetch_assoc($res)) {
+
+  while ($ban = $res->fetch(PDO::FETCH_ASSOC)) {
     if ($ban['created_on'] < $limit) {
       continue;
     }
@@ -234,20 +212,15 @@ SQL;
 // Counts recently made threads by IP
 function admin_get_thread_history($ip) {
 	$long_ip = ip2long($ip);
-	
+
 	if (!$long_ip) {
 		return false;
 	}
-	
-	$sql = "SELECT COUNT(*) FROM user_actions WHERE action = 'new_thread' AND ip = $long_ip AND time >= DATE_SUB(NOW(), INTERVAL 60 MINUTE)";
-	
-	$res = mysql_global_call($sql);
-	
-	if (!$res) {
-		return false;
-	}
-	
-	return (int)mysql_fetch_row($res)[0];
+
+	$db = YotsubaDB::global();
+	$res = $db->query("SELECT COUNT(*) FROM {$db->qi('user_actions')} WHERE action = 'new_thread' AND ip = ? AND time >= {$db->dateInterval('NOW()', 60, 'MINUTE')}", [$long_ip]);
+
+	return (int)$res->fetch(PDO::FETCH_NUM)[0];
 }
 
 function admin_hash_4chan_pass($pass) {
@@ -295,8 +268,9 @@ function get_ban_history_html($ban_summary, $host = false) {
 
 function ban_post( $no, $globalban, $length, $reason, $is_threadban = 0 )
 {
-	$query = mysql_board_call( "SELECT HIGH_PRIORITY * FROM `" . SQLLOG . "` WHERE no=" . intval( $no ) ); //FIXME use assoc
-	$row   = mysql_fetch_assoc( $query );
+	$bdb = YotsubaDB::board();
+	$query = $bdb->query("SELECT * FROM {$bdb->qi(SQLLOG)} WHERE no = ?", [intval($no)]);
+	$row   = $query->fetch(PDO::FETCH_ASSOC);
 	if( !$row ) return "";
 	extract( $row, EXTR_OVERWRITE );
 
@@ -308,13 +282,6 @@ function ban_post( $no, $globalban, $length, $reason, $is_threadban = 0 )
 	$displayhost = ( $reverse && $reverse != $host ) ? "$reverse ($host)" : $host;
 	$xff         = '';
 
-	//$xffresult = mysql_board_call("select host from xff where board='%s' and postno=%d", BOARD_DIR, $no);
-	//$xffresult = mysql_global_call( "SELECT xff from xff where board='%s' AND postno='%d'", BOARD_DIR, $no );
-	//if( $xffrow = mysql_fetch_row( $xffresult ) ) {
-	//	$xff = $xffrow[ 0 ];
-		//	$xff_reverse = gethostbyaddr($xffrow[0]);
-		//	$xff = ($xff_reverse && $xff_reverse!=$xffrow[0])?"$xff_reverse ($xff)":$xff;
-	//}
 	$board = BOARD_DIR;
 	$zonly = 0;
 
@@ -322,14 +289,14 @@ function ban_post( $no, $globalban, $length, $reason, $is_threadban = 0 )
 	$pass_id  = $row[ '4pass_id' ];
 	$post_json = make_post_json($row);
 
-	$result = mysql_global_do(
-		"INSERT INTO " . SQLLOGBAN . "
-	(board,global,zonly,name,host,reverse,xff,reason,length,admin,md5,4pass_id,post_num,post_time,post_json,admin_ip) 
-	 VALUES 
-	( '%s', %d, %d, '%s', '%s', '%s', '%s', '%s', %d, '%s', '%s', '%s', %d, FROM_UNIXTIME(%d), '%s', '%s')",
-		$board, $globalban, $zonly, $name, $host, $reverse, $xff, $reason, $length, $bannedby, $md5, $pass_id, $no, $time, $post_json, $_SERVER['REMOTE_ADDR'] );
+	$gdb = YotsubaDB::global();
+	$result = $gdb->query(
+		"INSERT INTO {$gdb->qi(SQLLOGBAN)}
+	(board,global,zonly,name,host,reverse,xff,reason,length,admin,md5,{$gdb->qi('4pass_id')},post_num,post_time,post_json,admin_ip)
+	 VALUES
+	( ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, {$gdb->fromUnixtime('?')}, ?, ?)",
+		[$board, (int)$globalban, (int)$zonly, $name, $host, $reverse, $xff, $reason, $length, $bannedby, $md5, $pass_id, (int)$no, (int)$time, $post_json, $_SERVER['REMOTE_ADDR']] );
 
-	//('" . $board . "','" . $globalban . "','" . $zonly . "','" . mysql_escape_string( $name ) . "','" . $host . "','" . mysql_escape_string( $reverse ) . "','" . mysql_escape_string( $xff ) . "','" . mysql_escape_string( $reason ) . "','$length','" . mysql_escape_string( $bannedby ) . "','$md5','$pass_id',$no,FROM_UNIXTIME('$time'), '%s')", $post_json ) ) {
 	if( !$result ) {
 		echo S_SQLFAIL;
 	}
@@ -379,9 +346,10 @@ function cpban($no) {
     die("Thread $no doesn't exist.");
   }
 
-  $query = mysql_board_call("SELECT no, host FROM `" . SQLLOG . "` WHERE resto = $no AND host != '$op_host' GROUP BY host");
-  
-  while ($row = mysql_fetch_assoc($query)) {
+  $bdb = YotsubaDB::board();
+  $query = $bdb->query("SELECT no, host FROM {$bdb->qi(SQLLOG)} WHERE resto = ? AND host != ? GROUP BY host", [$no, $op_host]);
+
+  while ($row = $query->fetch(PDO::FETCH_ASSOC)) {
     ban_post($row['no'], 1, $rep_ban_end, "$rep_reason<>Thread Ban No.$no", 1);
   }
   
@@ -505,12 +473,17 @@ function clean()
 	$respages   = array();
 	$indexpages = array();
 
+	$bdb = YotsubaDB::board();
+	$gdb = YotsubaDB::global();
+
 	if( PAGE_MAX > 0 ) {
 		print "<strong>Running cleanup...</strong><br>Pruning orphaned posts...<br>";
-		$result = mysql_board_call( "select no from `%s` where resto>0 and resto not in (select no from `%s` where resto=0)", SQLLOG, SQLLOG );
-		$nos    = mysql_column_array( $result );
+		$result = $bdb->query("SELECT no FROM {$bdb->qi(SQLLOG)} WHERE resto>0 AND resto NOT IN (SELECT no FROM {$bdb->qi(SQLLOG)} WHERE resto=0)");
+		$nos = array();
+		while ($r = $result->fetch(PDO::FETCH_NUM)) { $nos[] = $r[0]; }
 		if( count( $nos ) ) {
-			mysql_board_call( "delete from `" . SQLLOG . "` where no in (%s)", implode( $nos, "," ) );
+			$placeholders = implode(',', array_fill(0, count($nos), '?'));
+			$bdb->query("DELETE FROM {$bdb->qi(SQLLOG)} WHERE no IN ($placeholders)", $nos);
 			foreach( $nos as $no ) {
 				print "$no pruned<br>";
 			}
@@ -523,8 +496,8 @@ function clean()
 	if (MOBILE_IMG_RESIZE) {
 	  $cols = ',m_img'; // FIXME, only because not all boards have that column
 	}
-	$result = mysql_board_call( "select tim,filename,ext$cols from `" . SQLLOG . "` where ext != ''" );
-	while( $row = mysql_fetch_array( $result ) ) {
+	$result = $bdb->query("SELECT tim,filename,ext$cols FROM {$bdb->qi(SQLLOG)} WHERE ext != ''");
+	while( $row = $result->fetch(PDO::FETCH_BOTH) ) {
 		if( $row[ 'ext' ] == '.swf' ) {
 			$images[ "{$row[ 'filename' ]}{$row[ 'ext' ]}" ] = 1;
 		}
@@ -543,8 +516,8 @@ function clean()
 	}
   
 	// get list of res pages that should exist
-	$result = mysql_board_call( "select no from `" . SQLLOG . "` where resto=0" );
-	while( $row = mysql_fetch_array( $result ) ) {
+	$result = $bdb->query("SELECT no FROM {$bdb->qi(SQLLOG)} WHERE resto=0");
+	while( $row = $result->fetch(PDO::FETCH_BOTH) ) {
 		if( USE_GZIP == 1 ) {
 			$respages[ "{$row[ 'no' ]}.html.gz" ] = 1;
 			
@@ -600,8 +573,8 @@ function clean()
 	}
 	
 	print "Cleaning index pages...<br>";
-	$result   = mysql_board_call( "SELECT COUNT(*) from `" . SQLLOG . "` WHERE archived = 0 AND resto = 0" );
-	$lastpage = PAGE_MAX + 1;//(mysql_result( $result, 0, 0 ) / DEF_PAGES) + 1;
+	$result   = $bdb->query("SELECT COUNT(*) FROM {$bdb->qi(SQLLOG)} WHERE archived = 0 AND resto = 0");
+	$lastpage = PAGE_MAX + 1;
 	if( USE_GZIP == 1 ) {
 		$indexpages[ SELF_PATH2_FILE . '.gz' ] = 1;
 		
@@ -686,11 +659,11 @@ function clean()
 	}*/
 	print "Cleaning up side tables...<br>";
 
-	mysql_global_call( "DELETE FROM user_actions WHERE time < DATE_SUB(NOW(), INTERVAL 7 DAY)" );
-  mysql_global_call( "DELETE FROM event_log WHERE created_on < DATE_SUB(NOW(), INTERVAL 7 DAY)" );
-	mysql_global_call( "DELETE FROM xff WHERE tim < (unix_timestamp(DATE_SUB(NOW(), INTERVAL 7 DAY))*1000)" );
-	mysql_board_call( "DELETE FROM f_md5 WHERE now < DATE_SUB(NOW(), INTERVAL 2 DAY)" );
-  mysql_board_call("DELETE FROM r9k_posts WHERE created_on < DATE_SUB(NOW(), INTERVAL 2 YEAR)");
+	$gdb->query("DELETE FROM {$gdb->qi('user_actions')} WHERE time < {$gdb->dateInterval('NOW()', 7, 'DAY')}");
+	$gdb->query("DELETE FROM {$gdb->qi('event_log')} WHERE created_on < {$gdb->dateInterval('NOW()', 7, 'DAY')}");
+	$gdb->query("DELETE FROM {$gdb->qi('xff')} WHERE tim < ({$gdb->unixTimestamp($gdb->dateInterval('NOW()', 7, 'DAY'))}*1000)");
+	$bdb->query("DELETE FROM {$bdb->qi('f_md5')} WHERE now < {$bdb->dateInterval('NOW()', 2, 'DAY')}");
+	$bdb->query("DELETE FROM {$bdb->qi('r9k_posts')} WHERE created_on < {$bdb->dateInterval('NOW()', 2, 'YEAR')}");
 
 	print "<strong>Cleanup complete!</strong>";
 }
@@ -1363,7 +1336,7 @@ function sanitize_text( $str )
 {
 	global $admin;
 	$str = trim( $str ); //blankspace removal
-	if( get_magic_quotes_gpc() ) { //magic quotes is deleted (?)
+	if( function_exists('get_magic_quotes_gpc') && get_magic_quotes_gpc() ) {
 		$str = stripslashes( $str );
 	}
 	if( $admin != $adminpass ) { //admins can use tags
@@ -1377,11 +1350,13 @@ function sanitize_text( $str )
 //check for table existance
 function table_exist( $table )
 {
-	$result = mysql_global_call( "show tables like '$table'" );
-	if( !$result ) {
-		return 0;
+	$db = YotsubaDB::global();
+	if ($db->getDriver() === 'pgsql') {
+		$result = $db->query("SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND tablename = ?", [$table]);
+	} else {
+		$result = $db->query("SHOW TABLES LIKE ?", [$table]);
 	}
-	$a = mysql_fetch_row( $result );
+	$a = $result->fetch(PDO::FETCH_NUM);
 
 	return $a;
 }
@@ -1494,8 +1469,9 @@ function adminvalid( $title = 'Manager Mode' )
 
 		if( ( !isset( $_GET[ 'admin' ] ) || $_GET[ 'admin' ] == 'cleanup' ) && has_level( 'mod' ) ) {
 			echo "<select style=\"float:right;\" onchange=\"var x=this.options[this.selectedIndex].value;x&&(window.location=x)\">";
-			$result = mysql_global_call( "select sql_cache domain,dir from boardlist order by dir" );
-			while( $row = mysql_fetch_array( $result ) ) {
+			$_gdb = YotsubaDB::global();
+			$result = $_gdb->query("SELECT domain, dir FROM {$_gdb->qi('boardlist')} ORDER BY dir");
+			while( $row = $result->fetch(PDO::FETCH_BOTH) ) {
 				$domain = 'https://sys.' . L::d(BOARD_DIR) . '/';
 				if( $_GET[ 'admin' ] == 'cleanup' ) {
 					$querystring = '?admin=cleanup';
@@ -1557,31 +1533,25 @@ function adminreportclear() {
   $pid = (int)$_GET['pid'];
 
   $board = $_GET['board'];
-  
+
   if (!$pid || !$board) {
     die('404');
   }
-  
-  $query = "UPDATE reports SET cleared = 1, cleared_by = '%s' WHERE board = '%s' AND no = $pid";
-  
-  $res = mysql_global_call($query, $_COOKIE['4chan_auser'], $board);
-  
+
+  $db = YotsubaDB::global();
+
+  $res = $db->query("UPDATE {$db->qi('reports')} SET cleared = 1, cleared_by = ? WHERE board = ? AND no = ?", [$_COOKIE['4chan_auser'], $board, $pid]);
+
   if (!$res) {
     die("DB error (2-1)");
   }
-  
-  $query = <<<SQL
-UPDATE reports_for_posts
-SET cleared = 1, clearedby = '%s'
-WHERE board = '%s' AND postid = $pid
-SQL;
 
-  $res = mysql_global_call($query, $_COOKIE['4chan_auser'], $board);
-  
+  $res = $db->query("UPDATE {$db->qi('reports_for_posts')} SET cleared = 1, clearedby = ? WHERE board = ? AND postid = ?", [$_COOKIE['4chan_auser'], $board, $pid]);
+
   if (!$res) {
     die("DB error (2-2)");
   }
-    
+
   echo "Done";
 }
 
@@ -1590,24 +1560,13 @@ function adminreportqueue() {
     die('404');
   }
 
-  $query = <<<SQL
-SELECT *, SUM(weight) as total_weight, COUNT(reports.no) as cnt,
-GROUP_CONCAT(DISTINCT report_category) as cats,
-UNIX_TIMESTAMP(ts) as `time`
-FROM reports
-WHERE cleared = 0
-GROUP BY reports.no, reports.board
-ORDER BY total_weight DESC
-LIMIT 200
-SQL;
+  $db = YotsubaDB::global();
 
-  $res = mysql_global_call($query);
+  $query = "SELECT *, SUM(weight) as total_weight, COUNT({$db->qi('reports')}.no) as cnt, {$db->groupConcatDistinct('report_category')} as cats, {$db->unixTimestamp('ts')} as time FROM {$db->qi('reports')} WHERE cleared = 0 GROUP BY {$db->qi('reports')}.no, {$db->qi('reports')}.board ORDER BY total_weight DESC LIMIT 200";
 
-  if (!$res) {
-    die('DB error (1)');
-  }
+  $res = $db->query($query);
 
-  while ($report = mysql_fetch_assoc($res)) {
+  while ($report = $res->fetch(PDO::FETCH_ASSOC)) {
     $post = json_decode($report['post_json'], true);
 
     echo '<div style="margin:12px;border:1px solid">';
@@ -1650,28 +1609,30 @@ function admin_delete()
 	$board = explode( "/", $_SERVER[ 'SCRIPT_NAME' ] );
 	$board = $board[ 1 ];
 
+	$bdb = YotsubaDB::board();
+	$gdb = YotsubaDB::global();
 	$threadmode = $_REQUEST[ 'threadmode' ];
 	if( !$threadmode ) { // threadmode uses table aliases, so don't bother locking
-		if( $delflag ) mysql_board_call( "LOCK TABLES `" . SQLLOG . "` WRITE" );
+		if( $delflag ) $bdb->lockTable(SQLLOG);
 	}
 
 	$delno   = array();
 	$delflag = false;
-	reset( $_POST );
-	while( $item = each( $_POST ) ) {
-		if( $item[ 1 ] == 'delete' ) {
-			array_push( $delno, intval( $item[ 0 ] ) );
+	foreach( $_POST as $key => $value ) {
+		if( $value == 'delete' ) {
+			array_push( $delno, intval( $key ) );
 			$delflag = true;
 		}
 	}
 	if( $delflag ) {
 		$resultstr = "(" . implode( ",", $delno ) . ")";
-		if( $threadmode ) mysql_board_call( "LOCK TABLES `" . SQLLOG . "` WRITE" ); // can finally lock it now
-		if( !$result = mysql_board_call( "select * from `" . SQLLOG . "` where no in %s or resto in %s", $resultstr, $resultstr ) ) {
+		if( $threadmode ) $bdb->lockTable(SQLLOG); // can finally lock it now
+		$result = $bdb->query("SELECT * FROM {$bdb->qi(SQLLOG)} WHERE no IN ($resultstr) OR resto IN ($resultstr)");
+		if( !$result ) {
 			echo S_SQLFAIL;
 		} //FIXME use assoc
 		$find = false;
-		while( $row = mysql_fetch_assoc( $result ) ) {
+		while( $row = $result->fetch(PDO::FETCH_ASSOC) ) {
 			//list( $no, $sticky, $permasage, $closed, $now, $name, $email, $sub, $com, $host, $pwd, $filename, $ext, $w, $h, $tn_w, $tn_h, $tim, $time, $md5, $fsize, $root, $resto ) = $row;
 			extract( $row, EXTR_OVERWRITE );
 
@@ -1692,9 +1653,8 @@ function admin_delete()
 					$find  = true;
 					$auser = $_COOKIE[ '4chan_auser' ];
 					$apass = $_COOKIE[ '4chan_apass' ];
-					if( !mysql_board_call( "delete from `" . SQLLOG . "` where no=" . $no . " or resto=" . $no ) ) {
-						echo S_SQLFAIL;
-					} // FIXME can't this be atomic? (one statement)
+					$bdb->query("DELETE FROM {$bdb->qi(SQLLOG)} WHERE no = ? OR resto = ?", [(int)$no, (int)$no]);
+					// FIXME can't this be atomic? (one statement)
 					if( $board == "f" ) {
 						$delfile = IMG_DIR . $filename . $ext;
 					}
@@ -1712,13 +1672,13 @@ function admin_delete()
 						$imgonly = 0;
 					}
 					validate_admin_cookies();
-					mysql_global_do( "INSERT INTO " . SQLLOGDEL . " (imgonly,postno,resto,board,name,sub,com,img,filename,admin,admin_ip) values('$imgonly','$no',$resto,'" . SQLLOG . "','$adname','$sub','$com','$adfsize','$filename$ext','$auser', '" . mysql_real_escape_string($_SERVER['REMOTE_ADDR']) . "')" ); // FIXME do all this in one insert outside the write lock
+					$gdb->query("INSERT INTO {$gdb->qi(SQLLOGDEL)} (imgonly,postno,resto,board,name,sub,com,img,filename,admin,admin_ip) VALUES (?,?,?,?,?,?,?,?,?,?,?)", [$imgonly, (int)$no, (int)$resto, SQLLOG, $adname, $sub, $com, $adfsize, $filename.$ext, $auser, $_SERVER['REMOTE_ADDR']]); // FIXME do all this in one insert outside the write lock
 				}
 			}
 		}
 	}
 
-	if( $delflag ) mysql_board_call( "UNLOCK TABLES" );
+	if( $delflag ) $bdb->unlockTables();
 
 	// Deletion screen display
 	echo "<center style=\"margin-top: 4px;\"><input type=\"hidden\" name=\"mode\" value=\"admin\">\n";
@@ -1747,45 +1707,51 @@ function admin_delete()
 	echo '<td>&nbsp;</td><td><b>No.</b></td><td><b>Time</b></td><td><b>Name</b></td><td><b>Subject</b></td><td><b>Comment</b></td><td><b>Host</b></td><td>&nbsp;</td>';
 	echo "</tr>\n";
 
-	$resq = "`";
+	$resq_where = "";
+	$resq_params = array();
 	if( $res ) {
-		$resq     = "";
 		$splitres = explode( ",", $res );
+		$_placeholders = array();
 		foreach( $splitres as $line ) {
-			$resq .= " no='" . mysql_escape_string( $line ) . "' OR";
+			$_placeholders[] = "no = ?";
+			$resq_params[] = (int)$line;
 		}
-		$resq = rtrim( $resq, " OR" );
-		$resq = "` WHERE" . $resq;
-
+		$resq_where = " WHERE " . implode(" OR ", $_placeholders);
 	}
 	elseif( $thread && $ip ) {
 		$max_results = 5000;
 		$thread      = (int)$thread;
-		$resq        = "` WHERE (no='$thread' OR resto='$thread') AND host='" . sprintf( "%s", long2ip( -( 4294967296 - $ip ) ) ) . "'";
+		$resq_where  = " WHERE (no = ? OR resto = ?) AND host = ?";
+		$resq_params = [$thread, $thread, sprintf( "%s", long2ip( -( 4294967296 - $ip ) ) )];
 	}
 	elseif( $ip ) {
 		$max_results = 5000;
-		$resq        = "` WHERE host='" . sprintf( "%s", long2ip( -( 4294967296 - $ip ) ) ) . "'";
+		$resq_where  = " WHERE host = ?";
+		$resq_params = [sprintf( "%s", long2ip( -( 4294967296 - $ip ) ) )];
 	}
 	elseif( $thread ) {
 		$max_results = 5000;
 		$thread      = (int)$thread;
-		$resq        = "` WHERE no='$thread' OR resto='$thread'";
+		$resq_where  = " WHERE no = ? OR resto = ?";
+		$resq_params = [$thread, $thread];
 	}
 
 	if( $threadmode ) {
-		if( !$result = mysql_board_call( "(SELECT child.*,parent.root proot from `" . SQLLOG . "` child LEFT OUTER JOIN `" . SQLLOG . "` parent ON child.resto=parent.no) UNION (SELECT *,root proot from `" . SQLLOG . "` parent WHERE resto=0) ORDER BY proot DESC, no ASC LIMIT " . $from . ", " . $max_results ) ) {
+		$_tbl = $bdb->qi(SQLLOG);
+		$result = $bdb->query("(SELECT child.*,parent.root proot FROM {$_tbl} child LEFT OUTER JOIN {$_tbl} parent ON child.resto=parent.no) UNION (SELECT *,root proot FROM {$_tbl} parent WHERE resto=0) ORDER BY proot DESC, no ASC LIMIT " . (int)$max_results . " OFFSET " . (int)$from);
+		if( !$result ) {
 			echo S_SQLFAIL;
 		}
 	}
 	else {
-		if( !$result = mysql_board_call( "select * FROM `" . SQLLOG . $resq . " order BY no DESC LIMIT " . $from . ", " . $max_results ) ) {
+		$result = $bdb->query("SELECT * FROM {$bdb->qi(SQLLOG)}{$resq_where} ORDER BY no DESC LIMIT " . (int)$max_results . " OFFSET " . (int)$from, $resq_params);
+		if( !$result ) {
 			echo S_SQLFAIL;
 		}
 	}
 
 	$j = 0;
-	while( $row = mysql_fetch_assoc( $result ) ) { //FIXME use assoc
+	while( $row = $result->fetch(PDO::FETCH_ASSOC) ) { //FIXME use assoc
 		$j++;
 		$img_flag = false;
 		extract( $row, EXTR_OVERWRITE );
@@ -1840,12 +1806,10 @@ function admin_delete()
 		$cboard = $cboard[ 1 ];
 
 		$bantrue = 0;
-		if( !$banned = mysql_global_call( "SELECT host,board,global,zonly,DATE_FORMAT(length, 'Until %W, %M %D, %Y.') AS buntil FROM " . SQLLOGBAN . " WHERE host='" . $host . "' AND active=1" ) ) {
-			echo S_SQLFAIL;
-		}
-		$bannedrows = mysql_num_rows( $banned );
+		$banned = $gdb->query("SELECT host,board,global,zonly,DATE_FORMAT(length, 'Until %W, %M %D, %Y.') AS buntil FROM {$gdb->qi(SQLLOGBAN)} WHERE host = ? AND active=1", [$host]);
+		$bannedrows = $banned->rowCount();
 		if( $bannedrows > 0 ) {
-			$row    = mysql_fetch_array( $banned );
+			$row    = $banned->fetch(PDO::FETCH_BOTH);
 			$buntil = $row[ 'buntil' ];
 			if( $row[ 'board' ] == $cboard ) {
 				$bg = "f0d0d0";
@@ -1947,7 +1911,8 @@ function admin_delete()
 	//$all = (int)($all / 1024);
 
 	//page stuff
-	$total_results = mysql_result( mysql_board_call( "SELECT COUNT(*) as Num FROM `" . SQLLOG . "`" ), 0 );
+	$_count_res = $bdb->query("SELECT COUNT(*) as Num FROM {$bdb->qi(SQLLOG)}");
+	$total_results = $_count_res->fetch(PDO::FETCH_NUM)[0];
 	$total_pages   = ceil( $total_results / $max_results );
 
 	echo "</form><form action=\"" . https_self_url() . "\" method=\"POST\">\n";
@@ -2005,27 +1970,28 @@ function image_files_for( $row )
 // delete all posts from an IP, maintaining the consistency of the files and db
 function delallbyip($ip, $imgonly, $replies_only = false)
 {
-	$ip = mysql_real_escape_string( $ip );
-	
-	if ($ip === '') {
+	if ($ip === '' || $ip === false) {
 	  error('Invalid IP');
 	}
-	
+
+	$bdb = YotsubaDB::board();
+	$gdb = YotsubaDB::global();
+
 	if ($replies_only) {
 		$_rep_sql = ' AND resto > 0';
 	}
 	else {
 		$_rep_sql = '';
 	}
-	
-	mysql_board_call( "LOCK TABLES `" . SQLLOG . "` WRITE" );
-	$query          = mysql_board_call("SELECT * FROM `" . SQLLOG . "` WHERE archived = 0 AND host='$ip'" . $_rep_sql);
+
+	$bdb->lockTable(SQLLOG);
+	$query          = $bdb->query("SELECT * FROM {$bdb->qi(SQLLOG)} WHERE archived = 0 AND host = ?" . $_rep_sql, [$ip]);
 	$del_files      = array(); // keys = delete these files
 	$update_threads = array(); // keys = update these threads' HTML
 	$del_threads    = array(); // keys = delete replies to these thread numbers from db
 	$del_all        = array(); //  keys = these are being deleted from the db (used to clean up reports etc.)
 
-	while( $row = mysql_fetch_assoc( $query ) ) {
+	while( $row = $query->fetch(PDO::FETCH_ASSOC) ) {
 		// we always need to delete the image files
 		$del_files += image_files_for( $row );
 
@@ -2055,12 +2021,12 @@ function delallbyip($ip, $imgonly, $replies_only = false)
 			}
 
 			$del_threads[ $row[ 'no' ] ] = 1;
-			$replyquery                  = mysql_board_call( "SELECT * FROM `" . SQLLOG . "` WHERE resto='{$row[ 'no' ]}'" );
-			while( $replyrow = mysql_fetch_assoc( $replyquery ) ) {
+			$replyquery                  = $bdb->query("SELECT * FROM {$bdb->qi(SQLLOG)} WHERE resto = ?", [$row['no']]);
+			while( $replyrow = $replyquery->fetch(PDO::FETCH_ASSOC) ) {
 				$del_files += image_files_for( $replyrow );
 				$del_all[ $replyrow[ 'no' ] ] = 1;
 			}
-			mysql_free_result( $replyquery );
+			$replyquery->closeCursor();
 		}
 
 		{
@@ -2077,23 +2043,23 @@ function delallbyip($ip, $imgonly, $replies_only = false)
 			//$row['com']      = mysql_escape_string( $row['com'] );
 			//$row['filename'] = mysql_escape_string( $row['filename'] );
 			validate_admin_cookies();
-			mysql_global_do( "INSERT INTO " . SQLLOGDEL . " (imgonly,postno,resto,board,name,sub,com,img,filename,admin,email,admin_ip,tool) values('%s',%d,%d,'%s','%s','%s','%s','%s','%s','%s','%s','%s', 'del-all-by-ip')", $imgonly, $row[ 'no' ], $row[ 'resto' ], SQLLOG, $adname, $row[ "sub" ], $row[ "com" ], $adfsize, $row[ "filename" ].$row['ext'], $auser, $row[ 'email' ], $_SERVER['REMOTE_ADDR']);
+			$gdb->query("INSERT INTO {$gdb->qi(SQLLOGDEL)} (imgonly,postno,resto,board,name,sub,com,img,filename,admin,email,admin_ip,tool) VALUES (?,?,?,?,?,?,?,?,?,?,?,?, 'del-all-by-ip')", [$imgonly, (int)$row['no'], (int)$row['resto'], SQLLOG, $adname, $row["sub"], $row["com"], $adfsize, $row["filename"].$row['ext'], $auser, $row['email'], $_SERVER['REMOTE_ADDR']]);
 		}
 	}
-	mysql_free_result( $query );
+	$query->closeCursor();
 
 	// delete IP's posts
 	if( !$imgonly ) {
-		mysql_board_call( "DELETE FROM `" . SQLLOG . "` WHERE host='$ip'" . $_rep_sql );
+		$bdb->query("DELETE FROM {$bdb->qi(SQLLOG)} WHERE host = ?" . $_rep_sql, [$ip]);
 		// delete replies to IP's parent posts
 		foreach( $del_threads as $parent => $unused ) {
-			mysql_board_call( "DELETE FROM `" . SQLLOG . "` WHERE resto='$parent'" );
+			$bdb->query("DELETE FROM {$bdb->qi(SQLLOG)} WHERE resto = ?", [$parent]);
 		}
 	}
 	else {
-		mysql_board_call( "UPDATE `" . SQLLOG . "` SET filedeleted=1,root=root WHERE host='$ip'" . $_rep_sql );
+		$bdb->query("UPDATE {$bdb->qi(SQLLOG)} SET filedeleted=1,root=root WHERE host = ?" . $_rep_sql, [$ip]);
 	}
-	mysql_board_call( "UNLOCK TABLES" );
+	$bdb->unlockTables();
 
 	// delete all necessary files (images and HTML)
 	foreach( $del_files as $file => $unused ) {
@@ -2107,8 +2073,8 @@ function delallbyip($ip, $imgonly, $replies_only = false)
 
 	// delete reports for deleted posts
 	foreach( $del_all as $no => $unused ) {
-		mysql_global_do( "DELETE FROM reports WHERE board='" . SQLLOG . "' AND no='$no'" );
-		mysql_global_do( "DELETE FROM reports_for_posts WHERE board='" . SQLLOG . "' AND postid='$no'" );
+		$gdb->query("DELETE FROM {$gdb->qi('reports')} WHERE board = ? AND no = ?", [SQLLOG, (int)$no]);
+		$gdb->query("DELETE FROM {$gdb->qi('reports_for_posts')} WHERE board = ? AND postid = ?", [SQLLOG, (int)$no]);
 	}
 
 	echo "<br><strong>Deleting posts...</strong><br>";
@@ -2142,18 +2108,19 @@ function admindelall()
 	global $onlyimgdel, $onlyrepdel, $id, $user, $pass;
 	$delno   = array();
 	$delflag = false;
-	reset( $_POST );
-	while( $item = each( $_POST ) ) {
-		if( $item[ 1 ] == 'delete' ) {
-			array_push( $delno, intval( $item[ 0 ] ) );
+	foreach( $_POST as $key => $value ) {
+		if( $value == 'delete' ) {
+			array_push( $delno, intval( $key ) );
 			$delflag = true;
 		}
 	}
 	if( $delflag ) {
-		if( !$result = mysql_board_call( "SELECT host FROM `" . SQLLOG . "` WHERE archived = 0 AND no=" . mysql_real_escape_string( $id ) ) ) {
+		$_bdb = YotsubaDB::board();
+		$result = $_bdb->query("SELECT host FROM {$_bdb->qi(SQLLOG)} WHERE archived = 0 AND no = ?", [(int)$id]);
+		if( !$result ) {
 			echo S_SQLFAIL;
 		}
-		$row = mysql_fetch_row( $result );
+		$row = $result->fetch(PDO::FETCH_NUM);
 		list( $host ) = $row;
 		delallbyip($host, $onlyimgdel, $onlyrepdel === true);
 	}
@@ -2181,10 +2148,10 @@ function ban_template_js($post_has_file = true, $is_thread = false) {
   
   $level_map = get_level_map();
   
-  $query = "SELECT * FROM ban_templates ORDER BY LENGTH(rule), rule ASC";
-  $q = mysql_global_call($query);
-  
-  while ($r = mysql_fetch_assoc($q)) {
+  $db = YotsubaDB::global();
+  $q = $db->query("SELECT * FROM {$db->qi('ban_templates')} ORDER BY LENGTH(rule), rule ASC");
+
+  while ($r = $q->fetch(PDO::FETCH_ASSOC)) {
     if (!preg_match('#^(global|' . BOARD_DIR . ')[0-9]+$#', $r[ 'rule' ])) {
       continue;
     }
@@ -2347,16 +2314,18 @@ function do_post_quarantine( $board, $post )
 	All images of posts in the same thread
 	*/
 
-	mysql_board_lock( true );
+	$bdb = YotsubaDB::board();
+	$gdb = YotsubaDB::global();
+	$bdb->lockTable(SQLLOG);
 	$host = $post[ "host" ];
-	
+
 	$post_json = make_post_json($post);
 	$postno = $post["no"];
-	
-	$xffres = mysql_global_do("select xff from xff where board='%s' and postno=%d", $board, $postno);
-	if (mysql_num_rows($xffres)) $xff = mysql_fetch_assoc($xffres)["xff"];
-	$res = mysql_global_do("insert into ncmec_reports (board,post_num,post_json,xff) value ('%s',%d,'%s','%s')", $board, $postno, $post_json, $xff);
-	$reportid = mysql_global_insert_id();
+
+	$xffres = $gdb->query("SELECT xff FROM {$gdb->qi('xff')} WHERE board = ? AND postno = ?", [$board, (int)$postno]);
+	if ($xffres->rowCount()) $xff = $xffres->fetch(PDO::FETCH_ASSOC)["xff"];
+	$gdb->query("INSERT INTO {$gdb->qi('ncmec_reports')} (board,post_num,post_json,xff) VALUES (?,?,?,?)", [$board, (int)$postno, $post_json, $xff]);
+	$reportid = $gdb->lastInsertIdForTable('ncmec_reports', 'id');
 	
 	$path = "/www/quarantine/$reportid";
 	mkdir( $path );
@@ -2369,18 +2338,18 @@ function do_post_quarantine( $board, $post )
 	
 	if (!file_exists($dst_path)) {
 		// guess we can't quarantine it after all
-		mysql_global_do("delete from ncmec_reports where id=%d", $reportid);
+		$gdb->query("DELETE FROM {$gdb->qi('ncmec_reports')} WHERE id = ?", [(int)$reportid]);
 	} else {
 		$resto = $post["resto"];
-		$respred = $resto ? "no=$resto or resto=$resto" : "resto=$postno";
-		$q = mysql_board_call( "select * from `%s` where host='%s' and no!=%d and ($respred)", SQLLOG, $host, $postno );
-		while( $p = mysql_fetch_assoc( $q ) ) {
+		$respred = $resto ? "no=" . (int)$resto . " OR resto=" . (int)$resto : "resto=" . (int)$postno;
+		$q = $bdb->query("SELECT * FROM {$bdb->qi(SQLLOG)} WHERE host = ? AND no != ? AND ($respred)", [$host, (int)$postno]);
+		while( $p = $q->fetch(PDO::FETCH_ASSOC) ) {
 			$i = $p[ "tim" ] . $p[ "ext" ];
 			mkdir( "$path/images" );
 			@copy( IMG_DIR . "/$i", "$path/images/$i" );
 		}
 	}
-	mysql_board_unlock();
+	$bdb->unlockTables();
 }
 
 function do_template_special_action($template, $board, $row, $is_manager = false) {
@@ -2392,7 +2361,8 @@ function do_template_special_action($template, $board, $row, $is_manager = false
     if( $template['special_action'] === 'quarantine' || $template['special_action'] === 'revokepass_spam' || $template['special_action'] === 'revokepass_illegal') {
       $pass = $row['4pass_id'];
       $status = $template['special_action'] === 'revokepass_spam' ? 4 : 5;
-      mysql_global_do("UPDATE pass_users SET status = %d WHERE user_hash = '%s' AND status = 0 LIMIT 1", $status, $pass);
+      $db = YotsubaDB::global();
+      $db->query("UPDATE {$db->qi('pass_users')} SET status = ? WHERE user_hash = ? AND status = 0 LIMIT 1", [$status, $pass]);
     }
   }
 }
@@ -2410,10 +2380,10 @@ function process_auto_rangeban($ip, $browser_id, $thread_id, $post_id, $tpl_id, 
   }
   
   // Prune stale entries
-  $sql = "DELETE FROM event_log WHERE type = 'rangeban_hint' AND created_on < DATE_SUB(NOW(), INTERVAL 1 HOUR)";
-  
-  $res = mysql_global_call($sql);
-  
+  $db = YotsubaDB::global();
+
+  $res = $db->query("DELETE FROM {$db->qi('event_log')} WHERE type = 'rangeban_hint' AND created_on < {$db->dateInterval('NOW()', 1, 'HOUR')}");
+
   if (!$res) {
     return false;
   }
@@ -2431,19 +2401,13 @@ function process_auto_rangeban($ip, $browser_id, $thread_id, $post_id, $tpl_id, 
   }
   // Ban Request
   else {
-    $sql =<<<SQL
-SELECT COUNT(DISTINCT ip) FROM event_log WHERE
-type = 'rangeban_hint' AND board = '%s' AND thread_id = $thread_id AND ua_sig = '%s'
-AND ip LIKE '%s'
-SQL;
-    
-    $res = mysql_global_call($sql, BOARD_DIR, $browser_id, $range_sql);
-    
+    $res = $db->query("SELECT COUNT(DISTINCT ip) FROM {$db->qi('event_log')} WHERE type = 'rangeban_hint' AND board = ? AND thread_id = ? AND ua_sig = ? AND ip LIKE ?", [BOARD_DIR, $thread_id, $browser_id, $range_sql]);
+
     if (!$res) {
       return false;
     }
-    
-    $count = (int)mysql_fetch_row($res)[0];
+
+    $count = (int)$res->fetch(PDO::FETCH_NUM)[0];
     
     if ($count > 0) {
       $need_rangeban = true;
@@ -2452,19 +2416,13 @@ SQL;
   
   if ($need_rangeban) {
     // Skip if a rangeban already exists
-    $sql =<<<SQL
-SELECT COUNT(*) FROM event_log WHERE
-type = 'rangeban' AND board = '%s' AND thread_id = $thread_id AND ua_sig = '%s'
-AND ip LIKE '%s' AND created_on > DATE_SUB(NOW(), INTERVAL 1 HOUR)
-SQL;
-  
-    $res = mysql_global_call($sql, BOARD_DIR, $browser_id, $range_sql);
-    
+    $res = $db->query("SELECT COUNT(*) FROM {$db->qi('event_log')} WHERE type = 'rangeban' AND board = ? AND thread_id = ? AND ua_sig = ? AND ip LIKE ? AND created_on > {$db->dateInterval('NOW()', 1, 'HOUR')}", [BOARD_DIR, $thread_id, $browser_id, $range_sql]);
+
     if (!$res) {
       return false;
     }
-    
-    $count = (int)mysql_fetch_row($res)[0];
+
+    $count = (int)$res->fetch(PDO::FETCH_NUM)[0];
     
     if ($count > 0) {
       return true;
@@ -2512,23 +2470,12 @@ function admin_collect_related($ip, $pwd) {
   
   $range_sql = "{$range_sql[0]}.{$range_sql[1]}.";
   
-  $sql = <<<SQL
-SELECT SQL_NO_CACHE host, 4pass_id FROM `%s`
-WHERE archived = 0 AND pwd = '%s'
-AND host NOT LIKE '$range_sql%%'
-AND email NOT LIKE '1%%'
-GROUP BY host
-SQL;
-  
-  $res = mysql_board_call($sql, BOARD_DIR, $pwd);
-  
-  if (!$res) {
-    return null;
-  }
-  
+  $bdb = YotsubaDB::board();
+  $res = $bdb->query("SELECT host, {$bdb->qi('4pass_id')} FROM {$bdb->qi(BOARD_DIR)} WHERE archived = 0 AND pwd = ? AND host NOT LIKE ? AND email NOT LIKE '1%' GROUP BY host", [$pwd, $range_sql . '%']);
+
   $data = [];
-  
-  while ($post = mysql_fetch_assoc($res)) {
+
+  while ($post = $res->fetch(PDO::FETCH_ASSOC)) {
     $data[] = $post;
   }
   
@@ -2568,12 +2515,9 @@ function admin_toggle_protected_thread($flag, $board, $thread_id, $duration = 18
 
 function admin_get_template_by_id($tpl_id) {
   $tpl_id = (int)$tpl_id;
-  $sql = "SELECT * FROM ban_templates WHERE no = $tpl_id LIMIT 1";
-  $res = mysql_global_call($sql);
-  if (!$res) {
-    return false;
-  }
-  return mysql_fetch_assoc($res);
+  $db = YotsubaDB::global();
+  $res = $db->query("SELECT * FROM {$db->qi('ban_templates')} WHERE no = ? LIMIT 1", [$tpl_id]);
+  return $res->fetch(PDO::FETCH_ASSOC);
 }
 
 function admin_is_ip_rangebanned($ip) {
@@ -2588,45 +2532,25 @@ function admin_is_ip_rangebanned($ip) {
     $asn = 0;
   }
   
+  $db = YotsubaDB::global();
+
   if ($asn > 0) {
-    $query =<<<SQL
-SELECT id FROM iprangebans
-WHERE asn = $asn
-AND active = 1 AND boards = '' AND expires_on = 0 AND report_only = 0
-LIMIT 1
-SQL;
-    
-    $res = mysql_global_call($query);
-    
-    if (!$res) {
-      return false;
-    }
-    
-    if (mysql_num_rows($res) > 0) {
+    $res = $db->query("SELECT id FROM {$db->qi('iprangebans')} WHERE asn = ? AND active = 1 AND boards = '' AND expires_on = 0 AND report_only = 0 LIMIT 1", [$asn]);
+
+    if ($res->rowCount() > 0) {
       return true;
     }
   }
-  
+
   $long_ip = ip2long($ip);
-  
+
   if (!$long_ip) {
-    $this->error('Invalid IP.');
+    error('Invalid IP.');
   }
-  
-  $query =<<<SQL
-SELECT id FROM iprangebans
-WHERE range_start <= $long_ip AND range_end >= $long_ip
-AND active = 1 AND boards = '' AND expires_on = 0 AND report_only = 0
-LIMIT 1
-SQL;
-  
-  $res = mysql_global_call($query);
-  
-  if (!$res) {
-    return false;
-  }
-  
-  return mysql_num_rows($res) > 0;
+
+  $res = $db->query("SELECT id FROM {$db->qi('iprangebans')} WHERE range_start <= ? AND range_end >= ? AND active = 1 AND boards = '' AND expires_on = 0 AND report_only = 0 LIMIT 1", [$long_ip, $long_ip]);
+
+  return $res->rowCount() > 0;
 }
 
 function admin_protect_thread() {
@@ -2783,11 +2707,13 @@ function adminban()
     $template_used = (int)$_POST['templateno'];
   }
 	
-	if( !$result = mysql_board_call( "SELECT HIGH_PRIORITY * FROM `" . SQLLOG . "` WHERE no=" . $postid ) ) {
+	$bdb = YotsubaDB::board();
+	$gdb = YotsubaDB::global();
+	$result = $bdb->query("SELECT * FROM {$bdb->qi(SQLLOG)} WHERE no = ?", [$postid]);
+	$row = $result->fetch(PDO::FETCH_ASSOC);
+	if( !$row ) {
 		die( 'Post no longer exists.<script language="JavaScript">setTimeout("self.close()", 3000); postBack("error-ban-' . $board . '-' . $postid . '");</script>' );
 	}
-	$row = mysql_fetch_assoc( $result );
-	if( $row === false ) die( 'Post no longer exists.<script language="JavaScript">setTimeout("self.close()", 3000); postBack("error-ban-' . $board . '-' . $postid . '");</script>' );
 	
 	if ($row['archived']) {
 	  die('This post is archived.<script language="JavaScript">setTimeout("self.close()", 3000); postBack("error-ban-' . $board . '-' . $postid . '");</script>');
@@ -2814,11 +2740,9 @@ function adminban()
 	$name = str_replace( '</span> <span class="postertrip">!', ' #', $name );
 	$name = preg_replace( '/<[^>]+>/', '', $name ); // remove all remaining html crap
 
-	if( !$result = mysql_board_call( "select COUNT(*) FROM `" . SQLLOG . "` WHERE host='$host' AND no=$resto" ) ) {
-		echo S_SQLFAIL;
-	}
-	
-	if (mysql_result($result, 0, 0) || $resto == 0) {
+	$result = $bdb->query("SELECT COUNT(*) FROM {$bdb->qi(SQLLOG)} WHERE host = ? AND no = ?", [$host, (int)$resto]);
+
+	if ($result->fetch(PDO::FETCH_NUM)[0] || $resto == 0) {
 		$poster_is_op = true;
 	}
 	else {
@@ -2841,7 +2765,8 @@ if( $submit != "" ) { // pressed submit
   
 	if ($template_used > -1) {
     if (!$template) {
-      $template = mysql_global_row("ban_templates", "no", $template_used);
+      $_tpl_res = $gdb->query("SELECT * FROM {$gdb->qi('ban_templates')} WHERE no = ? LIMIT 1", [$template_used]);
+      $template = $_tpl_res->fetch(PDO::FETCH_ASSOC);
     }
 	  
 	  if (!$template) {
@@ -2911,35 +2836,35 @@ if( $submit != "" ) { // pressed submit
 	}
 	
   if ($row['resto']) {
-    $sub_query = mysql_board_call("SELECT sub FROM `%s` WHERE no = %d", $board, $row['resto']);
-    $sub_res = mysql_fetch_assoc($sub_query);
+    $sub_query = $bdb->query("SELECT sub FROM {$bdb->qi($board)} WHERE no = ?", [(int)$row['resto']]);
+    $sub_res = $sub_query->fetch(PDO::FETCH_ASSOC);
     if ($sub_res) {
       $rel_sub = $sub_res['sub'];
-      
+
       if (strpos($rel_sub, 'SPOILER<>') === 0) {
         $rel_sub = substr($rel_sub, 9);
       }
-      
+
       if ($rel_sub !== '') {
         $nrow['rel_sub'] = $rel_sub;
       }
     }
   }
-	
+
   // FIXME: email field
   if (isset($row['email'])) {
     $nrow['ua'] = $row['email'];
     unset($nrow['email']);
   }
-  
+
   $post_json = json_encode($nrow);
   $no_thumb = false;
-  
+
   if ($template && $template['save_post'] !== 'everything') {
     $no_thumb = true;
   }
-  
-	$result = mysql_global_do( "INSERT INTO " . SQLLOGBAN . " (board,global,zonly,name,host,reverse,xff,reason,length,admin,md5,4pass_id,post_num,rule,post_time,post_json,template_id,admin_ip,tripcode,password) VALUES ('%s', %d, %d, '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', %d, '%s', FROM_UNIXTIME(%d), '%s', %d, '%s', '%s', '%s')", $board, $globalban, $zonly, $name, $host, $reverse, $xff, $reason, $length, $bannedby, $md5, $row[ '4pass_id' ], $no, $rule, $time, $post_json, $template_used, $_SERVER['REMOTE_ADDR'], $tripcode, $password );
+
+	$result = $gdb->query("INSERT INTO {$gdb->qi(SQLLOGBAN)} (board,global,zonly,name,host,reverse,xff,reason,length,admin,md5,{$gdb->qi('4pass_id')},post_num,rule,post_time,post_json,template_id,admin_ip,tripcode,password) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, {$gdb->fromUnixtime('?')}, ?, ?, ?, ?, ?)", [$board, (int)$globalban, (int)$zonly, $name, $host, $reverse, $xff, $reason, $length, $bannedby, $md5, $row['4pass_id'], (int)$no, $rule, (int)$time, $post_json, (int)$template_used, $_SERVER['REMOTE_ADDR'], $tripcode, $password]);
 
 	if( !$result ) {
 		echo S_SQLFAIL;
@@ -2962,13 +2887,11 @@ if( $submit != "" ) { // pressed submit
 		//if( isset( $_GET[ 'santa' ] ) && $_GET[ 'santa' ] == 'hohoho' ) $samessage = 'USER WAS GIVEN COAL FOR THIS POST';
 		
 		if (($is_manager || has_flag('banmsg')) && isset($_POST['custombanmsg']) && $_POST['custombanmsg'] != '') {
-		  $samessage = mysql_real_escape_string(htmlspecialchars($_POST['custombanmsg'], ENT_QUOTES));
+		  $samessage = htmlspecialchars($_POST['custombanmsg'], ENT_QUOTES);
 		}
 
-		if( !$result = mysql_board_call( "UPDATE `" . SQLLOG . "` SET root=root,com=CONCAT(com,' <br><br><strong style=\"color: red;\">($samessage)</strong>') WHERE no=%d", $postid ) ) {
-			echo S_SQLFAIL;
-		}
-		mysql_board_call("UPDATE `%s` SET root=root,last_modified=%d where no=%d", SQLLOG, (int)$_SERVER['REQUEST_TIME'], ($resto ? $resto : $postid));
+		$bdb->query("UPDATE {$bdb->qi(SQLLOG)} SET root=root, com={$bdb->concat('com', '?')} WHERE no = ?", [' <br><br><strong style="color: red;">(' . $samessage . ')</strong>', (int)$postid]);
+		$bdb->query("UPDATE {$bdb->qi(SQLLOG)} SET root=root, last_modified=? WHERE no=?", [(int)$_SERVER['REQUEST_TIME'], ($resto ? (int)$resto : (int)$postid)]);
 		
 		if ($_POST['postban'] !== 'delpost' && $_POST['postban'] !== 'move' && $_POST['postban'] !== 'archive') {
 		  admin_clear_reports(BOARD_DIR, $postid);
@@ -2995,15 +2918,13 @@ if( $submit != "" ) { // pressed submit
 	}
 	//print "\n<br>rebuild : " . (microtime(1) - $start_time); //disabling because no point in showing it/leaks file paths
 	if( $template ) {
-    global $gcon;
-    $inserted_ban_id = mysql_insert_id($gcon);
+    $inserted_ban_id = $gdb->lastInsertId();
 		do_template_special_action( $template, $board, $row, $is_manager );
 		if( ( $template[ "blacklist" ] == "image" || $template[ 'blacklist' ] == 'rejectimage' ) && $md5 ) {
 			$blban = (int)( $template[ 'blacklist' ] === 'image' );
 			$len   = $blban ? $template['days'] : '0';
-			mysql_global_do( "insert into blacklist (field,contents,description,addedby,ban,banlength,banreason)" .
-					"values ('md5','%s','%s','%s','$blban','$len','%s')",
-				$md5, $template[ "name" ] . " (via ban template, ban ID: $inserted_ban_id)", $bannedby, $template[ "publicreason" ] );
+			$gdb->query("INSERT INTO {$gdb->qi('blacklist')} (field,contents,description,addedby,ban,banlength,banreason) VALUES ('md5',?,?,?,?,?,?)",
+				[$md5, $template["name"] . " (via ban template, ban ID: $inserted_ban_id)", $bannedby, $blban, $len, $template["publicreason"]]);
 		}
 	}
   
@@ -3070,22 +2991,14 @@ if( $submit != "" ) { // pressed submit
       $skip_rebuild = true;
     }
     else if ($_POST['postban'] === 'close') {
-      if (mysql_board_call('UPDATE `%s` SET closed = 1 WHERE no = %d LIMIT 1', BOARD_DIR, $no)) {
-        log_thread_opts_action($row, $row['sticky'], $row['permasage'], 1, $row['permaage'], $row['undead']);
-        echo ('<br><strong>Thread closed.</strong>');
-      }
-      else {
-        echo ('<br><strong>Could not close thread.</strong>');
-      }
+      $bdb->query("UPDATE {$bdb->qi(BOARD_DIR)} SET closed = 1 WHERE no = ? LIMIT 1", [(int)$no]);
+      log_thread_opts_action($row, $row['sticky'], $row['permasage'], 1, $row['permaage'], $row['undead']);
+      echo ('<br><strong>Thread closed.</strong>');
     }
     else if ($_POST['postban'] === 'permasage') {
-      if (mysql_board_call('UPDATE `%s` SET permasage = 1 WHERE no = %d LIMIT 1', BOARD_DIR, $no)) {
-        log_thread_opts_action($row, $row['sticky'], 1, $row['closed'], $row['permaage'], $row['undead']);
-        echo ('<br><strong>Thread perma-saged.</strong>');
-      }
-      else {
-        echo ('<br><strong>Could not perma-sage thread.</strong>');
-      }
+      $bdb->query("UPDATE {$bdb->qi(BOARD_DIR)} SET permasage = 1 WHERE no = ? LIMIT 1", [(int)$no]);
+      log_thread_opts_action($row, $row['sticky'], 1, $row['closed'], $row['permaage'], $row['undead']);
+      echo ('<br><strong>Thread perma-saged.</strong>');
     }
 	}
 	
@@ -3111,17 +3024,15 @@ if( $submit != "" ) { // pressed submit
 	//print "\n<br>total time: " . (microtime(1) - $start_time); //dont need to display this
 } else {
 	// Banning screen display
-	$adminuser = mysql_real_escape_string( $_COOKIE[ '4chan_auser' ] );
+	$adminuser = $_COOKIE[ '4chan_auser' ];
 	// see if user is banned
 	$ban_summary = get_bans_summary($host);
-	
+
 	if( $ban_summary['total'] > 0 ) { // don't bother checking the active ban if there weren't ever any bans on this IP...
-		if( !$banned = mysql_global_call( "SELECT host,board,global,zonly, DATE_FORMAT(length, 'Until %W, %M %D, %Y.') AS buntil FROM " . SQLLOGBAN . " WHERE host='" . $host . "' AND active=1" ) ) {
-			echo S_SQLFAIL;
-		}
-		$bannedrows = mysql_num_rows( $banned );
+		$banned = $gdb->query("SELECT host,board,global,zonly, DATE_FORMAT(length, 'Until %W, %M %D, %Y.') AS buntil FROM {$gdb->qi(SQLLOGBAN)} WHERE host = ? AND active=1", [$host]);
+		$bannedrows = $banned->rowCount();
 		if( $bannedrows > 0 ) {
-		  while ($ban_row = mysql_fetch_array($banned)) {
+		  while ($ban_row = $banned->fetch(PDO::FETCH_BOTH)) {
   			$buntil      = $ban_row[ 'buntil' ];
   			$gban        = $ban_row[ 'global' ];
   			$bannedboard = $ban_row[ 'board' ];
@@ -3253,10 +3164,9 @@ if( $submit != "" ) { // pressed submit
   // Browser ID
   $_post_meta = decode_user_meta($row['email']);
   
-	$query = "SELECT warn_req, ban_templates.name FROM ban_requests LEFT JOIN ban_templates ON ban_template = ban_templates.no WHERE host='%s'";
-	$result = mysql_global_call($query, $host);
+	$_br_result = $gdb->query("SELECT warn_req, {$gdb->qi('ban_templates')}.name FROM {$gdb->qi('ban_requests')} LEFT JOIN {$gdb->qi('ban_templates')} ON ban_template = {$gdb->qi('ban_templates')}.no WHERE host = ?", [$host]);
 	$brpending = array();
-	while ($row = mysql_fetch_assoc($result)) {
+	while ($row = $_br_result->fetch(PDO::FETCH_ASSOC)) {
 	  $brpending[] = $row['name'] . ($row['warn_req'] ? ' [Warn]' : '');
   }
   $brtooltip = join("\n", $brpending);
@@ -3530,30 +3440,15 @@ function adminToggleSpoiler($post, $new_spoiler) {
     $actionType = 2;
   }
   
-  $query = "UPDATE " . BOARD_DIR . " SET sub = '%s' WHERE no = %d LIMIT 1";
-  $res = mysql_board_call($query, $subject, $post['no']);
-  
-  if (!$res) {
-    die('Database error (ats).');
-  }
-  
+  $bdb = YotsubaDB::board();
+  $bdb->query("UPDATE {$bdb->qi(BOARD_DIR)} SET sub = ? WHERE no = ? LIMIT 1", [$subject, (int)$post['no']]);
+
   $maskShift = 128;
   $actionId = $maskShift + $actionType;
-  
-  $query =<<<SQL
-INSERT INTO actions_log (oldmask, newmask, postno, board, name, sub, com, filename, admin)
-VALUES (0, %d, %d, '%s', '%s', '%s', '%s', '%s', '%s')
-SQL;
-  
-  mysql_global_call($query,
-    $actionId,
-    $post['no'],
-    BOARD_DIR,
-    $post['name'],
-    $post['sub'],
-    $post['com'],
-    $post['filename'] . $post['ext'],
-    $_COOKIE['4chan_auser']
+
+  $gdb = YotsubaDB::global();
+  $gdb->query("INSERT INTO {$gdb->qi('actions_log')} (oldmask, newmask, postno, board, name, sub, com, filename, admin) VALUES (0, ?, ?, ?, ?, ?, ?, ?, ?)",
+    [$actionId, (int)$post['no'], BOARD_DIR, $post['name'], $post['sub'], $post['com'], $post['filename'] . $post['ext'], $_COOKIE['4chan_auser']]
   );
   
   return true;
@@ -3571,19 +3466,18 @@ function adminopt()
 	$post_closed    = intval( $_POST[ 'closed' ] );
 	$post_id        = (int)$id;
 
-	$adminuser = mysql_real_escape_string( $_COOKIE[ '4chan_auser' ] );
+	$adminuser = $_COOKIE[ '4chan_auser' ];
 
 	$is_managerplus = has_level( 'manager' ) || has_flag('developer');
 
-	if( !$result = mysql_board_call( "SELECT * FROM `" . SQLLOG . "` WHERE archived = 0 AND no=" . intval( $id ) ) ) {
-		echo S_SQLFAIL;
-	}
-	
-	if (!mysql_num_rows($result)) {
+	$bdb = YotsubaDB::board();
+	$result = $bdb->query("SELECT * FROM {$bdb->qi(SQLLOG)} WHERE archived = 0 AND no = ?", [intval($id)]);
+
+	if (!$result->rowCount()) {
 	  die("Thread not found.");
 	}
 
-	$row = mysql_fetch_assoc( $result );
+	$row = $result->fetch(PDO::FETCH_ASSOC);
 	
 	if (!$row) {
 	  die('Datbase error.');
@@ -3677,9 +3571,7 @@ function adminopt()
 		
 		echo '</ul><script language="JavaScript">setTimeout("self.close()", 3000); postBack("done-threadopt");</script>';
 		
-		if( !$result = mysql_board_call( "UPDATE `" . SQLLOG . "` SET %s WHERE no=%d", $vars, $post_id ) ) {
-			echo S_SQLFAIL;
-		}
+		$bdb->query("UPDATE {$bdb->qi(SQLLOG)} SET $vars WHERE no = ?", [(int)$post_id]);
 		
     log_thread_opts_action($row, $post_sticky, $post_permasage, $post_closed, $post_permaage, $post_undead);
 		
@@ -3696,7 +3588,7 @@ function adminopt()
 			if( $sticky == 1 ) {
 				echo ' checked data-cur="1"';
 				$sticknum = substr( $root, -2 );
-				if( $sticknum{0} == "0" ) $sticknum = substr( $sticknum, -1 );
+				if( $sticknum[0] == "0" ) $sticknum = substr( $sticknum, -1 );
 			}
 			else {
 				echo ' data-cur="0"';
@@ -3765,22 +3657,12 @@ function log_thread_opts_action($post_data, $sticky, $permasage, $closed, $perma
     return false;
   }
   
-  $query = <<<SQL
-INSERT INTO actions_log (oldmask,newmask,postno,board,name,sub,com,filename,admin)
-VALUES (%d, %d, %d, '%s', '%s', '%s', '%s', '%s', '%s')
-SQL;
-
-  return !!mysql_global_call($query,
-    $old_mask,
-    $new_mask,
-    $post_data['no'],
-    BOARD_DIR,
-    $post_data['name'],
-    $post_data['sub'],
-    $post_data['com'],
-    $post_data['filename'] . $post_data['ext'],
-    $_COOKIE['4chan_auser']
+  $db = YotsubaDB::global();
+  $db->query("INSERT INTO {$db->qi('actions_log')} (oldmask,newmask,postno,board,name,sub,com,filename,admin) VALUES (?,?,?,?,?,?,?,?,?)",
+    [$old_mask, $new_mask, (int)$post_data['no'], BOARD_DIR, $post_data['name'], $post_data['sub'], $post_data['com'], $post_data['filename'] . $post_data['ext'], $_COOKIE['4chan_auser']]
   );
+
+  return true;
 }
 
 function get_board_options_html() {
@@ -3859,20 +3741,22 @@ function adminExt()
 	if( !$thread ) return false;
 
 	$thread = (int)$thread;
-	if( !$result = mysql_board_call( "SELECT `host`, `no` FROM `%s` WHERE (no=%d OR resto=%d)$where", SQLLOG, $thread, $thread ) ) {
+	$bdb = YotsubaDB::board();
+	$result = $bdb->query("SELECT host, no FROM {$bdb->qi(SQLLOG)} WHERE (no = ? OR resto = ?)$where", [$thread, $thread]);
+	if( !$result ) {
 		echo S_SQLFAIL;
 
 		return false;
 	}
 	$json = array();
-	
+
 	$salt = file_get_contents('/www/keys/2014_admin.salt');
-	
+
 	if (!$salt) {
 	  die('Internal Server Error');
 	}
-	
-	while ($row = mysql_fetch_assoc($result)) {
+
+	while ($row = $result->fetch(PDO::FETCH_ASSOC)) {
     $hash = substr(base64_encode(pack( "H*", sha1($row['host'] . $salt))), 0, 8);
     
 		$json[$row['no']] = $hash;
@@ -3893,14 +3777,16 @@ function adminBanReq()
 	  die();
 	}
 
-	$result = mysql_board_call( "SELECT * FROM `%s` WHERE no=%d", $board, $no );
-	
-	if (!mysql_num_rows($result)) {
+	$bdb = YotsubaDB::board();
+	$gdb = YotsubaDB::global();
+	$result = $bdb->query("SELECT * FROM {$bdb->qi($board)} WHERE no = ?", [(int)$no]);
+
+	if (!$result->rowCount()) {
 		echo '<script language="JavaScript">postBack("error-ban-' . $board . '-' . $no . '");</script>';
 		error("This post doesn't exist anymore");
 	}
-	
-	$post = mysql_fetch_assoc($result);
+
+	$post = $result->fetch(PDO::FETCH_ASSOC);
 	
 	if ($post['archived']) {
 		echo '<script language="JavaScript">postBack("error-ban-' . $board . '-' . $no . '");</script>';
@@ -3915,19 +3801,13 @@ function adminBanReq()
 	
   if (!access_board(BOARD_DIR)) {
     // Check if the report is unlocked, weight threshold is 1500
-    $query = <<<SQL
-SELECT CEIL(SUM(IF(resto > 0, weight, weight * 1.25))) as total_weight
-FROM reports
-WHERE board = '%s' AND no = %d
-SQL;
-    
-    $result = mysql_global_call($query, $board, $no);
-    
+    $result = $gdb->query("SELECT CEIL(SUM({$gdb->ifExpr('resto > 0', 'weight', 'weight * 1.25')})) as total_weight FROM {$gdb->qi('reports')} WHERE board = ? AND no = ?", [$board, (int)$no]);
+
     if (!$result) {
       error('Database Error (abru1');
     }
-    
-    $total_weight = (int)mysql_fetch_row($result)[0];
+
+    $total_weight = (int)$result->fetch(PDO::FETCH_NUM)[0];
     
     if (!$total_weight || $total_weight < 1500) {
       error('You do not have permission to access this board.');
@@ -3947,8 +3827,8 @@ SQL;
 			error('You forgot to select a template.');
 		}
 		
-		$bquery = mysql_global_call( "SELECT * FROM ban_templates WHERE no=%d", $template );
-		$bres   = mysql_fetch_assoc( $bquery );
+		$bquery = $gdb->query("SELECT * FROM {$gdb->qi('ban_templates')} WHERE no = ?", [(int)$template]);
+		$bres   = $bquery->fetch(PDO::FETCH_ASSOC);
 		
     if (!has_level($bres['level'])) {
       error('You cannot use this template');
@@ -3960,10 +3840,10 @@ SQL;
     
 		$reason = $bres['publicreason'];
 		
-		$xffquery = mysql_global_call( "SELECT xff FROM xff WHERE board = '%s' AND postno = %d", $board, $no );
+		$xffquery = $gdb->query("SELECT xff FROM {$gdb->qi('xff')} WHERE board = ? AND postno = ?", [$board, (int)$no]);
 		$reverse  = gethostbyaddr( $post['host'] );
-		
-		if( $xffresult = mysql_fetch_row( $xffquery ) ) {
+
+		if( $xffresult = $xffquery->fetch(PDO::FETCH_NUM) ) {
 			if( !( $xff = gethostbyaddr( $xffresult[0] ) ) ) $xff = $xffresult[0];
 		}
 		
@@ -3989,8 +3869,8 @@ SQL;
     }
     
 		// Make sure we don't have any illegal reports (stop illegal images being stored)
-		$illegal = mysql_global_call( "SELECT COUNT(*) FROM reports WHERE board='%s' AND no=%d AND cat=2", $board, $_POST['no'] );
-		if ((mysql_result($illegal, 0, 0) == 0) && $bres['save_post'] === 'everything') {
+		$illegal = $gdb->query("SELECT COUNT(*) FROM {$gdb->qi('reports')} WHERE board = ? AND no = ? AND cat = 2", [$board, (int)$_POST['no']]);
+		if ($illegal->fetch(PDO::FETCH_NUM)[0] == 0 && $bres['save_post'] === 'everything') {
 			$salt = file_get_contents( SALTFILE );
 			$hash = sha1($board . $post['no'] . $salt);
 			
@@ -4010,8 +3890,8 @@ SQL;
 		}
 		
 		if ($post['resto']) {
-		  $sub_query = mysql_board_call("SELECT sub FROM `%s` WHERE no = %d", $board, $post['resto']);
-		  $sub_res = mysql_fetch_assoc($sub_query);
+		  $sub_query = $bdb->query("SELECT sub FROM {$bdb->qi($board)} WHERE no = ?", [(int)$post['resto']]);
+		  $sub_res = $sub_query->fetch(PDO::FETCH_ASSOC);
 		  if ($sub_res) {
 		    $rel_sub = $sub_res['sub'];
 		    
@@ -4030,7 +3910,7 @@ SQL;
     
 		delete_post($no, false, $template, 'ban-req');
 		
-		$res = mysql_global_call("INSERT INTO ban_requests SET host='%s', reverse='%s', pwd='%s', xff='%s', reason='', global = $tpl_global, tpl_name = '%s', ban_template='%s', board='%s', janitor='%s', spost='%s', post_json='%s', warn_req = %d", $post['host'], $reverse, $post['pwd'], $xff, $tpl_name, $template, $board, $janitor, serialize( $post ), json_for_post($board, $post), $warn_req);
+		$res = $gdb->query("INSERT INTO {$gdb->qi('ban_requests')} (host, reverse, pwd, xff, reason, global, tpl_name, ban_template, board, janitor, spost, post_json, warn_req) VALUES (?, ?, ?, ?, '', ?, ?, ?, ?, ?, ?, ?, ?)", [$post['host'], $reverse, $post['pwd'], $xff, (int)$tpl_global, $tpl_name, (int)$template, $board, $janitor, serialize($post), json_for_post($board, $post), (int)$warn_req]);
 		
 		if (!$res) {
 			error('Database error.');
@@ -4057,10 +3937,9 @@ SQL;
   
 	$name = str_replace( '</span> <span class="postertrip">!', ' !', $post[ 'name' ] );
 
-	$query = "SELECT warn_req, ban_templates.name FROM ban_requests LEFT JOIN ban_templates ON ban_template = ban_templates.no WHERE host='%s'";
-	$result = mysql_global_call($query, $post['host']);
+	$_br_result = $gdb->query("SELECT warn_req, {$gdb->qi('ban_templates')}.name FROM {$gdb->qi('ban_requests')} LEFT JOIN {$gdb->qi('ban_templates')} ON ban_template = {$gdb->qi('ban_templates')}.no WHERE host = ?", [$post['host']]);
 	$brpending = array();
-	while ($row = mysql_fetch_assoc($result)) {
+	while ($row = $_br_result->fetch(PDO::FETCH_ASSOC)) {
 	  $brpending[] = $row['name'] . ($row['warn_req'] ? ' [Warn]' : '');
   }
   $brtooltip = join("\n", $brpending);
@@ -4175,9 +4054,9 @@ HTML;
   $templates = array();
   $level_map = get_level_map();
   
-	$q = mysql_global_do("SELECT * FROM ban_templates ORDER BY length(rule), rule asc");
-  
-	while( $r = mysql_fetch_assoc( $q ) ) {
+	$q = $gdb->query("SELECT * FROM {$gdb->qi('ban_templates')} ORDER BY LENGTH(rule), rule ASC");
+
+	while( $r = $q->fetch(PDO::FETCH_ASSOC) ) {
     if (!preg_match('#^(global|' . BOARD_DIR . ')[0-9]+$#', $r['rule'])) {
       continue;
     }
@@ -4329,15 +4208,10 @@ function admin_toggle_spoiler() {
     echo '0'; die();
   }
   
-  $query = "SELECT * FROM `" . SQLLOG . "` WHERE no = %d";
-  
-  $res = mysql_board_call($query, $_GET['pid']);
-  
-  if (!$res) {
-    echo '0'; die();
-  }
-  
-  $post = mysql_fetch_assoc($res);
+  $bdb = YotsubaDB::board();
+  $res = $bdb->query("SELECT * FROM {$bdb->qi(SQLLOG)} WHERE no = ?", [(int)$_GET['pid']]);
+
+  $post = $res->fetch(PDO::FETCH_ASSOC);
   
   if (!$post) {
     echo '0'; die();

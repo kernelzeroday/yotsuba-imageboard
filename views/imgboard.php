@@ -256,8 +256,7 @@ function form( &$dat, $resno, $admin = '', $isreptemp = false, $stripm = false )
 		}
 	}
 	else if (!$stripm) { // not for catalog
-	  // Contest banners
-	  $dat .= '<hr class="aboveMidAd"><div class="middlead center">' . get_contest_banner() . '</div>';
+	  $dat .= '<hr class="aboveMidAd"><div class="middlead center" id="contestBannerCnt"></div>';
   }
   
   if (!$resno || !$closed) {
@@ -321,10 +320,10 @@ function updatelog_real( $resno = 0, $noidx = 0, $lazy_rebuild = false )
 	
 	if( !IS_REBUILDD ) set_time_limit( 60 );
 	
-	// DDOS Protection
-	if( $_SERVER['REQUEST_METHOD'] == 'GET' && !has_level() ) {
-		die();
-	}
+	// DDOS Protection (disabled for local use)
+	// if( $_SERVER['REQUEST_METHOD'] == 'GET' && !has_level() ) {
+	// 	die();
+	// }
 
 	if( STATIC_REBUILD && $mode != 'nothing' ) {
 		$noidx = 1;
@@ -516,20 +515,20 @@ function updatelog_real( $resno = 0, $noidx = 0, $lazy_rebuild = false )
 				$middle_reply_idx = 0;
 			}
 			
-			while (list($resrow) = each($sorted_replies)) {
+			foreach ($sorted_replies as $resrow => $_unused) {
 				if( $s > 0 ) {
 					$s--;
 					continue;
 				}
-				
+
 				if (!$log[$resrow]['no']) {
 					break;
 				}
-				
+
 				$dat .= renderPostHtml($resrow, $resno);
-				
+
 				$repCount++;
-				
+
 				if ($repCount == $middle_reply_idx) {
 					$dat .= $inter_ad_html;
 				}
@@ -606,7 +605,25 @@ function updatelog_real( $resno = 0, $noidx = 0, $lazy_rebuild = false )
 					<option value="Futaba New">Futaba</option>
 					<option value="Burichan New">Burichan</option>
 					<option value="Tomorrow">Tomorrow</option>
-          <option value="Photon">Photon</option>';
+					<option value="Photon">Photon</option>
+					<option value="Paisley">Paisley</option>
+					<option value="Neo Paisley">Neo Paisley</option>
+					<option value="Gentlebot">Gentlebot</option>
+					<option value="Dark">Dark</option>
+					<option value="Obsidian">Obsidian</option>
+					<option value="Sakura">Sakura</option>
+					<option value="Rainbow">Rainbow</option>
+					<option value="Nigrachan">Nigrachan</option>
+					<option value="Kusaba X">Kusaba X</option>
+					<option value="Tomorrow 99">Tomorrow (99)</option>
+					<option value="Abyss">Abyss</option>
+					<option value="Solarized Dark">Solarized Dark</option>
+					<option value="Solarized Light">Solarized Light</option>
+					<option value="Monokai">Monokai</option>
+					<option value="Kimbie">Kimbie</option>
+					<option value="Red">Red</option>
+					<option value="Quiet Light">Quiet Light</option>
+					<option value="Night Blue">Night Blue</option>';
       
       if (defined('CSS_EVENT_NAME') && CSS_EVENT_NAME) {
         $dat .= '<option value="_special">Special</option>';

@@ -1,5 +1,6 @@
 <?
 require_once 'db.php';
+require_once 'dbal.php';
 require_once 'rpc.php';
 
 if( !defined( "SQLLOGMOD" ) ) {
@@ -106,13 +107,14 @@ function access_check()
 
 	if( !$user || !$pass ) return;
 
-	$query = mysql_global_call( "SELECT allow,password_expired,level,flags,username,password,signed_agreement FROM mod_users WHERE username='%s' LIMIT 1", $user );
-	
-	if (!mysql_num_rows($query)) {
+	$db = YotsubaDB::global();
+	$query = $db->query("SELECT allow,password_expired,level,flags,username,password,signed_agreement FROM {$db->qi('mod_users')} WHERE username = ? LIMIT 1", [$user]);
+
+	if ($query->rowCount() === 0) {
 	  return '';
 	}
 
-	list($allow, $expired, $level, $flags, $username, $password, $signed_agreement) = mysql_fetch_row($query);
+	list($allow, $expired, $level, $flags, $username, $password, $signed_agreement) = $query->fetch(PDO::FETCH_NUM);
 	
   $admin_salt = file_get_contents('/www/keys/2014_admin.salt');
   
@@ -173,9 +175,10 @@ function access_check2( $func = 0 )
 		$pass = $_COOKIE['4chan_apass'];
 	}
 	if( isset( $user ) && $user && $pass ) {
-		$result = mysql_global_call( "SELECT allow,deny,password_expired FROM " . SQLLOGMOD . " WHERE username='%s' and password='%s' limit 1", $user, $pass );
-		if( mysql_num_rows( $result ) != 0 ) {
-			list( $allowed, $denied, $expired ) = mysql_fetch_array( $result );
+		$db = YotsubaDB::global();
+		$result = $db->query("SELECT allow,deny,password_expired FROM {$db->qi(SQLLOGMOD)} WHERE username = ? AND password = ? LIMIT 1", [$user, $pass]);
+		if( $result->rowCount() != 0 ) {
+			list( $allowed, $denied, $expired ) = $result->fetch(PDO::FETCH_NUM);
 			if( $expired ) {
 				die( 'Your password has expired; check IRC for instructions on changing it.' );
 			}
@@ -255,8 +258,9 @@ function add_ban( $ip, $reason, $days = -1, $zonly = false, $origname = 'Anonymo
 	}
 
 	// FIXME add unique index to banned_users instead
-	$prev = mysql_global_call( "SELECT COUNT(*)>0 FROM " . SQLLOGBAN . " WHERE active=1 AND global=1 AND host='%s'", $ip );
-	list( $nprev ) = mysql_fetch_array( $prev );
+	$db = YotsubaDB::global();
+	$prev = $db->query("SELECT COUNT(*)>0 FROM {$db->qi(SQLLOGBAN)} WHERE active=1 AND global=1 AND host = ?", [$ip]);
+	list( $nprev ) = $prev->fetch(PDO::FETCH_NUM);
 	if( $nprev > 0 ) return false;
   
 	if ($no_reverse) {
@@ -292,8 +296,9 @@ function add_ban( $ip, $reason, $days = -1, $zonly = false, $origname = 'Anonymo
 	else {
 		$banned_by = $user;
 	}
-	
-	mysql_global_do( "INSERT INTO " . SQLLOGBAN . " (global,board,host,reverse,reason,admin,zonly,length,name,tripcode,4pass_id,post_num,admin_ip) values (%d,'%s','%s','%s','%s','%s',%d,'%s','%s','%s','%s',%d,'%s')", !$zonly, $board, $ip, $rev, "$reason", $banned_by, $zonly, $length, $origname, $tripcode, $pass, $no, $_SERVER['REMOTE_ADDR'] );
+
+	$db = YotsubaDB::global();
+	$db->query("INSERT INTO {$db->qi(SQLLOGBAN)} (global,board,host,reverse,reason,admin,zonly,length,name,tripcode,`4pass_id`,post_num,admin_ip) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)", [!$zonly ? 1 : 0, $board, $ip, $rev, "$reason", $banned_by, $zonly ? 1 : 0, $length, $origname, $tripcode, $pass, (int)$no, $_SERVER['REMOTE_ADDR']]);
 
 	return true;
 }
@@ -303,8 +308,9 @@ function is_real_board( $board )
 	// no board
 	if( $board === "-" || $board === '' ) return true;
 
-	$res = mysql_global_call( "select count(*) from boardlist where dir='%s'", $board );
-	$row = mysql_fetch_row( $res );
+	$db = YotsubaDB::global();
+	$res = $db->query("SELECT COUNT(*) FROM {$db->qi('boardlist')} WHERE dir = ?", [$board]);
+	$row = $res->fetch(PDO::FETCH_NUM);
 
 	return ( $row[0] > 0 );
 }
@@ -364,10 +370,12 @@ function admin_login_fail()
 	$ip = ip2long( $_SERVER["REMOTE_ADDR"] );
 	clear_cookies();
 
-	mysql_global_call( "insert into user_actions (ip,board,action,time) values (%d,'%s','fail_login',now())", $ip, BOARD_DIR );
+	$db = YotsubaDB::global();
+	$db->query("INSERT INTO {$db->qi('user_actions')} (ip,board,action,time) VALUES (?,?,'fail_login',NOW())", [$ip, BOARD_DIR]);
 
-	$query = mysql_global_call( "select count(*)>%d from user_actions where ip=%d and action='fail_login' and time >= subdate(now(), interval 1 hour)", LOGIN_FAIL_HOURLY, $ip );
-	if( mysql_result( $query, 0, 0 ) ) {
+	$query = $db->query("SELECT COUNT(*) > ? FROM {$db->qi('user_actions')} WHERE ip = ? AND action = 'fail_login' AND time >= {$db->dateInterval('NOW()', 1, 'HOUR')}", [(int)LOGIN_FAIL_HOURLY, $ip]);
+	$row = $query->fetch(PDO::FETCH_NUM);
+	if( $row[0] ) {
 		auto_ban_poster( "", -1, 1, "failed to login to /" . BOARD_DIR . "/admin.php " . LOGIN_FAIL_HOURLY . " times", "Repeated admin login failures." );
 	}
 
@@ -378,14 +386,16 @@ function admin_login_fail()
 // for autobans
 function del_all_posts( $ip = false )
 {
-	$q      = mysql_global_call( "select sql_cache dir from boardlist" );
-	$boards = mysql_column_array( $q );
+	$db_global = YotsubaDB::global();
+	$q = $db_global->query("SELECT dir FROM {$db_global->qi('boardlist')}");
+	$boards = $q->fetchAll(PDO::FETCH_COLUMN, 0);
 
 	$host = $ip ? $ip : $_SERVER['REMOTE_ADDR'];
 
+	$db_board = YotsubaDB::board();
 	foreach( $boards as $b ) {
-		$q     = mysql_board_call( "select no from `%s` where host='%s'", $b, $host );
-		$posts = mysql_column_array( $q );
+		$q     = $db_board->query("SELECT no FROM {$db_board->qi($b)} WHERE host = ?", [$host]);
+		$posts = $q->fetchAll(PDO::FETCH_COLUMN, 0);
 		if( !count( $posts ) ) continue;
 		remote_delete_things( $b, $posts );
 	}
@@ -402,32 +412,23 @@ function auto_ban_poster($nametrip, $banlength, $global, $reason, $pubreason = '
 	}
 	
 	$host    = $_SERVER['REMOTE_ADDR'];
-	$reverse = mysql_real_escape_string(gethostbyaddr($host));
+	$reverse = gethostbyaddr($host);
 
-	$nametrip  = mysql_real_escape_string($nametrip);
 	$global    = ($global ? 1 : 0);
 	$board     = defined( 'BOARD_DIR' ) ? BOARD_DIR : '';
-	$reason    = mysql_real_escape_string($reason);
-	$pubreason = mysql_real_escape_string($pubreason);
-	
+
 	if ($pubreason) {
 		$pubreason .= "<>";
 	}
-  
-  if ($pass_id) {
-    $pass_id = mysql_real_escape_string($pass_id);
-  }
-  else {
+
+  if (!$pass_id) {
     $pass_id = '';
   }
-  
-  if ($pwd) {
-  	$pwd = mysql_real_escape_string($pwd);
-  }
-  else {
+
+  if (!$pwd) {
   	$pwd = '';
   }
-  
+
 	// check for whitelisted ban
 	if( whitelisted_ip() ) return;
 
@@ -457,26 +458,25 @@ function auto_ban_poster($nametrip, $banlength, $global, $reason, $pubreason = '
 		}
 	}
 	*/
-	
+
 	if ($banlength == -1) { // permanent
 		$length = '0000' . '00' . '00'; // YYYY/MM/DD
 	}
 	else {
 		$banlength = (int)$banlength;
-		
+
 		if ($banlength < 0) {
 			$banlength = 0;
 		}
-		
+
 		$length = date('Ymd', time() + $banlength * (24 * 60 * 60));
 	}
-	
+
 	$length .= "00" . "00" . "00"; // H:M:S
-	
-	$sql = "INSERT INTO " . SQLLOGBAN . " (board,global,name,host,reason,length,admin,reverse,post_time,4pass_id,password) VALUES('$board','$global','$nametrip','$host','{$pubreason}Auto-ban: $reason','$length','Auto-ban','$reverse',NOW(),'$pass_id','$pwd')";
-	
-	$res = mysql_global_call($sql);
-	
+
+	$db = YotsubaDB::global();
+	$res = $db->query("INSERT INTO {$db->qi(SQLLOGBAN)} (board,global,name,host,reason,length,admin,reverse,post_time,`4pass_id`,password) VALUES(?,?,?,?,?,?,?,?,NOW(),?,?)", [$board, $global, $nametrip, $host, "{$pubreason}Auto-ban: $reason", $length, 'Auto-ban', $reverse, $pass_id, $pwd]);
+
 	if (!$res) {
 		die(S_SQLFAIL);
 	}
@@ -514,17 +514,12 @@ function cloudflare_purge_url_old($file,$secondary = false)
 }
 
 function write_to_event_log($event, $ip, $args = []) {
-	$sql = <<<SQL
-INSERT INTO event_log(`type`, ip, board, thread_id, post_id, arg_num,
-arg_str, pwd, req_sig, ua_sig, meta)
-VALUES('%s', '%s', '%s', '%d', '%d', '%d',
-'%s', '%s', '%s', '%s', '%s')
-SQL;
-
-	return mysql_global_call($sql, $event, $ip,
-		$args['board'], $args['thread_id'], $args['post_id'], $args['arg_num'],
+	$db = YotsubaDB::global();
+	return $db->query("INSERT INTO {$db->qi('event_log')} ({$db->qi('type')}, ip, board, thread_id, post_id, arg_num, arg_str, pwd, req_sig, ua_sig, meta) VALUES (?,?,?,?,?,?,?,?,?,?,?)", [
+		$event, $ip,
+		$args['board'], (int)$args['thread_id'], (int)$args['post_id'], (int)$args['arg_num'],
 		$args['arg_str'], $args['pwd'], $args['req_sig'], $args['ua_sig'], $args['meta']
-	);
+	]);
 }
 
 function log_staff_event($event, $username, $ip, $pwd, $board, $post) {

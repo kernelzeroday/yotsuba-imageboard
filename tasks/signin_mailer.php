@@ -64,55 +64,41 @@ MSG;
 // ---
 
 // Cleanup expired entries to not keep plaintext emails for too long.
+$db = YotsubaDB::global();
 $tbl = TBL;
 
 $ttl = (int)ENTRY_TTL;
 
-$sql = "DELETE FROM `$tbl` WHERE created_on <= DATE_SUB(NOW(), INTERVAL $ttl SECOND)";
-
-$res = mysql_global_call($sql);
-
-if (!$res) {
-  echo "DB error while pruning stale entries. Aborting\n";
-  exit(-1);
-}
+$db->query("DELETE FROM {$db->qi($tbl)} WHERE created_on <= " . $db->dateInterval($db->now(), $ttl, 'SECOND'));
 
 // Start sending mails
 $batch_size = (int)BATCH_SIZE;
 
-$sql = "SELECT id, email, token FROM `$tbl` ORDER BY id ASC LIMIT $batch_size";
-
-$res = mysql_global_call($sql);
-
-if (!$res) {
-  echo "DB error while fetching entries. Aborting\n";
-  exit(-1);
-}
+$res = $db->query("SELECT id, email, token FROM {$db->qi($tbl)} ORDER BY id ASC LIMIT {$batch_size}");
 
 $sent_count = 0;
 $error_count = 0;
 
-while ($row = mysql_fetch_assoc($res)) {
+while ($row = $res->fetch(PDO::FETCH_ASSOC)) {
   $id = (int)$row['id'];
   $email = $row['email'];
   $token = $row['token'];
-  
+
   if (!$email || !$token) {
     $error_count++;
     continue;
   }
-  
+
   $ret = send_email($email, $token);
-  
+
   if ($ret) {
     $sent_count++;
-    $sql = "DELETE FROM `$tbl` WHERE id = $id LIMIT 1";
-    mysql_global_call($sql);
+    $db->query("DELETE FROM {$db->qi($tbl)} WHERE id = ? LIMIT 1", [$id]);
   }
   else {
     $error_count++;
   }
-  
+
   //usleep(10000); // 10ms
 }
 

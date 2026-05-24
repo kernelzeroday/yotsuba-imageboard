@@ -48,58 +48,62 @@ function csrf_attr() {
 
 function auth_encrypt($data) {
   $key = file_get_contents('/www/keys/2015_enc.key');
-  
+
   if (!$key) {
     return false;
   }
-  
-  $iv_size = mcrypt_get_iv_size(MCRYPT_RIJNDAEL_256, MCRYPT_MODE_CBC);
-  $iv = mcrypt_create_iv($iv_size, MCRYPT_RAND);
-  
-  $encrypted = mcrypt_encrypt(MCRYPT_RIJNDAEL_256, $key, $data, MCRYPT_MODE_CBC, $iv);
-  
+
+  $method = 'aes-256-cbc';
+  $iv_size = openssl_cipher_iv_length($method);
+  $iv = openssl_random_pseudo_bytes($iv_size);
+  $key = substr(hash('sha256', $key, true), 0, 32);
+
+  $encrypted = openssl_encrypt($data, $method, $key, OPENSSL_RAW_DATA, $iv);
+
   if ($encrypted === false) {
     return false;
   }
-  
+
   return $iv . $encrypted;
 }
 
 function auth_decrypt($data) {
   $key = file_get_contents('/www/keys/2015_enc.key');
-  
+
   if (!$key) {
     return false;
   }
-  
-  $iv_size = mcrypt_get_iv_size(MCRYPT_RIJNDAEL_256, MCRYPT_MODE_CBC);
+
+  $method = 'aes-256-cbc';
+  $iv_size = openssl_cipher_iv_length($method);
   $iv_dec = substr($data, 0, $iv_size);
-  
+
   $data = substr($data, $iv_size);
-  
-  $data = mcrypt_decrypt(MCRYPT_RIJNDAEL_256, $key, $data, MCRYPT_MODE_CBC, $iv_dec);
-  
+  $key = substr(hash('sha256', $key, true), 0, 32);
+
+  $data = openssl_decrypt($data, $method, $key, OPENSSL_RAW_DATA, $iv_dec);
+
   if ($data === false) {
     return false;
   }
-  
-  return rtrim($data, "\0");
+
+  return $data;
 }
 
 function verify_one_time_pwd($username, $otp) {
   if (!$otp) {
     return false;
   }
-  
-  $query = "SELECT auth_secret FROM mod_users WHERE username = '%s' LIMIT 1";
-  
-  $res = mysql_global_call($query, $username);
-  
+
+  $db = YotsubaDB::global();
+
+  $res = $db->query("SELECT auth_secret FROM {$db->qi('mod_users')} WHERE username = ? LIMIT 1", [$username]);
+
   if (!$res) {
     return false;
   }
-  
-  $enc_secret = mysql_fetch_row($res)[0];
+
+  $enc_secret = $res->fetch(PDO::FETCH_NUM)[0];
   
   if (!$enc_secret) {
     return false;
@@ -221,18 +225,19 @@ function is_user()
 function auth_user($skip_agreement = false) {
 	global $auth;
 
-	$user = $_COOKIE['4chan_auser'];
-	$pass = $_COOKIE['apass'];
-	
+	$user = isset($_COOKIE['4chan_auser']) ? $_COOKIE['4chan_auser'] : '';
+	$pass = isset($_COOKIE['apass']) ? $_COOKIE['apass'] : '';
+
 	if( !$user || !$pass ) return false;
 
-	$query = mysql_global_call("SELECT * FROM `%s` WHERE `username` = '%s' LIMIT 1", SQLLOGMOD, $user);
-	
-	if (!mysql_num_rows($query)) {
+	$db = YotsubaDB::global();
+	$query = $db->query("SELECT * FROM {$db->qi(SQLLOGMOD)} WHERE {$db->qi('username')} = ? LIMIT 1", [$user]);
+
+	if ($query->rowCount() === 0) {
 	  return false;
   }
-  
-	$fetch = mysql_fetch_assoc($query);
+
+	$fetch = $query->fetch(PDO::FETCH_ASSOC);
 	
   $admin_salt = file_get_contents('/www/keys/2014_admin.salt');
   
@@ -251,7 +256,7 @@ function auth_user($skip_agreement = false) {
 	}
 	
 	if (!$skip_agreement) {
-  	if ($fetch['signed_agreement'] == 0 && basename($_SERVER['SELF_PATH']) !== 'agreement.php' && basename($_SERVER['SELF_PATH']) !== 'agreement_genkey.php') {
+  	if ($fetch['signed_agreement'] == 0 && isset($_SERVER['SELF_PATH']) && basename($_SERVER['SELF_PATH']) !== 'agreement.php' && basename($_SERVER['SELF_PATH']) !== 'agreement_genkey.php') {
   		die('You must agree to the 4chan Volunteer Moderator Agreement in order to access moderation tools. Please check your e-mail for more information.');
   	}
 	}
@@ -301,7 +306,7 @@ function auth_user($skip_agreement = false) {
     $ua = $_SERVER['HTTP_USER_AGENT'];
   }
   
-  mysql_global_call("UPDATE `%s` SET ips = '$ips_array', last_ua = '%s' WHERE id = %d LIMIT 1", SQLLOGMOD, $ua, $fetch['id']);
+  $db->query("UPDATE {$db->qi(SQLLOGMOD)} SET ips = ?, last_ua = ? WHERE id = ? LIMIT 1", [$ips_array, $ua, $fetch['id']]);
   
 	return true;
 }
@@ -443,9 +448,10 @@ function can_delete( $resno )
 	if( has_level( 'janitor' ) && access_board( BOARD_DIR ) ) return true;
 	//if( !access_board(BOARD_DIR) ) return false;
 
-	$query         = mysql_global_do( "SELECT COUNT(*) from reports WHERE board='%s' AND no=%d AND cat=2", BOARD_DIR, $resno );
-	$illegal_count = mysql_result( $query, 0, 0 );
-	mysql_free_result( $query );
+	$db = YotsubaDB::global();
+	$query         = $db->query("SELECT COUNT(*) FROM {$db->qi('reports')} WHERE board = ? AND no = ? AND cat = 2", [BOARD_DIR, $resno]);
+	$illegal_count = $query->fetch(PDO::FETCH_NUM)[0];
+	$query->closeCursor();
 
 	return $illegal_count >= 3;
 }
@@ -518,11 +524,12 @@ function valid_captcha_bypass()
       die('Internal Server Error (s0)');
     }
     
-		$passq = mysql_global_call("SELECT user_hash, session_id, last_ip, last_used, last_country, status, pending_id, UNIX_TIMESTAMP(expiration_date) as expiration_date FROM pass_users WHERE pin != '' AND user_hash = '%s'", $pass_user);
-		
+		$db = YotsubaDB::global();
+		$passq = $db->query("SELECT user_hash, session_id, last_ip, last_used, last_country, status, pending_id, {$db->unixTimestamp('expiration_date')} as expiration_date FROM {$db->qi('pass_users')} WHERE pin != '' AND user_hash = ?", [$pass_user]);
+
 		if( !$passq ) error( S_INVALIDPASS );
-		
-		$res = mysql_fetch_assoc($passq);
+
+		$res = $passq->fetch(PDO::FETCH_ASSOC);
 		
 		if (!$res || !$res['session_id']) {
 		  clear_pass_cookies();
@@ -558,8 +565,6 @@ function valid_captcha_bypass()
 			error( S_PASSINUSE );
 		}
 		
-		$update_country = '';
-		
     if ($res['last_ip'] !== $host) {
       $geo_data = GeoIP2::get_country($host);
       
@@ -570,15 +575,25 @@ function valid_captcha_bypass()
         $country_code = 'XX';
       }
       
-      $update_country = ", last_country = '" . mysql_real_escape_string($country_code) . "'";
+      $update_country_sql = ", last_country = ?";
+      $update_country_param = $country_code;
     }
-    
+    else {
+      $update_country_sql = "";
+      $update_country_param = null;
+    }
+
     $passid = $pass_user;
-    
+
 		$captcha_bypass = true;
 		$rangeban_bypass = true;
-		
-		mysql_global_call( "UPDATE pass_users SET last_used = NOW(), last_ip = '%s' $update_country WHERE user_hash = '%s' AND status = 0 LIMIT 1", $host, $res['user_hash'], $host );
+
+		$update_params = [$host];
+		if ($update_country_param !== null) {
+		  $update_params[] = $update_country_param;
+		}
+		$update_params[] = $res['user_hash'];
+		$db->query("UPDATE {$db->qi('pass_users')} SET last_used = NOW(), last_ip = ? {$update_country_sql} WHERE user_hash = ? AND status = 0 LIMIT 1", $update_params);
 	}
 	
 	return $captcha_bypass;
@@ -588,7 +603,7 @@ function valid_captcha_bypass()
 // when that's not set (e.g. local requests), assert out here
 function validate_admin_cookies()
 {
-	if (!$_COOKIE['4chan_auser']) {
+	if (empty($_COOKIE['4chan_auser'])) {
 		error('Internal error (internal request missing name)');
 	}
 }

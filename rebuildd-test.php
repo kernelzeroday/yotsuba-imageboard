@@ -31,21 +31,23 @@ file_put_contents("/www/perhost/rebuildd-".BOARD_DIR.".pid", getmypid());
 
 function rebuildd_gate()
 {
-	global $lastno,$lastthreadno,$do_trim_db,$con,$gcon;
-	
+	global $lastno,$lastthreadno,$do_trim_db;
+
 	$ret = 0;
-	
-	$ctype = get_resource_type($con); $gtype = get_resource_type($gcon);
-	echo "last $lastno, last thread $lastthreadno, cons $con/$ctype $gcon/$gtype, ";
-	
-	mysql_check_connections();
-	list($newlastno) = mysql_fetch_row(mysql_board_call("select max(no) from `".SQLLOG."`"));
+	$db = YotsubaDB::board();
+
+	$dbOk = $db->ping() ? 'ok' : 'dead';
+	echo "last $lastno, last thread $lastthreadno, db $dbOk, ";
+
+	$res = $db->query("SELECT MAX(no) FROM {$db->qi(SQLLOG)}");
+	list($newlastno) = $res->fetch(PDO::FETCH_NUM);
 
 	if ($newlastno > $lastno) {
 		//may not be indexed...
-		list($newthreadno) = mysql_fetch_row(mysql_board_call("select max(no) from `".SQLLOG."` where resto=0 and archived=0"));
+		$res2 = $db->query("SELECT MAX(no) FROM {$db->qi(SQLLOG)} WHERE resto = 0 AND archived = 0");
+		list($newthreadno) = $res2->fetch(PDO::FETCH_NUM);
 		$do_trim_db = $newthreadno > $lastthreadno;
-		
+
 		$lastthreadno = $newthreadno;
 		$lastno = $newlastno;
 		$ret = 1;

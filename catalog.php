@@ -324,7 +324,7 @@ function catalog($catjson) {
   $body_class = $body_class[0];
   $body_class .= ' is_catalog board_' . BOARD_DIR;
 
-  $canonical = '<link rel="canonical" href="https://boards.4chan.org/'.BOARD_DIR.'/catalog">';
+  $canonical = '<link rel="canonical" href="/'.BOARD_DIR.'/catalog">';
   
   $embedearly = EMBEDEARLY;
   $embedlate = EMBEDLATE;
@@ -429,7 +429,7 @@ JJS;
   <meta name="keywords" content="$meta_keywords">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   $canonical
-  <link id="mobile-css" rel="stylesheet" href="$css/catalog_mobile.$cssv.css" />
+  <link id="mobile-css" rel="stylesheet" media="screen and (max-width: 480px)" href="$css/catalog_mobile.$cssv.css" />
   $js
   $flags
   <script type="text/javascript">$partyHats
@@ -500,11 +500,21 @@ $postform
 $bottomad
 <div id="styleSwitcher">Style: <select id="styleSelector" size="1">
   <option value="Yotsuba New">Yotsuba</option>
-  <option value="Yotsuba B New">Yotsuba‌ B</option>
+  <option value="Yotsuba B New">Yotsuba&#8204; B</option>
   <option value="Futaba New">Futaba</option>
   <option value="Burichan New">Burichan</option>
   <option value="Tomorrow">Tomorrow</option>
-  <option value="Photon">Photon</option>$event_css_html
+  <option value="Photon">Photon</option>
+  <option value="Paisley">Paisley</option>
+  <option value="Neo Paisley">Neo Paisley</option>
+  <option value="Gentlebot">Gentlebot</option>
+  <option value="Dark">Dark</option>
+  <option value="Obsidian">Obsidian</option>
+  <option value="Sakura">Sakura</option>
+  <option value="Rainbow">Rainbow</option>
+  <option value="Nigrachan">Nigrachan</option>
+  <option value="Kusaba X">Kusaba X</option>
+  <option value="Tomorrow 99">Tomorrow (99)</option>$event_css_html
 </select></div>
 </div>
 $foot

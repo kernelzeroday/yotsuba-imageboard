@@ -37,40 +37,30 @@ function output_error($msg) {
 
 function create_account() {
   $user_ip = $_SERVER['REMOTE_ADDR'];
-  
+
   if (isset($_COOKIE['4chan_pass'])) {
     $userpwd = new UserPwd($user_ip, '4chan.org', $_COOKIE['4chan_pass']);
   }
   else {
     $userpwd = new UserPwd($user_ip, '4chan.org');
   }
-  
+
   $user_id = $userpwd->getPwd();
-  
-  $sql = "SELECT id FROM april_stock_users WHERE user_id = '%s' LIMIT 1";
-  
-  $res = mysql_global_call($sql, $user_id);
-  
-  if (!$res) {
-    output_error('Internal Server Error (frac1)');
-  }
-  
-  if (mysql_num_rows($res)) {
+
+  $db = YotsubaDB::global();
+  $res = $db->query("SELECT id FROM {$db->qi('april_stock_users')} WHERE user_id = ? LIMIT 1", [$user_id]);
+
+  if ($res->rowCount()) {
     $account = get_account_balance($user_id);
     output_json($account);
     die();
   }
-  
+
   $cur_code = CURRENCY_CODE;
   $cur_amount = (int)STARTING_AMOUNT;
-  
-  $sql =<<<SQL
-INSERT INTO april_stock_users (user_id, stock, amount)
-VALUES ('%s', '$cur_code', $cur_amount)
-SQL;
 
-  $res = mysql_global_call($sql, $user_id);
-  
+  $res = $db->query("INSERT INTO {$db->qi('april_stock_users')} (user_id, stock, amount) VALUES (?, ?, ?)", [$user_id, $cur_code, $cur_amount]);
+
   if (!$res) {
     output_error('Internal Server Error (frac0)');
   }
@@ -83,13 +73,12 @@ SQL;
 }
 
 function get_account_balance($user_id) {
-  $sql = "SELECT stock, SUM(amount) as amount FROM april_stock_users WHERE user_id = '%s' GROUP BY stock";
-  
-  $res = mysql_global_call($sql, $user_id);
-  
+  $db = YotsubaDB::global();
+  $res = $db->query("SELECT stock, SUM(amount) as amount FROM {$db->qi('april_stock_users')} WHERE user_id = ? GROUP BY stock", [$user_id]);
+
   $data = [];
-  
-  while ($row = mysql_fetch_assoc($res)) {
+
+  while ($row = $res->fetch(PDO::FETCH_ASSOC)) {
     if ($row['stock'] == CURRENCY_CODE) {
       $amount = (int)$row['amount'];
       
@@ -137,16 +126,11 @@ function get_stock_price($stock) {
   if ($stock == CURRENCY_CODE) {
     output_error('Stock not found');
   }
-  
-  $sql = "SELECT price FROM april_stock_prices WHERE stock = '%s' ORDER BY id DESC LIMIT 1";
-  
-  $res = mysql_global_call($sql, $stock);
-  
-  if (!$res) {
-    return false;
-  }
-  
-  $price = (int)mysql_fetch_row($res)[0];
+
+  $db = YotsubaDB::global();
+  $res = $db->query("SELECT price FROM {$db->qi('april_stock_prices')} WHERE stock = ? ORDER BY id DESC LIMIT 1", [$stock]);
+
+  $price = (int)$res->fetchColumn();
   
   if ($price <= 0) {
     return false;
@@ -192,21 +176,13 @@ function get_price_http_param() {
 }
 
 function enforce_cooldown($user_id) {
-  $sql =<<<SQL
-SELECT id FROM april_stock_users WHERE user_id = '%s'
-AND created_on > DATE_SUB(NOW(), INTERVAL 10 SECOND)
-SQL;
-  
-  $res = mysql_global_call($sql, $user_id);
-  
-  if (!$res) {
-    return true;
-  }
-  
-  if (mysql_num_rows($res)) {
+  $db = YotsubaDB::global();
+  $res = $db->query("SELECT id FROM {$db->qi('april_stock_users')} WHERE user_id = ? AND created_on > " . $db->dateInterval($db->now(), 10, 'SECOND'), [$user_id]);
+
+  if ($res->rowCount()) {
     output_error('You can only make an order once every 10 seconds');
   }
-  
+
   return false;
 }
 
@@ -255,32 +231,23 @@ function buy_stock() {
   
   // Decrement balance
   $cur_code = CURRENCY_CODE;
-  
-  $sql =<<<SQL
-INSERT INTO april_stock_users (user_id, stock, amount)
-VALUES ('%s', '$cur_code', -$total_price)
-SQL;
-  
-  $res = mysql_global_call($sql, $user_id);
-  
+
+  $db = YotsubaDB::global();
+  $res = $db->query("INSERT INTO {$db->qi('april_stock_users')} (user_id, stock, amount) VALUES (?, ?, ?)", [$user_id, $cur_code, -$total_price]);
+
   if (!$res) {
     output_error('Internal Server Error (bi05-2)');
   }
-  
+
   // Increment the stock amount
-  $sql =<<<SQL
-INSERT INTO april_stock_users (user_id, stock, amount)
-VALUES ('%s', '%s', $amount)
-SQL;
-  
-  $res = mysql_global_call($sql, $user_id, $stock);
-  
+  $res = $db->query("INSERT INTO {$db->qi('april_stock_users')} (user_id, stock, amount) VALUES (?, ?, ?)", [$user_id, $stock, $amount]);
+
   if (!$res) {
     output_error('Internal Server Error (bi05-2)');
   }
-  
+
   $account = get_account_balance($user_id);
-  
+
   output_json($account);
 }
 
@@ -328,33 +295,24 @@ function sell_stock() {
   enforce_cooldown($user_id);
   
   // Decrement the stock amount
-  $sql =<<<SQL
-INSERT INTO april_stock_users (user_id, stock, amount)
-VALUES ('%s', '%s', -$amount)
-SQL;
-  
-  $res = mysql_global_call($sql, $user_id, $stock);
-  
+  $db = YotsubaDB::global();
+  $res = $db->query("INSERT INTO {$db->qi('april_stock_users')} (user_id, stock, amount) VALUES (?, ?, ?)", [$user_id, $stock, -$amount]);
+
   if (!$res) {
     output_error('Internal Server Error (bi05-2)');
   }
-  
+
   // Increment balance
   $cur_code = CURRENCY_CODE;
-  
-  $sql =<<<SQL
-INSERT INTO april_stock_users (user_id, stock, amount)
-VALUES ('%s', '$cur_code', $total_price)
-SQL;
-  
-  $res = mysql_global_call($sql, $user_id);
-  
+
+  $res = $db->query("INSERT INTO {$db->qi('april_stock_users')} (user_id, stock, amount) VALUES (?, ?, ?)", [$user_id, $cur_code, $total_price]);
+
   if (!$res) {
     output_error('Internal Server Error (bi05-2)');
   }
-  
+
   $account_balance = get_account_balance($user_id);
-  
+
   output_json($account_balance);
 }
 

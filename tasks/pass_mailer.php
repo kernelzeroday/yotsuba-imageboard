@@ -56,6 +56,8 @@ $reminder_interval = 7;
 
 echo '### MAILER BEGIN RUN AT ' . date('r') . " ###\n";
 
+$db = YotsubaDB::global();
+
 $query =<<<SQL
 SELECT *,
 UNIX_TIMESTAMP(expiration_date) as expiration_timestamp,
@@ -66,13 +68,9 @@ AND (email_expired_sent = 0 OR email_reminder_sent = 0)
 AND (status = 0 OR status = 6)
 SQL;
 
-$res = mysql_global_call($query);
+$res = $db->query($query);
 
-if (!$res) {
-  die('Database error');
-}
-
-if (mysql_num_rows($res) < 1) {
+if ($res->rowCount() < 1) {
   die('Nothing to do');
 }
 
@@ -80,7 +78,7 @@ $i = 0;
 $expiration_count = 0;
 $reminder_count = 0;
 
-while ($row = mysql_fetch_assoc($res)) {
+while ($row = $res->fetch(PDO::FETCH_ASSOC)) {
   if (!$row) {
     break;
   }
@@ -114,15 +112,13 @@ while ($row = mysql_fetch_assoc($res)) {
     if ($isExpired) {
       ++$expiration_count;
       echo "Sent expiration notice to $owner_email\n";
-      $query = "UPDATE pass_users SET email_expired_sent = 1, status = 1, last_status = status WHERE pending_id = '" . $row['pending_id'] . "' LIMIT 1";
+      $db->query("UPDATE pass_users SET email_expired_sent = 1, status = 1, last_status = status WHERE pending_id = ? LIMIT 1", [$row['pending_id']]);
     }
     else {
       ++$reminder_count;
       echo "Sent reminder to $owner_email\n";
-      $query = "UPDATE pass_users SET email_reminder_sent = 1 WHERE pending_id = '" . $row['pending_id'] . "' LIMIT 1";
+      $db->query("UPDATE pass_users SET email_reminder_sent = 1 WHERE pending_id = ? LIMIT 1", [$row['pending_id']]);
     }
-    
-    mysql_global_call($query);
   }
   else {
     echo "mail error $owner_mail";

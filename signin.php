@@ -128,12 +128,11 @@ class App {
   }
   
   private function log_event($event_id, $token) {
-    $sql = <<<SQL
-INSERT INTO event_log(`type`, ip, arg_num, arg_str)
-VALUES('signin_evt', '%s', '%d', '%s')
-SQL;
-    
-    return mysql_global_call($sql, $_SERVER['REMOTE_ADDR'], $event_id, $token);
+    $db = YotsubaDB::global();
+    $sql = "INSERT INTO {$db->qi('event_log')}({$db->qi('type')}, ip, arg_num, arg_str)
+VALUES('signin_evt', ?, ?, ?)";
+
+    return $db->query($sql, [$_SERVER['REMOTE_ADDR'], $event_id, $token]);
   }
   
   private function get_csrf_token() {
@@ -154,17 +153,14 @@ SQL;
   }
   
   private function is_email_blacklisted($email) {
-    $tbl = self::TBL_BLACKLIST;
-    
-    $sql = "SELECT 1 FROM `$tbl` WHERE email = '%s' LIMIT 1";
-    
-    $res = mysql_global_call($sql, $email);
-    
-    if (!$res) {
-      return false;
-    }
-    
-    return mysql_num_rows($res) === 1;
+    $db = YotsubaDB::global();
+    $tbl = $db->qi(self::TBL_BLACKLIST);
+
+    $sql = "SELECT 1 FROM $tbl WHERE email = ? LIMIT 1";
+
+    $res = $db->query($sql, [$email]);
+
+    return $res->rowCount() === 1;
   }
   
   private function should_ignore_request($email) {
@@ -192,154 +188,129 @@ SQL;
   }
   
   private function get_token_bot_score($token) {
-    $tbl = self::TBL;
-    
-    $sql =<<<SQL
-SELECT bot_score FROM `$tbl` WHERE token = '%s'
-LIMIT 1
-SQL;
-    
-    $res = mysql_global_call($sql, $token);
-    
-    if (!$res) {
-      return 100;
-    }
-    
-    $score = mysql_fetch_row($res);
-    
+    $db = YotsubaDB::global();
+    $tbl = $db->qi(self::TBL);
+
+    $sql = "SELECT bot_score FROM $tbl WHERE token = ? LIMIT 1";
+
+    $res = $db->query($sql, [$token]);
+
+    $score = $res->fetch(PDO::FETCH_NUM);
+
     if (!$score) {
       return 100;
     }
-    
+
     $score = (int)$score[0];
-    
+
     if ($score <= 0) {
       return 100;
     }
-    
+
     return $score;
   }
   
   private function update_usage_count($token) {
-    $tbl = self::TBL;
-    
+    $db = YotsubaDB::global();
+    $tbl = $db->qi(self::TBL);
+
     $max_usages = (int)self::TOKEN_MAX_USAGES;
-    
+
     if ($max_usages <= 0) {
       return true;
     }
-    
+
     $max_usages += 1;
-    
-    $sql =<<<SQL
-UPDATE `$tbl` SET used = LEAST(used + 1, $max_usages)
-WHERE token = '%s' LIMIT 1
-SQL;
-    
-    return !!mysql_global_call($sql, $token);
+
+    $sql = "UPDATE $tbl SET used = LEAST(used + 1, $max_usages)
+WHERE token = ? LIMIT 1";
+
+    return !!$db->query($sql, [$token]);
   }
   
   private function validate_cooldowns($email, $hashed_email) {
     $ip = $_SERVER['REMOTE_ADDR'];
     $now = $_SERVER['REQUEST_TIME'];
-    
+
     if (!$ip || !$now || !$email || !$hashed_email) {
       $this->error_generic('vf');
     }
-    
-    $tbl = self::TBL;
-    $tbl_queue = self::TBL_QUEUE;
-    
+
+    $db = YotsubaDB::global();
+    $tbl = $db->qi(self::TBL);
+    $tbl_queue = $db->qi(self::TBL_QUEUE);
+
     // ---
     // Base cooldown for IP
     // ---
-    $query =<<<SQL
-SELECT UNIX_TIMESTAMP(created_on) FROM `$tbl`
-WHERE ip = '%s'
+    $query = "SELECT UNIX_TIMESTAMP(created_on) FROM $tbl
+WHERE ip = ?
 ORDER BY created_on DESC
-LIMIT 1
-SQL;
-    
-    $res = mysql_global_call($query, $ip);
-    
-    if (!$res) {
-      $this->error(self::ERR_DB);
-    }
-    
-    $last_ts = (int)mysql_fetch_row($res)[0];
-    
+LIMIT 1";
+
+    $res = $db->query($query, [$ip]);
+
+    $row = $res->fetch(PDO::FETCH_NUM);
+    $last_ts = $row ? (int)$row[0] : 0;
+
     $delta = $now - $last_ts;
-    
+
     if ($delta < self::REQ_CD) {
       $cd = ceil($delta / 60.0);
       $this->error_cooldown($cd);
     }
-    
+
     // ---
     // Check if the email is already in the sending queue
     // ---
-    $query = "SELECT 1 FROM `$tbl_queue` WHERE email = '%s' LIMIT 1";
-    
-    $res = mysql_global_call($query, $email);
-    
-    if (!$res) {
-      $this->error(self::ERR_DB);
-    }
-    
-    if (mysql_num_rows($res) > 0) {
+    $query = "SELECT 1 FROM $tbl_queue WHERE email = ? LIMIT 1";
+
+    $res = $db->query($query, [$email]);
+
+    if ($res->rowCount() > 0) {
       $this->error(self::ERR_EMAIL_QUEUED);
     }
-    
+
     // ---
     // Check repeated requests for IP
     // ---
     $_ip_per_hour = (int)self::REQ_CD_IP_PER_HOUR;
     $cd = 3600;
-    
-    $query =<<<SQL
-SELECT UNIX_TIMESTAMP(created_on) FROM `$tbl`
-WHERE ip = '%s'
+
+    $query = "SELECT UNIX_TIMESTAMP(created_on) FROM $tbl
+WHERE ip = ?
 AND created_on > DATE_SUB(NOW(), INTERVAL 1 HOUR)
 ORDER BY created_on ASC
-LIMIT $_ip_per_hour
-SQL;
-    
-    $res = mysql_global_call($query, $ip);
-    
-    if (!$res) {
-      $this->error(self::ERR_DB);
-    }
-    
-    if (mysql_num_rows($res) == $_ip_per_hour) {
-      $last_ts = (int)mysql_fetch_row($res)[0];
+LIMIT $_ip_per_hour";
+
+    $res = $db->query($query, [$ip]);
+
+    if ($res->rowCount() == $_ip_per_hour) {
+      $row = $res->fetch(PDO::FETCH_NUM);
+      $last_ts = (int)$row[0];
       $cd = ceil(($last_ts - $now + $cd) / 60.0);
       $this->error_cooldown($cd);
     }
-    
+
     // ---
     // Check repeated requests for email
     // ---
     $_email_per_day = (int)self::REQ_CD_MAIL_PER_DAY;
     $cd = 86400;
-    
-    $query =<<<SQL
-SELECT UNIX_TIMESTAMP(created_on) FROM `$tbl`
-WHERE hashed_email = '%s'
+
+    $query = "SELECT UNIX_TIMESTAMP(created_on) FROM $tbl
+WHERE hashed_email = ?
 AND created_on > DATE_SUB(NOW(), INTERVAL 1 DAY)
 ORDER BY created_on ASC
-LIMIT $_email_per_day
-SQL;
-    
-    $res = mysql_global_call($query, $hashed_email);
-    
-    if (!$res) {
-      $this->error(self::ERR_DB);
-    }
-    
-    if (mysql_num_rows($res) == $_email_per_day) {
-      $last_ts = (int)mysql_fetch_row($res)[0];
+LIMIT $_email_per_day";
+
+    $res = $db->query($query, [$hashed_email]);
+
+    if ($res->rowCount() == $_email_per_day) {
+      $row = $res->fetch(PDO::FETCH_NUM);
+      $last_ts = (int)$row[0];
       $cd = ($last_ts - $now + $cd) / 60.0;
-      
+
       if ($cd > 60) {
         $cd = $cd / 60.0;
         $units = 'hour';
@@ -347,9 +318,9 @@ SQL;
       else {
         $units = 'minute';
       }
-      
+
       $cd = ceil($cd);
-      
+
       $this->error_cooldown($cd, $units);
     }
   }
@@ -470,10 +441,11 @@ SQL;
   }
   
   private function prune_old_requests() {
-    $tbl = self::TBL;
+    $db = YotsubaDB::global();
+    $tbl = $db->qi(self::TBL);
     $ttl = (int)self::PRUNE_DAYS;
-    $sql = "DELETE FROM `$tbl` WHERE created_on <= DATE_SUB(NOW(), INTERVAL $ttl DAY)";
-    return mysql_global_call($sql);
+    $sql = "DELETE FROM $tbl WHERE created_on <= DATE_SUB(NOW(), INTERVAL $ttl DAY)";
+    return $db->query($sql);
   }
   
   private function validate_email($email) {
@@ -513,69 +485,57 @@ SQL;
     if (!$pwd) {
       return false;
     }
-    
-    $sql =<<<SQL
-SELECT 1 FROM banned_users
-WHERE active = 1 AND password = '%s' AND length > NOW()
-LIMIT 1
-SQL;
-    
-    $res = mysql_global_call($sql, $pwd);
-    
-    if (!$res) {
-      return false;
-    }
-    
-    return (int)mysql_num_rows($res) > 0;
+
+    $db = YotsubaDB::global();
+    $sql = "SELECT 1 FROM {$db->qi('banned_users')}
+WHERE active = 1 AND password = ? AND length > NOW()
+LIMIT 1";
+
+    $res = $db->query($sql, [$pwd]);
+
+    return (int)$res->rowCount() > 0;
   }
   
   private function validate_rangeban() {
     $long_ip = ip2long($_SERVER['REMOTE_ADDR']);
-    
+
     if (!$long_ip) {
       $this->error_generic('vri');
     }
-    
+
     $asn = 0;
-    
+
     if (isset($_SERVER['HTTP_X_GEO_ASN'])) {
       $asn = (int)$_SERVER['HTTP_X_GEO_ASN'];
     }
     else {
       $_asninfo = GeoIP2::get_asn($ip);
-      
+
       if ($_asninfo) {
         $asn = (int)$_asninfo['asn'];
       }
     }
-    
-    $now = (int)$_SERVER['REQUEST_TIME'];
-    
-    $perma_clause =<<<SQL
-expires_on = 0 AND boards = '' AND ops_only = 0 AND img_only = 0
-AND lenient = 0 AND report_only = 0 AND ua_ids = ''
-SQL;
-    
-    $query = <<<SQL
-(SELECT SQL_NO_CACHE 1 FROM iprangebans
-WHERE range_start <= $long_ip AND range_end >= $long_ip AND active = 1
-AND $perma_clause)
-SQL;
-    
+
+    $db = YotsubaDB::global();
+
+    $perma_clause = "expires_on = 0 AND boards = '' AND ops_only = 0 AND img_only = 0
+AND lenient = 0 AND report_only = 0 AND ua_ids = ''";
+
+    $params = [$long_ip, $long_ip];
+
+    $query = "(SELECT 1 FROM {$db->qi('iprangebans')}
+WHERE range_start <= ? AND range_end >= ? AND active = 1
+AND $perma_clause)";
+
     if ($asn > 0) {
-      $query .= <<<SQL
-UNION (SELECT 1 FROM iprangebans
-WHERE asn = $asn AND active = 1 AND $perma_clause)
-SQL;
+      $query .= " UNION (SELECT 1 FROM {$db->qi('iprangebans')}
+WHERE asn = ? AND active = 1 AND $perma_clause)";
+      $params[] = $asn;
     }
-    
-    $res = mysql_global_call($query);
-    
-    if (!$res) {
-      $this->error(self::ERR_DB);
-    }
-    
-    if ((int)mysql_num_rows($res) > 0) {
+
+    $res = $db->query($query, $params);
+
+    if ((int)$res->rowCount() > 0) {
       $this->error(self::ERR_RANGEBAN);
     }
   }
@@ -644,93 +604,94 @@ SQL;
   }
   
   private function create_request($email, $hashed_email) {
-    $tbl = self::TBL;
-    $tbl_queue = self::TBL_QUEUE;
-    
+    $db = YotsubaDB::global();
+    $tbl = $db->qi(self::TBL);
+    $tbl_queue = $db->qi(self::TBL_QUEUE);
+
     $token = $this->generate_token();
-    
+
     if (!$token) {
       $this->error_generic('gt');
     }
-    
+
     if (!$email || !$hashed_email) {
       $this->error_generic('crne');
     }
-    
+
     $ip = $_SERVER['REMOTE_ADDR'];
-    
+
     $ua = $this->get_user_agent();
-    
+
     $country = $this->get_country();
-    
+
     if ($country === 'T1') {
       $this->error(self::ERR_RANGEBAN);
     }
-    
+
     $domain = $this->get_domain($email);
-    
+
     if (isset($_SERVER['HTTP_X_BOT_SCORE'])) {
       $bot_score = (int)$_SERVER['HTTP_X_BOT_SCORE'];
     }
     else {
       $bot_score = 0;
     }
-    
+
     // Insert the request
-    $sql =<<<SQL
-INSERT INTO `$tbl` (token, hashed_email, ip, domain, ua, country, bot_score)
-VALUES ('%s', '%s', '%s', '%s', '%s', '%s', %d)
-SQL;
-    
-    $res = mysql_global_call($sql, $token, $hashed_email, $ip, $domain, $ua, $country, $bot_score);
-    
+    $sql = "INSERT INTO $tbl (token, hashed_email, ip, domain, ua, country, bot_score)
+VALUES (?, ?, ?, ?, ?, ?, ?)";
+
+    $res = $db->query($sql, [$token, $hashed_email, $ip, $domain, $ua, $country, $bot_score]);
+
     if (!$res) {
       $this->error_generic('cr2');
     }
-    
+
     // Add the email to the mailer job queue
-    $sql =<<<SQL
-INSERT INTO `$tbl_queue` (email, token)
-VALUES ('%s', '%s')
-SQL;
-    
-    $res = mysql_global_call($sql, $email, $token);
-    
+    $sql = "INSERT INTO $tbl_queue (email, token)
+VALUES (?, ?)";
+
+    $res = $db->query($sql, [$email, $token]);
+
     if (!$res) {
       $this->error_generic('crq');
     }
-    
+
     return $token;
   }
   
   private function register_captcha_failure($token) {
-    $tbl = self::TBL;
-    
     if (!$token) {
       return false;
     }
-    
-    $sql = "UPDATE `$tbl` SET failed_challenges = failed_challenges + 1 WHERE token = '%s' LIMIT 1";
-    
-    mysql_global_call($sql, $token);
+
+    $db = YotsubaDB::global();
+    $tbl = $db->qi(self::TBL);
+
+    $sql = "UPDATE $tbl SET failed_challenges = failed_challenges + 1 WHERE token = ? LIMIT 1";
+
+    $db->query($sql, [$token]);
   }
   
   private function get_captcha_failures($token) {
-    $tbl = self::TBL;
-    
     if (!$token) {
       return 0;
     }
-    
-    $sql = "SELECT failed_challenges FROM `$tbl` WHERE token = '%s' LIMIT 1";
-    
-    $res = mysql_global_call($sql, $token);
-    
-    if (!$res) {
+
+    $db = YotsubaDB::global();
+    $tbl = $db->qi(self::TBL);
+
+    $sql = "SELECT failed_challenges FROM $tbl WHERE token = ? LIMIT 1";
+
+    $res = $db->query($sql, [$token]);
+
+    $row = $res->fetch(PDO::FETCH_NUM);
+
+    if (!$row) {
       return 0;
     }
-    
-    return (int)mysql_fetch_row($res)[0];
+
+    return (int)$row[0];
   }
   
   public function request() {
@@ -880,23 +841,18 @@ SQL;
     $this->prune_old_requests();
     
     $this->update_usage_count($token);
-    
-    $tbl = self::TBL;
-    
+
+    $db = YotsubaDB::global();
+    $tbl = $db->qi(self::TBL);
+
     $ttl = (int)self::VERIFY_TOKEN_TTL;
-    
-    $sql =<<<SQL
-SELECT * FROM `$tbl` WHERE token = '%s'
-AND created_on > DATE_SUB(NOW(), INTERVAL $ttl SECOND)
-SQL;
-    
-    $res = mysql_global_call($sql, $token);
-    
-    if (!$res) {
-      $this->error(self::ERR_DB);
-    }
-    
-    $request = mysql_fetch_assoc($res);
+
+    $sql = "SELECT * FROM $tbl WHERE token = ?
+AND created_on > DATE_SUB(NOW(), INTERVAL $ttl SECOND)";
+
+    $res = $db->query($sql, [$token]);
+
+    $request = $res->fetch(PDO::FETCH_ASSOC);
     
     if (!$request) {
       $this->error(self::ERR_BAD_LINK);

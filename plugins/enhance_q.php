@@ -11,8 +11,8 @@ function meta_is_thread_flagged( $resline )
 	$rep = 0;
 	$posts = array('admin' => '', 'developer' => '', 'mod' => '', 'manager' => '');
 	
-	while( list( $resrow ) = each( $resline ) ) {
-		
+	foreach( $resline as $resrow => $_unused ) {
+
 		if( !$log[ $resrow ][ 'no' ] ) {
 			break;
 		}

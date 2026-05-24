@@ -30,8 +30,9 @@ if( PAGE_MAX > 0 ) die( 'Config PAGE_MAX should be 0!' );
 function broomcloset_latest()
 {
 	//if (!valid('janitor_board')) die('');
-	$query = mysql_board_call( "SELECT * FROM `" . SQLLOG . "` ORDER BY no DESC LIMIT 1" );
-	if( $row = mysql_fetch_assoc( $query ) ) {
+	$db = YotsubaDB::board();
+	$query = $db->query("SELECT * FROM {$db->qi(SQLLOG)} ORDER BY no DESC LIMIT 1");
+	if( $row = $query->fetch(PDO::FETCH_ASSOC) ) {
 		foreach( $row as &$val ) $val = addslashes( $val );
 		echo <<<EOJSON
 {"no":{$row['no']}}
@@ -51,9 +52,10 @@ function refresh_mod_cache()
       die('Internal Server Error (rmc0)');
     }
     
-		$query     = mysql_global_call( "SELECT id,username,allow,level from mod_users" );
+		$db_global = YotsubaDB::global();
+		$query     = $db_global->query("SELECT id, username, allow, level FROM {$db_global->qi('mod_users')}");
 		$mod_cache = array();
-		while( list( $id, $username, $allow, $level ) = mysql_fetch_row( $query ) ) {
+		while( list( $id, $username, $allow, $level ) = $query->fetch(PDO::FETCH_NUM) ) {
 			if( $allow ) {
         $hashed_bits = hash_hmac('sha256', $username, $admin_salt, true);
         

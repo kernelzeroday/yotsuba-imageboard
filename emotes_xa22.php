@@ -331,15 +331,14 @@ function xa_set_sid_cookie($sid) {
 }
 
 function xa_save_session($sid, $ip, $data) {
-  $sql = "INSERT INTO april_emotes (session_id, ip, data) VALUES('%s', '%s', '%s')";
-  
   $data = json_encode($data);
-  
+
   if (!$data) {
     return false;
   }
-  
-  return mysql_global_call($sql, $sid, $ip, $data);
+
+  $db = YotsubaDB::global();
+  return $db->query("INSERT INTO {$db->qi('april_emotes')} (session_id, ip, data) VALUES (?, ?, ?)", [$sid, $ip, $data]);
 }
 
 function xa_rebuild_owned_emotes($data) {
@@ -363,15 +362,11 @@ function xa_rebuild_owned_emotes($data) {
 }
 
 function xa_recover_session_by_sid($sid) {
-  $sql = "SELECT data FROM april_emotes WHERE session_id = '%s' LIMIT 1";
-  
-  $res = mysql_global_call($sql, $sid);
-  
-  if (!$res) {
-    xa_error(ERR_GENERIC . ' (gsbs5)');
-  }
-  
-  $data = mysql_fetch_assoc($res)['data'];
+  $db = YotsubaDB::global();
+  $res = $db->query("SELECT data FROM {$db->qi('april_emotes')} WHERE session_id = ? LIMIT 1", [$sid]);
+
+  $row = $res->fetch(PDO::FETCH_ASSOC);
+  $data = $row ? $row['data'] : null;
   
   if (!$data) {
     return null;
@@ -419,37 +414,31 @@ function xa_roll($size) {
     }
   }
   
-  mysql_global_call('START TRANSACTION');
-  
-  $sql = "SELECT data FROM april_emotes WHERE session_id = '%s' FOR UPDATE";
-  
-  $res = mysql_global_call($sql, $sid);
-  
-  if (!$res) {
-    mysql_global_call('COMMIT');
-    xa_error(ERR_GENERIC . ' (lbr8)');
-  }
-  
-  $data = mysql_fetch_assoc($res)['data'];
-  
-  if (!$data) {
-    mysql_global_call('COMMIT');
+  $db = YotsubaDB::global();
+  $db->beginTransaction();
+
+  $res = $db->query("SELECT data FROM {$db->qi('april_emotes')} WHERE session_id = ? FOR UPDATE", [$sid]);
+
+  $row = $res->fetch(PDO::FETCH_ASSOC);
+
+  if (!$row || !$row['data']) {
+    $db->commit();
     xa_error(ERR_BAD_REQ);
   }
-  
-  $data = json_decode($data, true);
+
+  $data = json_decode($row['data'], true);
 
   if (!$data) {
-    mysql_global_call('COMMIT');
+    $db->commit();
     xa_error(ERR_GENERIC . ' (lbr9)');
   }
-  
+
   // Check if enough points
   $full_balance = xa_get_full_balance($data);
   $total_cost = $size * XA_ROLL_PRICE;
-  
+
   if ($full_balance < $total_cost) {
-    mysql_global_call('COMMIT');
+    $db->commit();
     xa_error(ERR_NO_PTS, [ 'pts' => $data['balance'] ]);
   }
   
@@ -486,22 +475,20 @@ function xa_roll($size) {
   
   $data['balance'] += $recycled_points;
   $data['balance'] -= $total_cost;
-  
+
   $balance = $data['balance'];
-  
+
   $data = json_encode($data);
-  
-  $sql = "UPDATE april_emotes SET data = '%s' WHERE session_id = '%s' LIMIT 1";
-  
-  $res = mysql_global_call($sql, $data, $sid);
-  
+
+  $res = $db->query("UPDATE {$db->qi('april_emotes')} SET data = ? WHERE session_id = ? LIMIT 1", [$data, $sid]);
+
   if (!$res) {
-    mysql_global_call('COMMIT');
+    $db->commit();
     xa_error(ERR_GENERIC . ' (lbr6)');
   }
-  
-  mysql_global_call('COMMIT');
-  
+
+  $db->commit();
+
   xa_success(['obtained' => $obtained, 'balance' => $balance]);
 }
 
@@ -572,64 +559,56 @@ function xa_buy() {
   }
   
   $sid = $_COOKIE['xa_sid'];
-  
-  mysql_global_call('START TRANSACTION');
-  
-  $sql = "SELECT data FROM april_emotes WHERE session_id = '%s' FOR UPDATE";
-  
-  $res = mysql_global_call($sql, $sid);
-  
-  if (!$res) {
-    mysql_global_call('COMMIT');
-    xa_error(ERR_GENERIC . ' (be0)');
-  }
-  
-  $data = mysql_fetch_assoc($res)['data'];
-  
-  if (!$data) {
-    mysql_global_call('COMMIT');
+
+  $db = YotsubaDB::global();
+  $db->beginTransaction();
+
+  $res = $db->query("SELECT data FROM {$db->qi('april_emotes')} WHERE session_id = ? FOR UPDATE", [$sid]);
+
+  $row = $res->fetch(PDO::FETCH_ASSOC);
+
+  if (!$row || !$row['data']) {
+    $db->commit();
     xa_error(ERR_BAD_REQ);
   }
-  
-  $data = json_decode($data, true);
+
+  $data = json_decode($row['data'], true);
 
   if (!$data) {
-    mysql_global_call('COMMIT');
+    $db->commit();
     xa_error(ERR_GENERIC . ' (be1)');
   }
-  
+
   // Check if already owned
   if (in_array($key, $data['owned'])) {
-    mysql_global_call('COMMIT');
+    $db->commit();
     xa_error(ERR_ALREADY_OWNED);
   }
-  
+
   // Check if enough points
   $full_balance = xa_get_full_balance($data);
-  
+
   if ($full_balance < $total_cost) {
-    mysql_global_call('COMMIT');
+    $db->commit();
     xa_error(ERR_NO_PTS, [ 'pts' => $data['balance'] ]);
   }
-  
+
   $data['owned'][] = $key;
   $data['balance'] -= $total_cost;
-  
+
   $balance = $data['balance'];
-  
+
   $data = json_encode($data);
-  
-  $sql = "UPDATE april_emotes SET data = '%s' WHERE session_id = '%s' LIMIT 1";
-  
-  $res = mysql_global_call($sql, $data, $sid);
-  
+
+  $res = $db->query("UPDATE {$db->qi('april_emotes')} SET data = ? WHERE session_id = ? LIMIT 1", [$data, $sid]);
+
   if (!$res) {
-    mysql_global_call('COMMIT');
+    $db->commit();
     xa_error(ERR_GENERIC . ' (lbr6)');
   }
-  
-  mysql_global_call('COMMIT');
-  
+
+  $db->commit();
+
   xa_success(['obtained' => $obtained, 'balance' => $balance]);
 }
 

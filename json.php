@@ -569,7 +569,7 @@ function generate_index_json( $return = false )
 		if( floor( $page / DEF_PAGES ) > $index_rbl ) return;
 
 		for( $i = $thread; $i < $thread + DEF_PAGES; $i++ ) {
-			list( $_unused, $threadid ) = each( $threads );
+			$threadid = current( $threads ); next( $threads );
 
 			if( !$threadid ) break;
 
@@ -621,10 +621,10 @@ function generate_board_catalogue()
 		$thispage = $page;
 
 		for( $i = $thispage; $i < $thispage + DEF_PAGES; $i++ ) {
-			list( $_unused, $threadid ) = each( $threads );
-      
+			$threadid = current( $threads ); next( $threads );
+
 			if( !$threadid ) break;
-			
+
       if ($log[$threadid]['sticky'] == 1) {
         $replies = min(1, $replies_shown);
       }
@@ -667,8 +667,8 @@ function generate_board_threads_json()
 		$thispage = $page;
 
 		for( $i = $thispage; $i < $thispage + DEF_PAGES; $i++ ) {
-			list( $_unused, $threadid ) = each( $threads );
-			
+			$threadid = current( $threads ); next( $threads );
+
 			if( !$threadid ) break;
       
 			$arr = array(
@@ -699,21 +699,16 @@ function generate_board_threads_json()
 }
 
 function generate_board_archived_json() {
-  $query = "SELECT no FROM `" . BOARD_DIR . "` WHERE archived = 1 AND resto = 0 ORDER BY no ASC";
-  
-  $res = mysql_board_call($query);
-  
-  if (!$res) {
-    return false;
-  }
-  
+  $db = YotsubaDB::board();
+  $res = $db->query("SELECT no FROM {$db->qi(BOARD_DIR)} WHERE archived = 1 AND resto = 0 ORDER BY no ASC");
+
   $threads = array();
-  
-  while ($tid = mysql_fetch_row($res)[0]) {
-    $threads[] = $tid;
+
+  while ($row = $res->fetch(PDO::FETCH_NUM)) {
+    $threads[] = $row[0];
   }
-  
+
   $page = '[' . implode(',', $threads) . ']';
-  
+
 	print_page(INDEX_DIR . 'archive.json', $page, 0, 0);
 }
