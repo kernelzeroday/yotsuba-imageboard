@@ -20,6 +20,8 @@ services:
       - YOTSUBA_PG_NAME=yotsuba_dev
       - YOTSUBA_MEMCACHED_HOST=memcached
       - YOTSUBA_MEMCACHED_PORT=11211
+      - YOTSUBA_CLIP_HOST=clip
+      - YOTSUBA_CLIP_PORT=8501
     depends_on:
       db:
         condition: service_healthy
@@ -91,6 +93,25 @@ services:
       - dev-net
     restart: unless-stopped
 
+  clip:
+    build:
+      context: ./docker/clip
+      dockerfile: Dockerfile
+    container_name: yotsuba-dev-clip
+    ports:
+      - "8501:8501"
+    volumes:
+      - clip_cache:/home/clip/.cache
+    networks:
+      - dev-net
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8501/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
+    restart: unless-stopped
+
   adminer:
     image: adminer:4-standalone
     container_name: yotsuba-dev-adminer
@@ -112,6 +133,7 @@ volumes:
   dev_boards:
   dev_backups:
   dev_logs:
+  clip_cache:
 
 networks:
   dev-net:

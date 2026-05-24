@@ -152,6 +152,8 @@ CREATE TABLE IF NOT EXISTS `a` (
   `undead` tinyint(1) NOT NULL DEFAULT 0,
   `since4pass` tinyint(1) NOT NULL DEFAULT 0,
   `m_img` tinyint(1) NOT NULL DEFAULT 0,
+  `clip_nsfw` float NOT NULL DEFAULT 0,
+  `clip_desc` varchar(500) NOT NULL DEFAULT '',
   `board_flag` varchar(16) NOT NULL DEFAULT '',
   `upvotes` int(11) NOT NULL DEFAULT 0,
   `downvotes` int(11) NOT NULL DEFAULT 0,
@@ -733,6 +735,24 @@ CREATE TABLE IF NOT EXISTS `event_log` (
   KEY `ip` (`ip`),
   KEY `board` (`board`),
   KEY `created` (`created`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- CLIP/tensorchan NSFW score log
+CREATE TABLE IF NOT EXISTS `tensor_log` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `board` varchar(16) NOT NULL,
+  `thread_id` int(11) NOT NULL DEFAULT 0,
+  `post_id` int(11) NOT NULL DEFAULT 0,
+  `file_id` varchar(32) NOT NULL DEFAULT '',
+  `file_ext` varchar(8) NOT NULL DEFAULT '',
+  `nsfw` float NOT NULL DEFAULT 0,
+  `description` varchar(500) NOT NULL DEFAULT '',
+  `tags` text,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `board` (`board`),
+  KEY `nsfw` (`nsfw`),
+  KEY `post` (`board`, `post_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Blotter (news/announcements)

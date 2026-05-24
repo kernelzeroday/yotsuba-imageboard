@@ -93,8 +93,14 @@ fi
 patch_ini CAPTCHA no
 patch_ini CAPTCHA_TWISTER no
 
-# Disable NSFW inference (no external service available)
-patch_ini TENSORCHAN_MODE 0
+# CLIP inference — enable if CLIP service is configured
+if [ -n "${YOTSUBA_CLIP_HOST:-}" ]; then
+  patch_ini TENSORCHAN_MODE 2
+  patch_ini TENSORCHAN_HOST "${YOTSUBA_CLIP_HOST}"
+  patch_ini TENSORCHAN_PORT "${YOTSUBA_CLIP_PORT:-8501}"
+else
+  patch_ini TENSORCHAN_MODE 0
+fi
 
 # Local asset serving
 patch_ini STATIC_SERVER "/static/"
@@ -337,8 +343,13 @@ PHPEOF
 # Category config overrides
 for cat_conf in "$SRC/config/categories/"*.config.ini; do
     [ -f "$cat_conf" ] || continue
-    sed -i 's|^TENSORCHAN_MODE = .*|TENSORCHAN_MODE = 0|' "$cat_conf"
-    sed -i 's|^TENSORCHAN_LOG_ONLY = .*|TENSORCHAN_LOG_ONLY = yes|' "$cat_conf"
+    if [ -n "${YOTSUBA_CLIP_HOST:-}" ]; then
+        sed -i 's|^TENSORCHAN_MODE = .*|TENSORCHAN_MODE = 2|' "$cat_conf"
+        sed -i 's|^TENSORCHAN_LOG_ONLY = .*|TENSORCHAN_LOG_ONLY = no|' "$cat_conf"
+    else
+        sed -i 's|^TENSORCHAN_MODE = .*|TENSORCHAN_MODE = 0|' "$cat_conf"
+        sed -i 's|^TENSORCHAN_LOG_ONLY = .*|TENSORCHAN_LOG_ONLY = yes|' "$cat_conf"
+    fi
     # Zero all cooldowns at category level
     sed -i 's|^RENZOKU2 = .*|RENZOKU2 = 0|' "$cat_conf"
     sed -i 's|^RENZOKU2_INTRA = .*|RENZOKU2_INTRA = 0|' "$cat_conf"

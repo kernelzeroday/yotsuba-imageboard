@@ -925,7 +925,7 @@ function log_cache($invalidate = 0, $thread = 0, $archive_mode = 0) {
     }
 	}
 	
-	$fields = "no,sticky,permasage,closed,now,name,sub,com,host,pwd,filename,ext,w,h,tn_w,tn_h,tim,time,md5,fsize,last_modified,root,resto,filedeleted,id,capcode,country,undead,permaage,since4pass";
+	$fields = "no,sticky,permasage,closed,now,name,sub,com,host,pwd,filename,ext,w,h,tn_w,tn_h,tim,time,md5,fsize,last_modified,root,resto,filedeleted,id,capcode,country,undead,permaage,since4pass,clip_desc";
 	
 	if ($query_archived) {
 	  $fields .= ",archived";
@@ -2148,8 +2148,9 @@ function renderPostHtml($no, $in_thread, $sorted_replies = null, $reply_count = 
     else {
       $m_img_attr = '';
     }
-		
-    $imgsrc = '<a class="fileThumb' . $class . '" href="' . $displaysrc . '" target="_blank"' . $m_img_attr . '><img src="' . $imgthumb_src . '" alt="' . $size . 'B" data-md5="' . $shortmd5 . '" style="height: ' . $tn_h . 'px; width: ' . $tn_w . 'px;" loading="lazy">' . $mFileInfo . '</a>';
+
+    $_alt_text = (!empty($clip_desc)) ? htmlspecialchars($clip_desc, ENT_QUOTES) : $size . 'B';
+    $imgsrc = '<a class="fileThumb' . $class . '" href="' . $displaysrc . '" target="_blank"' . $m_img_attr . '><img src="' . $imgthumb_src . '" alt="' . $_alt_text . '" data-md5="' . $shortmd5 . '" style="height: ' . $tn_h . 'px; width: ' . $tn_w . 'px;" loading="lazy">' . $mFileInfo . '</a>';
 		
 		if( $filedeleted ) {
 			$fileinfo = '<span class="fileThumb"><img src="' . STATIC_IMG_DIR2 . 'filedeleted-res.gif" alt="File deleted." class="fileDeletedRes retina"></span>';
@@ -6081,30 +6082,33 @@ function new_post( $name, $email, $sub, $com, $url, $pwd, $upfile, $upfile_name,
     time_log( "fc" );
     
     $tensorchan_score = 0;
-    
+    $clip_result = false;
+
 		// thumbnail
 		$image_path = "";
 		$m_img = false;
 		if ($has_image) {
       if( USE_THUMB && !UPLOAD_BOARD ) {
-        // Detect and block NSFW content
         $_need_inference = tensorchan_is_needed($userpwd, $resto, $W, $H, $ext);
-        
+
         if ($_need_inference) {
           $_tensor_png = false;
         }
         else {
           $_tensor_png = null;
         }
-        
+
         $ret = make_thumb( $dest, $tim, $ext, $resto, $TN_W, $TN_H, $tmd5, $webm_sar, $_tensor_png);
-        
+
         if (!$ret && $ext != ".pdf") {
           error(S_IMGFAIL, $dest);
         }
-        
+
         if ($_need_inference && $_tensor_png) {
-          $tensorchan_score = tensorchan_check_nsfw($_tensor_png);
+          $clip_result = tensorchan_check_nsfw($_tensor_png);
+          if ($clip_result && isset($clip_result['nsfw'])) {
+            $tensorchan_score = (float)$clip_result['nsfw'];
+          }
           unset($_tensor_png);
         }
       }
@@ -6578,6 +6582,8 @@ function new_post( $name, $email, $sub, $com, $url, $pwd, $upfile, $upfile_name,
 			if( SKIP_DOUBLES == 1 ) $db->beginTransaction();
 
 			// Build column list and params dynamically
+			$_clip_nsfw = ($clip_result && isset($clip_result['nsfw'])) ? (float)$clip_result['nsfw'] : 0;
+			$_clip_desc = ($clip_result && isset($clip_result['description'])) ? substr($clip_result['description'], 0, 500) : '';
 			$_ins_cols = "now,name,sub,com,host,pwd,email,filename,ext,w,h,tn_w,tn_h,tim,time,last_modified,md5,fsize,root,resto";
 			$_ins_params = [
 				$now, $name, $sub, $com, $host, $pass, $user_meta, $insfile,
@@ -6612,14 +6618,18 @@ function new_post( $name, $email, $sub, $com, $url, $pwd, $upfile, $upfile_name,
 			}
 
 			$_ins_cols .= ",tmd5,id,country";
-			$_ins_params[] = $tmd5;
-			$_ins_params[] = $uid;
+			$_ins_params[] = $tmd5 ?: '';
+			$_ins_params[] = $uid ?: '';
 			$_ins_params[] = $country;
 
 			if ($board_flag_col) {
 				$_ins_cols .= $board_flag_col;
 				$_ins_params[] = $board_flag_code;
 			}
+
+			$_ins_cols .= ',clip_nsfw,clip_desc';
+			$_ins_params[] = $_clip_nsfw;
+			$_ins_params[] = $_clip_desc;
 
 			// Count params for placeholders (subtract 2 for root/resto which are handled specially)
 			$_ph_before_root = 18; // now through fsize
@@ -6837,9 +6847,8 @@ function new_post( $name, $email, $sub, $com, $url, $pwd, $upfile, $upfile_name,
 		// late tasks happen below here
 		iplog_add( BOARD_DIR, $insertid, $host, $time, $resto == 0, $tim, $has_image );
 		
-    // Auto-report possibly nsfw post
-    if ($tensorchan_score && $tensorchan_score > 0.5) {
-      tensorchan_log(BOARD_DIR, $insertid, $resto, $tim, $ext, $tensorchan_score);
+    if ($clip_result) {
+      tensorchan_log(BOARD_DIR, $insertid, $resto, $tim, $ext, $clip_result);
     }
 	} else {
 		// silent reject
@@ -7030,26 +7039,14 @@ function resredir( $res, $delete = 0, $no_exit = false ) {
 }
 
 function tensorchan_is_needed($userpwd, $resto, $W, $H, $ext) {
-  // Inference is disabled
   if (!defined('TENSORCHAN_MODE') || !TENSORCHAN_MODE) {
     return false;
   }
-  
-  // Can't check
-  if (!$userpwd) {
-    return false;
-  }
-  
-  // User is known or verified
-  if ($userpwd->isUserKnownOrVerified(240)) { // 4 hours
-    return false;
-  }
-  
-  // OPs only but the post is a reply
+
   if (TENSORCHAN_MODE == 1 && $resto) {
     return false;
   }
-  
+
   if ($W < 150 || $H < 150 || $ext == '.pdf') {
     return false;
   }
@@ -7061,63 +7058,68 @@ function tensorchan_check_nsfw($tensor_png) {
   if (!$tensor_png) {
     return false;
   }
-  
+
   $tensor_res = tensorchan_predict($tensor_png);
-  
+
   if (!$tensor_res) {
     return false;
   }
-  
+
   if (isset($tensor_res['error'])) {
     write_to_event_log('tensor_err', $_SERVER['REMOTE_ADDR'], [
       'board' => BOARD_DIR,
       'meta' => htmlspecialchars($tensor_res['error'])
     ]);
-    
+
     return false;
   }
-  else {
-    if (!isset($tensor_res['nsfw'])) {
-      return false;
-    }
-    
-    return (float)$tensor_res['nsfw'];
+
+  if (!isset($tensor_res['nsfw'])) {
+    return false;
   }
+
+  return $tensor_res;
 }
 
-function tensorchan_log($board, $post_id, $thread_id, $file_id, $file_ext, $score) {
+function tensorchan_log($board, $post_id, $thread_id, $file_id, $file_ext, $result) {
   $post_id = (int)$post_id;
   $thread_id = (int)$thread_id;
-  $score = (float)$score;
-  
-  $db_g = YotsubaDB::global();
-  return !!$db_g->query("INSERT INTO tensor_log(board, thread_id, post_id, file_id, file_ext, nsfw)
-VALUES(?, ?, ?, ?, ?, ?)", [$board, $thread_id, $post_id, $file_id, $file_ext, $score]);
+  $score = (float)$result['nsfw'];
+  $desc = $result['description'] ?? '';
+  $tags = isset($result['tags']) ? json_encode($result['tags']) : '';
+
+  $gdb = YotsubaDB::global();
+  return !!$gdb->query(
+    "INSERT INTO tensor_log(board, thread_id, post_id, file_id, file_ext, nsfw, description, tags) VALUES(?, ?, ?, ?, ?, ?, ?, ?)",
+    array($board, $thread_id, $post_id, $file_id, $file_ext, $score, $desc, $tags)
+  );
 }
 
 function tensorchan_predict($data) {
   if (!$data) {
     return false;
   }
-  
+
   $curl = curl_init();
-  
-  $url = "http://danbo.int:8501/predict";
-  
+
+  $host = defined('TENSORCHAN_HOST') ? TENSORCHAN_HOST : 'clip';
+  $port = defined('TENSORCHAN_PORT') ? TENSORCHAN_PORT : 8501;
+  $url = "http://{$host}:{$port}/predict";
+
   curl_setopt($curl, CURLOPT_URL, $url);
   curl_setopt($curl, CURLOPT_RETURNTRANSFER, 1);
-  curl_setopt($curl, CURLOPT_CONNECTTIMEOUT, 2);
-  curl_setopt($curl, CURLOPT_TIMEOUT, 4);
-  
+  curl_setopt($curl, CURLOPT_CONNECTTIMEOUT, 5);
+  curl_setopt($curl, CURLOPT_TIMEOUT, 15);
+
   curl_setopt($curl, CURLOPT_CUSTOMREQUEST , "POST");
   curl_setopt($curl, CURLOPT_POSTFIELDS, $data);
-  
+
   $headers = array(
     'Content-Type: application/octet-stream'
   );
-  
+
   curl_setopt($curl, CURLOPT_HTTPHEADER, $headers);
-  curl_setopt($curl, CURLOPT_USERAGENT, '4chan.org');
+  curl_setopt($curl, CURLOPT_USERAGENT, 'yotsuba/1.0');
   
   $resp = curl_exec($curl);
   

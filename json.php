@@ -252,7 +252,8 @@ function post_json_force_type( &$post )
 		'last_modified'  => 'integer',
 		'archived_on'    => 'integer',
 		'since4pass'     => 'integer',
-		'm_img'          => 'integer'
+		'm_img'          => 'integer',
+		'clip_desc'      => 'string'
 	);
 
 

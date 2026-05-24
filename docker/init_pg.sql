@@ -150,6 +150,8 @@ CREATE TABLE IF NOT EXISTS "a" (
   "undead" SMALLINT NOT NULL DEFAULT 0,
   "since4pass" SMALLINT NOT NULL DEFAULT 0,
   "m_img" SMALLINT NOT NULL DEFAULT 0,
+  "clip_nsfw" REAL NOT NULL DEFAULT 0,
+  "clip_desc" VARCHAR(500) NOT NULL DEFAULT '',
   "board_flag" VARCHAR(16) NOT NULL DEFAULT '',
   "upvotes" INTEGER NOT NULL DEFAULT 0,
   "downvotes" INTEGER NOT NULL DEFAULT 0
@@ -720,6 +722,23 @@ CREATE INDEX IF NOT EXISTS "event_log_type" ON "event_log" ("type");
 CREATE INDEX IF NOT EXISTS "event_log_ip" ON "event_log" ("ip");
 CREATE INDEX IF NOT EXISTS "event_log_board" ON "event_log" ("board");
 CREATE INDEX IF NOT EXISTS "event_log_created" ON "event_log" ("created");
+
+-- CLIP/tensorchan NSFW score log
+CREATE TABLE IF NOT EXISTS "tensor_log" (
+  "id" SERIAL PRIMARY KEY,
+  "board" VARCHAR(16) NOT NULL,
+  "thread_id" INTEGER NOT NULL DEFAULT 0,
+  "post_id" INTEGER NOT NULL DEFAULT 0,
+  "file_id" VARCHAR(32) NOT NULL DEFAULT '',
+  "file_ext" VARCHAR(8) NOT NULL DEFAULT '',
+  "nsfw" REAL NOT NULL DEFAULT 0,
+  "description" VARCHAR(500) NOT NULL DEFAULT '',
+  "tags" TEXT,
+  "created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS "tensor_log_board" ON "tensor_log" ("board");
+CREATE INDEX IF NOT EXISTS "tensor_log_nsfw" ON "tensor_log" ("nsfw");
+CREATE INDEX IF NOT EXISTS "tensor_log_post" ON "tensor_log" ("board", "post_id");
 
 -- Blotter (news/announcements)
 CREATE TABLE IF NOT EXISTS "blotter" (
