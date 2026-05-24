@@ -132,6 +132,9 @@ RUN { \
     && a2dissite 000-default \
     && a2ensite yotsuba
 
+# Composer (for PHPUnit)
+COPY --from=composer:2 /usr/bin/composer /usr/local/bin/composer
+
 WORKDIR /var/www/html
 
 # Copy application code
@@ -145,6 +148,9 @@ COPY docker/backup-dump.sh /usr/local/bin/backup-dump.sh
 COPY docker/static/ /www/4chan.org/web/static/
 
 RUN chmod +x /usr/local/bin/entrypoint.sh /usr/local/bin/init-boards.sh /usr/local/bin/run-migrations.sh /usr/local/bin/backup.sh /usr/local/bin/backup-dump.sh
+
+# Install PHP dev dependencies (PHPUnit)
+RUN cd /var/www/html && composer install --no-interaction --no-progress 2>/dev/null || true
 
 # Directory structure + symlink source to global path
 RUN mkdir -p /www/global \
