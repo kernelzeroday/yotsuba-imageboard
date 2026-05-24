@@ -6,12 +6,11 @@ html {
 }
 
 body {
-	background: #FFFFEE url(/static/image/fade.png) top center repeat-x;
+	background: #EEF2FF;
 
-	color: #800000;
-	font-family: arial, helvetica, sans-serif;
-	font-size: 10pt;
-
+	color: #000000;
+	font-size: 12pt;
+  font-family: 'Times New Roman', serif;
 	margin-left: 0;
 	margin-right: 0;
 	margin-top: 5px;
@@ -216,6 +215,10 @@ hr#op, #ctrl-top { clear: both; }
   z-index: 9998;
 }
 
+#disclaimer a {
+  color: #0000ff;
+}
+
 #disclaimer-bg {
   position: fixed;
   top: 0; left: 0;
@@ -232,7 +235,7 @@ hr#op, #ctrl-top { clear: both; }
   display: block;
   padding: 10px;
   position: relative;
-  background-color: #f0e0d6;
+  background-color: #d6daf0;
   box-shadow: 0 0 5px rgba(0, 0, 0, 0.25);
 }
 
@@ -246,7 +249,7 @@ hr#op, #ctrl-top { clear: both; }
 }
 
 #disclaimer h3 {
-  border-bottom: 1px solid #d9bfb7;
+  border-bottom: 1px solid #b7c5d9;
   margin: 0;
   padding-bottom: 5px;
   text-align: center;
@@ -371,7 +374,7 @@ input:-moz-placeholder { color: gray !important; }
 #captchaContainer {
   width: 343px;
   height: 86px;
-  line-height: 99px;
+  line-height: 102px;
   overflow: hidden;
 }
 #captchaContainer .placeholder {
@@ -379,29 +382,24 @@ input:-moz-placeholder { color: gray !important; }
   padding-left: 5px;
 }
 
-.mobile, .mobileinline, .mobileib {
+.mobile, .mobileinline {
 	display: none !important;
 }
 
 a, a:visited {
-	color: #00E;
-	text-decoration: none;
+	color: #34345C;
 }
 
-a.replylink:not(:hover), div#absbot a:not(:hover) {
-	color: #00E !important;
+a.replylink, div#absbot a {
+	text-decoration: underline !important;
 }
 
 a:hover {
-	color: red !important;
+	color: #DD0000;
 }
 
 div#absbot {
-	color: #800000;
-	clear: both;
-}
-
-div.board > hr {
+	color: #000000;
 	clear: both;
 }
 
@@ -417,7 +415,7 @@ img.topad, .topad > div, .topad a img {
 	margin: auto;
 }
 
-img.middlead, .middlead > div, .middlead a img{
+img.middlead, .middlead > div, .middlead a img {
 	width: 468px;
 	height: 60px;
 	max-width: 100%;
@@ -433,11 +431,8 @@ img.bottomad, .bottomad > div, .bottomad a img {
 	margin: auto;
 }
 
-hr {
-	border: none;
-	border-top: 1px solid #D9BFB7;
-
-	height: 0;
+div.board > hr {
+	clear: both;
 }
 
 hr.abovePostForm {
@@ -446,6 +441,16 @@ hr.abovePostForm {
 
 span.x-small {
 	font-size: x-small;
+}
+
+div.container {
+	margin: 0px !important;
+	padding: 0px !important;
+
+	display: block;
+
+	/** This fixes annoying margins and makes it a real container **/
+	line-height: 0em;
 }
 
 #postFormError {
@@ -505,10 +510,11 @@ ul.rules > li {
 div.boardBanner {
 	text-align: center;
 	clear: both;
+
+	color: #AF0A0F;
 }
 
 #bannerCnt {
-	border: 1px solid #800;
 	margin: 5px auto;
 	width: 300px;
 	height: 100px;
@@ -516,21 +522,19 @@ div.boardBanner {
 }
 
 div.boardBanner > div.boardTitle {
-	font-family: Tahoma, sans-serif;
-	font-size: 28px;
+
+	font-size: 24pt;
 	font-weight: bold;
-	letter-spacing: -2px;
 
 	margin-top: 0px;
 }
 
 div.boardBanner > div.boardSubtitle {
-	font-size: x-small;
+	font-size: 10pt;
 }
 
 div#boardNavDesktop {
-	font-size: 9pt;
-	color: #B86;
+	font-size: 11pt;
 	display: block;
 }
 
@@ -549,8 +553,6 @@ div#boardNavDesktop {
 div#boardNavDesktop a {
 	font-weight: normal;
 	padding: 1px;
-	text-decoration: none;
-	color: #800000;
 }
 
 /** General Containers **/
@@ -563,7 +565,6 @@ div.opContainer {
 }
 
 div.sideArrows {
-	color: #e0bfb7;
 
 	float: left;
 
@@ -576,8 +577,8 @@ div.sideArrows {
 div.thread {
 
 	margin: 0px;
-	clear: both;
 
+	clear: both;
 }
 
 /** Post Container **/
@@ -595,11 +596,7 @@ div.op {
 }
 
 div.reply {
-	background-color: #f0e0d6;
-
-	border: 1px solid #D9BFB7;
-	border-left: none;
-	border-top: none;
+	background-color: #D6DAF0;
 
 	display: table;
 
@@ -627,11 +624,11 @@ div.post div.postInfo span.postNum {
 
 div.post div.postInfo span.postNum a {
 	text-decoration: none;
-	color: #800000;
+	color: #000000;
 }
 
 div.post div.postInfo span.postNum a:hover, .posteruid .hand:hover {
-	color: red !important;
+	color: #DD0000 !important;
 }
 
 /* Name */
@@ -660,7 +657,7 @@ div.post div.postInfo span.time {
 
 /* Subject */
 div.post div.postInfo span.subject {
-	color: #cc1105;
+	color: #0F0C5D;
 	font-weight: bold;
 }
 
@@ -673,13 +670,8 @@ blockquote > span.quote {
 	color: #789922;
 }
 
-.quoteLink, .quotelink, .deadlink, .pageJump a {
-	color: #000080 !important;
-	text-decoration: underline;
-}
-
-.pageJump a:hover {
-	color: #ff0000 !important;
+.quoteLink, .quotelink, .deadlink {
+	color: #D00 !important;
 }
 
 /* Archived threads list */
@@ -719,7 +711,7 @@ div.post div.file {
 
 div.post div.file div.fileInfo {
 	margin-right: 10px;
-  word-break: break-all;
+	word-break: break-all;
 }
 
 div.replyContainer div.post div.file div.fileInfo {
@@ -731,6 +723,7 @@ div.post div.file .fileThumb {
 	margin-left: 20px;
 	margin-right: 20px;
 	margin-top: 3px;
+
 	margin-bottom: 5px;
 }
 
@@ -753,7 +746,6 @@ div.post div.file .fileThumb img {
 
 /** Summary **/
 span.summary {
-	color: #707070;
 	margin-top: 10px;
 }
 
@@ -765,9 +757,16 @@ div.postingMode {
 
 	color: #fff;
 	font-weight: bold;
-	font-size: larger;
 
 	margin-top: 8px;
+}
+
+div.navLinks {
+	margin-bottom: 10px;
+}
+
+div.navLinksBot {
+	margin-bottom: 0px;
 }
 
 #verification table {
@@ -783,41 +782,32 @@ div.thread:last-child {
 }
 
 div.pagelist {
-	font-size: 13px !important;
-
-	margin: 0;
-	padding: 3px 7px;
-
-	float: left;
-
-	border: none;
-	background: #F0E0D6;
-
-	border-right: 1px solid #D9BFB7;
-	border-bottom: 1px solid #D9BFB7;
-
-	list-style: none;
 	overflow: hidden;
 
-	color: #B86;
+	border: 1px solid gray;
+	background: #EEF2FF;
+	border: 1px solid black;
+	border-left-color: gray;
+	border-top-color: gray;
+	padding: 1px;
+
+	display: inline-block;
 }
 
 div.pagelist > div {
 	float: left;
+
+	margin: 1px;
+
+	border: 1px solid gray;
+	border-left-color: black;
+	border-top-color: black;
 }
 
-div.pagelist > div span {
-	padding: 4px;
+div.pagelist div.pages, div.pagelist div span {
+	padding-top: 3px;
+	padding-bottom: 3px;
 	display: inline-block;
-}
-
-div.pagelist div.pages {
-	padding: 4px;
-}
-
-div.pagelist div.pages a {
-	text-decoration: none !important;
-	/* FINE MOOT GOSH JEEZ */
 }
 
 div.pagelist form {
@@ -825,23 +815,12 @@ div.pagelist form {
 }
 
 div.pagelist strong {
-	color: #800000;
-}
-
-div.pagelist div.cataloglink {
-	border-left: 1px solid #D9BFB7;
-	padding-left: 12px;
-	margin-left: 7px;
+	color: #000000;
 }
 
 .bottomCtrl {
   float: right;
   margin-top: 2px;
-}
-
-input[type=password] {
-	width: 50px;
-	text-align: center;
 }
 
 div.deleteform input[type=checkbox] {
@@ -850,15 +829,11 @@ div.deleteform input[type=checkbox] {
 
 .stylechanger {
 	margin-left: 5px;
-	font-size: 10pt;
 }
 
 div#boardNavDesktopFoot {
-	font-size: 9pt;
-	color: #B86;
-
 	clear: both;
-
+	font-size: 11pt;
 	padding-top: 10px;
 	padding-bottom: 3px;
 }
@@ -866,8 +841,6 @@ div#boardNavDesktopFoot {
 div#boardNavDesktopFoot a {
 	font-weight: normal;
 	padding: 1px;
-	text-decoration: none;
-	color: #800000;
 }
 
 div.homelink {
@@ -876,12 +849,13 @@ div.homelink {
 
 div#absbot {
 	text-align: center;
-	font-size: x-small !important;
+	font-size: 8pt !important;
 
 	padding-bottom: 4px;
 	padding-top: 10px;
+	clear: both;
 
-	color: #800;
+	color: #000;
 }
 
 #recaptcha_response_field {
@@ -889,21 +863,28 @@ div#absbot {
 }
 
 /** POST FORM **/
-table {
+table#postForm {
 	border-spacing: 1px;
 
 	margin-left: auto;
 	margin-right: auto;
 }
 
-table.postForm > tbody > tr > td:first-child {
-	background-color: #EA8;
-	color: #800;
-	font-weight: bold;
-	border: 1px solid #800;
-	padding: 0 5px;
+#postForm {
+  display: none;
+}
 
-	font-size: 10pt;
+#togglePostFormLink {
+  font-size: 22px;
+  font-weight: bold;
+  text-align: center;
+}
+
+table.postForm > tbody > tr > td:first-child {
+	background-color: #98E;
+	color: #000;
+	font-weight: bold;
+
 }
 
 tr.rules td {
@@ -912,48 +893,33 @@ tr.rules td {
 	font-weight: normal !important;
 }
 
-td {
+table#postForm td {
 	margin: 0px;
 	padding: 0px;
 
-	font-size: 10pt;
-}
-
-input[type=text], input[type=password], table.postForm > tbody textarea, #recaptcha_response_field {
-	margin: 0px;
-	margin-right: 2px;
-	padding: 2px 4px 3px 4px;
-
-	border: 1px solid #AAA;
-	outline: none;
-
-	font-family: arial, helvetica, sans-serif;
-	font-size: 10pt;
-}
-
-#recaptcha_response_field:not(:focus) {
-	border: 1px solid #AAA !important;
-}
-
-input[type=text]:focus, input[type=password]:focus, input:not([type]):focus, textarea:focus {
-	border: 1px solid #ea8 !important;
 }
 
 table.postForm > tbody > tr > td > input[type=text] {
-	width: 244px;
+	width: 260px;
 }
 
 table.postForm > tbody > tr > td > input[name="subject"] {
 	width: 300px;
 }
 
+input[type=password] {
+	width: 70px;
+}
+
+table.postForm input[type="submit"] {
+	margin-left: 5px;
+}
+
 .postblock {
-	background-color: #EA8;
-	color: #800;
+	background-color: #98E;
+	color: #000;
 	font-weight: bold;
-	border: 1px solid #800;
 	padding: 0 5px;
-	font-size: 10pt;
 }
 
 div.closed {
@@ -980,8 +946,15 @@ div.closed {
 @media screen and (-webkit-min-device-pixel-ratio:0) {
 	tbody textarea {
 		margin-bottom: -3px !important;
-		width: 292px
 	}
+}
+
+.reply:target, .reply.highlight {
+	background: #D6BAD0 !important;
+}
+
+.hand {
+	cursor: pointer;
 }
 
 .commentpostername {
@@ -1071,23 +1044,10 @@ div.closed {
 }
 
 .highlightPost:not(.op) {
-	background: #f0d6d6 !important;
-	border-color: #d69595 !important;
+	background: #c1c6e2 !important;
 }
 
-.reply:target, .reply.highlight {
-	background: #F0C0B0 !important;
-	border: 1px solid #D99F91 !important;
-	border-left: none !important;
-	border-top: none !important;
-	padding: 2px;
-}
-
-.hand {
-	cursor: pointer;
-}
-
-.nameBlock.capcodeAdmin span.name, span.capcodeAdmin a span.name, span.capcodeAdmin span.postertrip, span.capcodeAdmin strong.capcode {
+span.capcodeAdmin span.name, span.capcodeAdmin span.name a, span.capcodeAdmin span.postertrip, span.capcodeAdmin strong.capcode {
 	color: #F00 !important;
 }
 
@@ -1095,28 +1055,23 @@ span.capcodeFounder span.name, span.capcodeFounder span.name a, span.capcodeFoun
 	color: #117743 !important;
 }
 
-.nameBlock.capcodeMod span.name, span.capcodeMod a span.name, span.capcodeMod span.postertrip, span.capcodeMod strong.capcode {
+span.capcodeMod span.name, span.capcodeMod span.name a, span.capcodeMod span.postertrip, span.capcodeMod strong.capcode {
 	color: #800080 !important;
 }
 
-.nameBlock.capcodeDeveloper span.name, span.capcodeDeveloper a span.name, span.capcodeDeveloper span.postertrip, span.capcodeDeveloper strong.capcode {
+span.capcodeDeveloper span.name, span.capcodeDeveloper span.name a, span.capcodeDeveloper span.postertrip, span.capcodeDeveloper strong.capcode {
 	color: #0000F0 !important;
 }
 
-.nameBlock.capcodeManager span.name, span.capcodeManager a span.name, span.capcodeManager span.postertrip, span.capcodeManager strong.capcode {
+span.capcodeManager span.name, span.capcodeManager span.name a, span.capcodeManager span.postertrip, span.capcodeManager strong.capcode {
 	color: #FF0080 !important;
 }
 
-.nameBlock.capcodeVerified span.name, span.capcodeVerified span.name a, span.capcodeVerified span.postertrip, span.capcodeVerified strong.capcode {
+span.capcodeVerified span.name, span.capcodeVerified span.name a, span.capcodeVerified span.postertrip, span.capcodeVerified strong.capcode {
   color: #007FFF !important;
 }
 
-#reportTypes a,
-.useremail {
-  text-decoration: underline;
-}
-
-.omittedposts, .abbr {
+.summary, .omittedposts, .abbr {
 	color: #707070;
 }
 
@@ -1149,7 +1104,7 @@ table.exif {
 }
 
 table.exif td {
-	color: #707070;
+	color: #070707;
 	min-width: 150px;
 	font-size: 8pt;
 }
@@ -1158,53 +1113,9 @@ table.exif td b {
 	text-decoration: underline;
 }
 
-div.posthover {
-	max-width: 400px;
-	margin-left: 20px;
-
-}
-
-div.posthover {
-	padding: 5px;
-
-	padding-left: 10px;
-	padding-right: 10px;
-
-}
-
-div.posthover a.fileThumb {
-	margin-left: 5px !important;
-	margin-right: 10px !important;
-}
-
-div.posthover blockquote {
-	margin: 5px;
-
-}
-
-div.posthover img[data-md5] {
-	max-width: 80px;
-	max-height: 80px;
-
-	height: auto !important;
-	width: auto !important;
-}
-
-div.posthover div.fileThumb {
-	margin-left: 0px !important;
-	margin-right: 10px !important;
-}
-
 #navtopright, #navbotright {
 	float: right;
-}
-
-.preview {
-	background: #F0E0D6;
-
-	border: 1px solid #D9BFB7 !important;
-	border-right: 2px solid #D9BFB7 !important;
-	border-bottom: 2px solid #D9BFB7 !important;
+	font-size: 11pt;
 }
 
 #settingsBox {
@@ -1228,9 +1139,8 @@ div.backlink {
 .persistentNav,
 div#boardNavMobile {
 	padding: 2px 4px;
-	background-color: #F0E0D6;
+	background-color: #D6DAF0;
 	overflow: hidden;
-	border-bottom: 2px solid #D9BFB7;
 	position: fixed;
 	top: 0px;
 	left: 0px;
@@ -1242,6 +1152,8 @@ div#boardNavMobile {
 div#boardNavMobile select, div#boardNavMobile option {
 	font-size: 11px;
 }
+
+.autohide-nav { transition: top 0.2s ease-in-out }
 
 div.boardSelect {
 	float: left;
@@ -1309,21 +1221,76 @@ span.qrButtonHolder img {
 	text-align: center;
 }
 
+div.posthover {
+	max-width: 400px;
+	margin-left: 20px;
+
+}
+
+div.posthover {
+	padding: 5px;
+
+	padding-left: 10px;
+	padding-right: 10px;
+
+}
+
+div.posthover a.fileThumb {
+	margin-left: 5px !important;
+	margin-right: 10px !important;
+}
+
+div.posthover blockquote {
+	margin: 5px;
+
+}
+
+div.posthover img[data-md5] {
+	max-width: 80px;
+	max-height: 80px;
+}
+
+div.posthover div.fileThumb {
+	margin-left: 0px !important;
+	margin-right: 10px !important;
+}
+
 .op .backlinkHr {
 	width: 55%;
 }
 
-.useremail:not(:hover) .name, .useremail:not(:hover) .postertrip {
-	color: #0000EE !important;
+.useremail .name, .useremail .postertrip {
+	color: #34345C !important;
 }
 
 .useremail:hover * {
-	color: red !important;
+	color: #DD0000 !important;
 }
 
 img.expandedImg {
 	max-width: none !important;
 	max-height: none !important;
+}
+
+.prettyprint {
+	border: none !important;
+	background-color: #fff;
+	padding: 5px !important;
+	display: inline-block;
+
+	max-height: 400px;
+	overflow-x: auto;
+	max-width: 600px;
+	
+	margin: 0;
+	font-size: 14px;
+}
+
+.preview {
+	background-color: #D6DAF0;
+	border: 1px solid rgba(0, 0, 0, 0.20);
+	border-bottom: 2px solid rgba(0, 0, 0, 0.20);
+	border-right: 2px solid rgba(0, 0, 0, 0.20);
 }
 
 /** this is not important **/
@@ -1344,25 +1311,16 @@ img.expandedImg {
 	width: 292px;
 }
 
-.prettyprint {
-	border: none !important;
-	background-color: #fff;
-	padding: 5px !important;
-	display: inline-block;
-
-	max-height: 400px;
-	overflow-x: auto;
-	max-width: 600px;
-	
-	margin: 0;
-}
-
 .embed {
 	position: absolute;
 	width: 0px;
 	height: 0px;
 
 	overflow: hidden;
+}
+
+table.flashListing {
+	margin: 0 auto;
 }
 
 table.flashListing td.postblock {
@@ -1372,7 +1330,6 @@ table.flashListing td.postblock {
 
 table.flashListing td {
 	padding: 2px;
-	font-size: 9pt;
 }
 
 table.flashListing td:not(.subject) {
@@ -1394,17 +1351,26 @@ table.flashListing .subject {
 }
 
 table.flashListing tr:nth-of-type(odd) {
-	background-color: #ede2d4;
-}
-
-input[type="text"], input[type="password"], textarea {
-	-webkit-appearance: none;
-	-webkit-border-radius: 0;
+	background-color: #e0e5f6;
 }
 
 .countryFlag {
 	padding-top: 1px;
 	margin-bottom: -1px;
+}
+
+textarea[name="com"] {
+	width: 296px;
+}
+
+#recaptcha_response_field {
+	border: 1px solid #aaa !important;
+	width: 300px !important;
+	font-size: 10pt !important;
+}
+
+table.postForm > tbody > tr > td > input[type="text"] {
+	width: 244px;
 }
 
 .deadlink {
@@ -1413,7 +1379,8 @@ input[type="text"], input[type="password"], textarea {
 
 .oldpost {
 	background: inherit;
-	color: #f00000;
+	font-family: serif;
+	color: #0F0C5D;
 	font-weight: 800;
 }
 
@@ -1449,14 +1416,6 @@ table.flashListing .subject {
   font-size: smaller;
 }
 
-.ad-plea a {
-  text-decoration: none;
-}
-
-.fileText a {
-  text-decoration: underline;
-}
-
 #search-box {
   height: 16px;
   line-height: 16px;
@@ -1488,19 +1447,11 @@ table.flashListing .subject {
   color: inherit !important;
   text-decoration: line-through;
 }
-#postForm textarea {
-  width: 292px;
-}
-
 #postForm {
   width: 468px;
-  display: none;
 }
-
-#togglePostFormLink {
-  font-size: 22px;
-  font-weight: bold;
-  text-align: center;
+#postForm textarea {
+  width: 292px;
 }
 
 .fileWebm:hover:before {
@@ -1572,7 +1523,7 @@ table.flashListing .subject {
 
 .dd-menu {
   position: absolute;
-  font-size: 12px;
+  font-size: 13px;
   line-height: 1.3em;
 }
 .dd-menu a {
@@ -1581,9 +1532,9 @@ table.flashListing .subject {
   display: block;
 }
 .dd-menu ul {
-  background-color: #F0E0D6;
-  border: 1px solid #D9BFB7;
-  border-right-width: 2px;
+  background-color: #D6DAF0;
+  border: 1px solid #B7C5D9;
+  border-bottom: none;
   list-style: none;
   padding: 0;
   margin: 0;
@@ -1598,10 +1549,10 @@ table.flashListing .subject {
   position: relative;
   padding: 2px 4px;
   vertical-align: middle;
-  border-bottom: 1px solid #D9BFB7;
+  border-bottom: 1px solid #B7C5D9;
 }
 .dd-menu li:hover {
-  background-color: #FFFFEE;
+  background-color: #EEF2FF;
 }
 .dd-menu li:hover ul {
   display: block;

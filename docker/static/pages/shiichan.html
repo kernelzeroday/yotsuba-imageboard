@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Shiichan Anonymous BBS - the forum software's official home page</title>
+<link rel="shortcut icon" href="/static/image/favicon.ico">
+<style>
+body {
+  background: #FFFFEE;
+  font-family: sans-serif;
+  font-size: 10pt;
+  max-width: 700px;
+  margin: 20px auto;
+  padding: 0 20px;
+  line-height: 1.5;
+}
+a { color: #34345C; }
+a:hover { color: #DD0000; }
+h1 {
+  font-family: Tahoma, sans-serif;
+  color: #AF0A0F;
+  letter-spacing: -1px;
+}
+h2 {
+  color: #AF0A0F;
+  border-bottom: 1px solid #D9BFB7;
+  padding-bottom: 4px;
+}
+blockquote {
+  border-left: 3px solid #D6DAF0;
+  margin-left: 20px;
+  padding-left: 15px;
+  color: #333;
+  font-style: italic;
+}
+hr {
+  border: none;
+  border-top: 1px solid #D9BFB7;
+  margin: 20px 0;
+}
+.footer {
+  margin-top: 40px;
+  font-size: 9px;
+  color: #AAA;
+  text-align: center;
+}
+.nav {
+  font-size: 9px;
+  text-align: center;
+  margin-bottom: 20px;
+}
+</style>
+</head>
+<body>
+<div class="nav">[ <a href="/">4chan</a> / <a href="/rules">Rules</a> / <a href="/faq">FAQ</a> ]</div>
+
+<h1>Shiichan Anonymous BBS</h1>
+<p>Shiichan was a 2ch-type board in PHP. It was written in late 2004 by a guy named Shii. Currently, it is in a buggy beta stage, and no development is planned. This page is preserved because of the essay on it, below.</p>
+<ul>
+<li><b>An actually working alternative: <a href="https://wakaba.c3.cx/">Kareha</a></b></li>
+<li>Or, if you really must, you can download <a href="https://wakaba.c3.cx/shii/shiichan3960.zip">Shiichan v.3960 (security update, 2009)</a></li>
+</ul>
+
+<h2>What's "2ch-type"?</h2>
+<p>A 2ch-type board is a sort of anonymous bulletin board system. You can have as many forums as you want; the latest posts in each thread are previewed in the front page of each forum. Nicknames are optional. A system is implemented to allow "registration"-like features without storing any user information in a database.</p>
+<p>This type of board is based off of <a href="http://www.2ch.net/">2channel</a>, pronounced "Ni-channeru", the largest Internet forum in the world (20 times larger than the biggest American forum). Shiichan is somewhat different from the 2ch look, but they still use the same system. Kareha is very closely modelled on 2ch.</p>
+
+<h2>Why is this better than regular forum software?</h2>
+<p>If you want to create a beautiful "community", forum software is not for you. You should rather find some way to securely verify people's identities and then talk with them on a first-name basis. Once you start allowing pseudonyms, anything goes.</p>
+<p>On the other hand, you're interested in starting a forum on some topic of your interest, and allowing anyone to post, then 2ch-type is infinitely better than PhpBB, Invision, or vBulletin. I'm going to refer to these as "old-type forum software"; I'm not pretending to be unbiased.</p>
+<p>Here's why:</p>
+<ul>
+<li><b>Registration keeps out good posters.</b> Imagine someone with an involving job related to your forum comes across it. This person is an expert in her field, and therefore would be a great source of knowledge for your forum; but if a registration, complete with e-mail and password, is necessary before posting, she might just give up on posting and do something more important. People with <i>lives</i> will tend to ignore forums with a registration process.</li>
+<li><b>Registration lets in bad posters.</b> On the other hand, people with <i>no lives</i> will thrive on your forum. Children and Internet addicts tend to have free time to go register an account and check their e-mail for the confirmation message. They will generally make your forum a waste of bandwidth.</li>
+<li><b>Registration attracts trolls.</b> If someone is interested in destroying a forum, a registration process only adds to the excitement of a challenge. One might argue that a lack of registration will just let "anyone" post, but in reality <i>anyone can post on old-type forum software</i>; registration is merely a useless hassle. Quoting a 4channeler:
+<blockquote>Trolls are <i>not</i> out to protect their own reputation. They seek to destroy <i>other</i> peoples' "reputation" ... Fora with only registered accounts are like a garden full of flowers of vanity a troll would just love to pick.</blockquote></li>
+<li><b>Anonymity counters vanity.</b> On a forum where registration is required, or even where people give themselves names, a clique is developed of the elite users, and posts deal as much with who you are as what you are posting. On an anonymous forum, if you can't tell who posts what, logic will overrule vanity. As Hiroyuki, the administrator of 2ch, writes:
+<blockquote>If there is a user ID attached to a user, a discussion tends to become a criticizing game. On the other hand, under the anonymous system, even though your opinion/information is criticized, you don't know with whom to be upset. Also with a user ID, those who participate in the site for a long time tend to have authority, and it becomes difficult for a user to disagree with them. Under a perfectly anonymous system, you can say, "it's boring," if it is actually boring. All information is treated equally; only an accurate argument will work.</blockquote></li>
+</ul>
+
+<h2>This is hard to believe. (2006)</h2>
+<p>Problems with 2ch-type forums often come along the lines of "people will be more likely to insult, flame, and troll if they're anonymous". This may be true... but people are <i>already</i> pseudonymous on most forums. The drama and hatred you see on pseudonymous forums is <i>as bad as it gets</i>; with anonymity, you'll probably be better off because of the convenience. <i>Either way</i> you will need a dedicated team of moderators to police the board for trolling and nonsense.</p>
+<p>A preliminary study done by... me in March 2005 found that there was no noticeable difference between 2channel and forums.gentoo.org in terms of useful posts, off-topic posts, and nonsense in a long thread about technical issues. On the American forum 4-ch.net where posts can be either anonymous or pseudonymous, most of the actual helpful contributions to technical discussions came from anonymous users, whereas pseudonymous users tended to offer their personal experiences. But this was totally unscientific. Do a blind study yourself.</p>
+<p>Spam is another issue. Since 2004 when this essay was written, message board spam has become increasingly prevalent on all anonymous forums. However, on old-style forums spammers often register fake accounts and happily suck in users to their profile websites without posting. If you are experiencing spam that gets around your local filters, I have found that extremely simple tests, such as a drop-down box asking whether you are a human (Yes? No? Maybe?) often cut it off entirely.</p>
+<p>If you can't or don't want to force people to pay or use their real names, at least give a swing at bucking the establishment and trying out a totally anonymous forum.</p>
+
+<hr>
+<p>Shiichan is released under the GNU General Public License.<br>
+Copyleft 2004; all rights reversed, reprint what you like.<br>
+For formal permissions or to contact the author of this essay, visit <a href="http://shii.org/">shii.org</a></p>
+
+<div class="footer">
+Rehosted by <a href="/">4chan</a> — original at <a href="https://wakaba.c3.cx/shii/">wakaba.c3.cx/shii/</a>
+</div>
+</body>
+</html>

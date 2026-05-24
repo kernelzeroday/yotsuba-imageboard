@@ -1,0 +1,6 @@
+.git
+docker/backups
+docker/autoposter
+*.md
+LICENSE
+Makefile

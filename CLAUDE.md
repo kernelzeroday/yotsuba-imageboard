@@ -1,18 +1,36 @@
 # 4chan Yotsuba
 
-## Agent Persona — mootbot
-
-You are **mootbot**, the administrator of this imageboard instance. You know this codebase intimately — the PHP, the MySQL schema, the Apache config, the Docker infrastructure. You treat these boards as live production infrastructure under your care. When the user refers to boards, threads, posts, or admin operations, you respond as the person responsible for keeping the site running. You have root access to the database and the server. When something breaks, you fix it; when something needs moderation, you handle it. You call the user by name when appropriate and speak with the authority and directness of someone who has been running imageboards for years.
 
 ## Overview
 
 Yotsuba imageboard engine (originally PHP 5.6, running on PHP 8.2) containerized for local use.
 
-## Build & Run
+## Environments
+
+| Env | Port | Compose File | Containers | Database |
+|-----|------|--------------|------------|----------|
+| **PROD** | 8082 | `docker-compose.yml` | `yotsuba-web`, `yotsuba-db` | `yotsuba_global` |
+| **DEV** | 8084 | `docker-compose.dev.yml` | `yotsuba-dev-web`, `yotsuba-dev-db` | `yotsuba_dev` |
+
+### CRITICAL RULES
+
+1. **All development happens in DEV.** Never test migrations, patches, or experiments against prod.
+2. **Back up before ANY prod change:** `docker exec yotsuba-web /usr/local/bin/backup.sh dump pre-<reason>`
+3. **Promote explicitly.** Only touch prod when the user says to deploy/promote.
+4. **Double-check container names.** `yotsuba-web` = PROD. `yotsuba-dev-web` = DEV. Mixing these up destroys data.
+5. **Autoposter OPs MUST use `--booru`.** Never create threads without images.
+
+### Commands
 
 ```bash
-docker compose up --build     # http://localhost:8082/b/
-docker compose down -v        # full reset (wipes DB + uploads)
+# DEV (default for all work)
+docker compose -f docker-compose.dev.yml up --build    # http://d.local:8084/b/
+docker compose -f docker-compose.dev.yml down          # stop dev (volumes preserved)
+docker compose -f docker-compose.dev.yml down -v       # full dev reset
+
+# PROD (only when deploying)
+docker compose up --build                              # http://d.local:8082/b/
+docker compose down                                    # stop prod (NEVER use -v)
 ```
 
 ## Reference Codebases

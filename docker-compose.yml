@@ -1,3 +1,5 @@
+name: yotsuba-prod
+
 services:
   web:
     build: .
@@ -17,10 +19,13 @@ services:
         condition: service_healthy
       memcached:
         condition: service_started
+    stop_grace_period: 30s
     volumes:
       - uploads_data:/www/4chan.org/web/images
       - thumbs_data:/www/4chan.org/web/thumbs
       - boards_data:/www/4chan.org/web/boards
+      - backups_data:/www/backups
+      - logs_data:/www/logs
     networks:
       - lab-net
     restart: unless-stopped
@@ -39,6 +44,7 @@ services:
       - "3306:3306"
     volumes:
       - db_data:/var/lib/mysql
+      - backups_data:/backups
     networks:
       - lab-net
     healthcheck:
@@ -75,6 +81,8 @@ volumes:
   uploads_data:
   thumbs_data:
   boards_data:
+  backups_data:
+  logs_data:
 
 networks:
   lab-net:

@@ -1,0 +1,34 @@
+.bfl {
+  display: inline-block;
+  width: 16px;
+  height: 11px;
+  position: relative;
+  top: 1px;
+  background: url('/static/image/flags/pol/flags.png?2') no-repeat;
+}
+
+.bfl-ac { background-position:0 0 }
+.bfl-an { background-position:-16px 0 }
+.bfl-bl { background-position:-32px 0 }
+.bfl-cf { background-position:-48px 0 }
+.bfl-cm { background-position:-64px 0;height:12px; }
+.bfl-ct { background-position:0 -12px }
+.bfl-dm { background-position:-16px -12px;height:12px; }
+.bfl-eu { background-position:-32px -12px }
+.bfl-fc { background-position:-48px -12px }
+.bfl-gn { background-position:-64px -12px }
+.bfl-gy { background-position:0 -24px;height:12px; }
+.bfl-jh { background-position:-16px -24px }
+.bfl-kn { background-position:-32px -24px }
+.bfl-mf { background-position:-48px -24px;height:12px; }
+.bfl-mz { background-position:-64px -24px;width:11px; }
+.bfl-nb { background-position:0 -36px }
+.bfl-nt { background-position:-16px -36px;height:12px; }
+.bfl-nz { background-position:-32px -36px;height:12px; }
+.bfl-pc { background-position:-48px -36px;height:12px; }
+.bfl-pr { background-position:-64px -36px }
+.bfl-re { background-position:0 -48px }
+.bfl-tm { background-position:-16px -48px }
+.bfl-tr { background-position:-32px -48px }
+.bfl-un { background-position:-48px -48px }
+.bfl-wp { background-position:-64px -48px;height:12px; }

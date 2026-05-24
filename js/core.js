@@ -2376,6 +2376,35 @@ function checkIncognito() {
   })).then((v) => window.isIncognito = v);
 }
 
+function onPasteFile(e) {
+  var items, i, blob, file, dt, el;
+
+  if (!e.clipboardData || !e.clipboardData.items) {
+    return;
+  }
+
+  items = e.clipboardData.items;
+
+  for (i = 0; i < items.length; i++) {
+    if (items[i].type.indexOf('image/') === 0) {
+      blob = items[i].getAsFile();
+      if (!blob) continue;
+
+      el = $.id('qrFile') || $.id('postFile');
+      if (!el) return;
+
+      dt = new DataTransfer();
+      dt.items.add(new File([blob], 'clipboard.' + blob.type.split('/')[1],
+        { type: blob.type }));
+      el.files = dt.files;
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+
+      e.preventDefault();
+      return;
+    }
+  }
+}
+
 function onPostFormSubmit(e) {
   let el = $.id('postFile');
   if (el && el.value && window.isIncognito) {
@@ -2401,6 +2430,7 @@ function contentLoaded() {
     document.post.name.value = get_cookie("4chan_name");
     document.post.email.value = get_cookie("options");
     document.post.addEventListener('submit', onPostFormSubmit, false);
+    document.addEventListener('paste', onPasteFile, false);
   }
   
   cloneTopNav();

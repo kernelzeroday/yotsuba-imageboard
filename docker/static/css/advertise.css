@@ -1,0 +1,27 @@
+ul,ol,dl{margin:1em;}ul li{list-style:disc outside;}ol li{list-style:decimal outside;}em{font-style:italic;}strong{font-weight:bold;}.boxcontent h3{font-size:116%;}.boxcontent h4{font-weight:bold;}.boxcontent{color:black;line-height:1.5em;}ul{margin-left:2em;}ol{margin-left:2.5em;}.boxcontent p{margin:1.0em 0;}hr{border:0;color:#060;background:#060;height:1px;margin-top:0;margin-bottom:1.0em;}span.trip{color:#117743;}.postblock{background:#ffe;border:1px solid #fca;color:#800;font-size:116%;height:2em;line-height:2em;padding-left:.5em;padding-right:.5em;}
+.ssButton {
+  box-shadow: inset 0px 1px 0px 0px #a4e271;
+  background: linear-gradient(to bottom, #89c403 5%, #77a809 100%);
+  background-color: #89c403;
+  border-radius: 6px;
+  border: 1px solid #74b807;
+  display: inline-block;
+  cursor: pointer;
+  color: #ffffff !important;
+  font-family: Arial;
+  font-size: 15px;
+  font-weight: bold;
+  padding: 6px 24px;
+  text-decoration: none;
+  text-shadow: 0px 1px 0px #528009;
+}
+
+.ssButton:hover {
+  background: linear-gradient(to bottom, #77a809 5%, #89c403 100%);
+  background-color: #77a809;
+}
+
+.ssButton:active {
+  position: relative;
+  top: 1px;
+}

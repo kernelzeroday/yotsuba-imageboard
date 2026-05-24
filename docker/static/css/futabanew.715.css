@@ -6,12 +6,11 @@ html {
 }
 
 body {
-	background: #FFFFEE url(/static/image/fade.png) top center repeat-x;
+	background: #FFE;
 
 	color: #800000;
-	font-family: arial, helvetica, sans-serif;
-	font-size: 10pt;
-
+	font-size: 12pt;
+  font-family: 'Times New Roman', serif;
 	margin-left: 0;
 	margin-right: 0;
 	margin-top: 5px;
@@ -371,7 +370,7 @@ input:-moz-placeholder { color: gray !important; }
 #captchaContainer {
   width: 343px;
   height: 86px;
-  line-height: 99px;
+  line-height: 102px;
   overflow: hidden;
 }
 #captchaContainer .placeholder {
@@ -379,13 +378,16 @@ input:-moz-placeholder { color: gray !important; }
   padding-left: 5px;
 }
 
-.mobile, .mobileinline, .mobileib {
+.mobile, .mobileinline {
 	display: none !important;
 }
 
 a, a:visited {
 	color: #00E;
-	text-decoration: none;
+}
+
+a.replylink, div#absbot a {
+	text-decoration: underline !important;
 }
 
 a.replylink:not(:hover), div#absbot a:not(:hover) {
@@ -394,11 +396,6 @@ a.replylink:not(:hover), div#absbot a:not(:hover) {
 
 a:hover {
 	color: red !important;
-}
-
-div#absbot {
-	color: #800000;
-	clear: both;
 }
 
 div.board > hr {
@@ -417,7 +414,7 @@ img.topad, .topad > div, .topad a img {
 	margin: auto;
 }
 
-img.middlead, .middlead > div, .middlead a img{
+img.middlead, .middlead > div, .middlead a img {
 	width: 468px;
 	height: 60px;
 	max-width: 100%;
@@ -433,19 +430,22 @@ img.bottomad, .bottomad > div, .bottomad a img {
 	margin: auto;
 }
 
-hr {
-	border: none;
-	border-top: 1px solid #D9BFB7;
-
-	height: 0;
-}
-
 hr.abovePostForm {
 	width: 90%;
 }
 
 span.x-small {
 	font-size: x-small;
+}
+
+div.container {
+	margin: 0px !important;
+	padding: 0px !important;
+
+	display: block;
+
+	/** This fixes annoying margins and makes it a real container **/
+	line-height: 0em;
 }
 
 #postFormError {
@@ -508,7 +508,6 @@ div.boardBanner {
 }
 
 #bannerCnt {
-	border: 1px solid #800;
 	margin: 5px auto;
 	width: 300px;
 	height: 100px;
@@ -516,22 +515,25 @@ div.boardBanner {
 }
 
 div.boardBanner > div.boardTitle {
-	font-family: Tahoma, sans-serif;
-	font-size: 28px;
+	font-size: 24pt;
 	font-weight: bold;
-	letter-spacing: -2px;
 
 	margin-top: 0px;
 }
 
 div.boardBanner > div.boardSubtitle {
-	font-size: x-small;
+	font-size: 10pt;
 }
 
 div#boardNavDesktop {
-	font-size: 9pt;
-	color: #B86;
+
+	font-size: 11pt;
 	display: block;
+}
+
+div#boardNavDesktop a {
+	font-weight: normal;
+	padding: 1px;
 }
 
 .hasDropDownNav #navtopright {
@@ -546,13 +548,6 @@ div#boardNavDesktop {
   padding-right: 5px;
 }
 
-div#boardNavDesktop a {
-	font-weight: normal;
-	padding: 1px;
-	text-decoration: none;
-	color: #800000;
-}
-
 /** General Containers **/
 div.pContainer {
 
@@ -563,7 +558,6 @@ div.opContainer {
 }
 
 div.sideArrows {
-	color: #e0bfb7;
 
 	float: left;
 
@@ -576,6 +570,7 @@ div.sideArrows {
 div.thread {
 
 	margin: 0px;
+
 	clear: both;
 
 }
@@ -596,10 +591,6 @@ div.op {
 
 div.reply {
 	background-color: #f0e0d6;
-
-	border: 1px solid #D9BFB7;
-	border-left: none;
-	border-top: none;
 
 	display: table;
 
@@ -673,13 +664,8 @@ blockquote > span.quote {
 	color: #789922;
 }
 
-.quoteLink, .quotelink, .deadlink, .pageJump a {
+.quoteLink, .quotelink, .deadlink {
 	color: #000080 !important;
-	text-decoration: underline;
-}
-
-.pageJump a:hover {
-	color: #ff0000 !important;
 }
 
 /* Archived threads list */
@@ -731,6 +717,7 @@ div.post div.file .fileThumb {
 	margin-left: 20px;
 	margin-right: 20px;
 	margin-top: 3px;
+
 	margin-bottom: 5px;
 }
 
@@ -753,7 +740,6 @@ div.post div.file .fileThumb img {
 
 /** Summary **/
 span.summary {
-	color: #707070;
 	margin-top: 10px;
 }
 
@@ -770,6 +756,14 @@ div.postingMode {
 	margin-top: 8px;
 }
 
+div.navLinks {
+	margin-bottom: 10px;
+}
+
+div.navLinksBot {
+	margin-bottom: 0px;
+}
+
 #verification table {
 	border: none !important;
 	margin: 0px;
@@ -783,41 +777,31 @@ div.thread:last-child {
 }
 
 div.pagelist {
-	font-size: 13px !important;
-
-	margin: 0;
-	padding: 3px 7px;
-
-	float: left;
-
-	border: none;
-	background: #F0E0D6;
-
-	border-right: 1px solid #D9BFB7;
-	border-bottom: 1px solid #D9BFB7;
-
-	list-style: none;
 	overflow: hidden;
 
-	color: #B86;
+	border: 1px solid gray;
+	background: #FFE;
+	border: 1px solid black;
+	border-left-color: gray;
+	border-top-color: gray;
+	padding: 1px;
+
+	display: inline-block;
 }
 
 div.pagelist > div {
 	float: left;
+	margin: 1px;
+
+	border: 1px solid gray;
+	border-left-color: black;
+	border-top-color: black;
 }
 
-div.pagelist > div span {
-	padding: 4px;
+div.pagelist div.pages, div.pagelist div span {
+	padding-top: 3px;
+	padding-bottom: 3px;
 	display: inline-block;
-}
-
-div.pagelist div.pages {
-	padding: 4px;
-}
-
-div.pagelist div.pages a {
-	text-decoration: none !important;
-	/* FINE MOOT GOSH JEEZ */
 }
 
 div.pagelist form {
@@ -828,20 +812,9 @@ div.pagelist strong {
 	color: #800000;
 }
 
-div.pagelist div.cataloglink {
-	border-left: 1px solid #D9BFB7;
-	padding-left: 12px;
-	margin-left: 7px;
-}
-
 .bottomCtrl {
   float: right;
   margin-top: 2px;
-}
-
-input[type=password] {
-	width: 50px;
-	text-align: center;
 }
 
 div.deleteform input[type=checkbox] {
@@ -850,15 +823,12 @@ div.deleteform input[type=checkbox] {
 
 .stylechanger {
 	margin-left: 5px;
-	font-size: 10pt;
 }
 
 div#boardNavDesktopFoot {
-	font-size: 9pt;
-	color: #B86;
 
 	clear: both;
-
+	font-size: 11pt;
 	padding-top: 10px;
 	padding-bottom: 3px;
 }
@@ -866,8 +836,6 @@ div#boardNavDesktopFoot {
 div#boardNavDesktopFoot a {
 	font-weight: normal;
 	padding: 1px;
-	text-decoration: none;
-	color: #800000;
 }
 
 div.homelink {
@@ -876,12 +844,13 @@ div.homelink {
 
 div#absbot {
 	text-align: center;
-	font-size: x-small !important;
+	font-size: 8pt !important;
 
 	padding-bottom: 4px;
 	padding-top: 10px;
+	clear: both;
 
-	color: #800;
+	color: #800000;
 }
 
 #recaptcha_response_field {
@@ -889,21 +858,28 @@ div#absbot {
 }
 
 /** POST FORM **/
-table {
+table#postForm {
 	border-spacing: 1px;
 
 	margin-left: auto;
 	margin-right: auto;
 }
 
+#postForm {
+  display: none;
+}
+
+#togglePostFormLink {
+  font-size: 22px;
+  font-weight: bold;
+  text-align: center;
+}
+
 table.postForm > tbody > tr > td:first-child {
 	background-color: #EA8;
 	color: #800;
 	font-weight: bold;
-	border: 1px solid #800;
-	padding: 0 5px;
 
-	font-size: 10pt;
 }
 
 tr.rules td {
@@ -912,48 +888,40 @@ tr.rules td {
 	font-weight: normal !important;
 }
 
-td {
+table#postForm td {
 	margin: 0px;
 	padding: 0px;
-
-	font-size: 10pt;
 }
 
-input[type=text], input[type=password], table.postForm > tbody textarea, #recaptcha_response_field {
+/* table.postForm > tbody input[type=text], table.postForm > tbody textarea {
 	margin: 0px;
 	margin-right: 2px;
 	padding: 2px 4px 3px 4px;
 
-	border: 1px solid #AAA;
 	outline: none;
-
-	font-family: arial, helvetica, sans-serif;
-	font-size: 10pt;
-}
-
-#recaptcha_response_field:not(:focus) {
-	border: 1px solid #AAA !important;
-}
-
-input[type=text]:focus, input[type=password]:focus, input:not([type]):focus, textarea:focus {
-	border: 1px solid #ea8 !important;
-}
+} */
 
 table.postForm > tbody > tr > td > input[type=text] {
-	width: 244px;
+	width: 260px;
 }
 
 table.postForm > tbody > tr > td > input[name="subject"] {
 	width: 300px;
 }
 
+input[type=password] {
+	width: 70px;
+}
+
+table.postForm input[type="submit"] {
+	margin-left: 5px;
+}
+
 .postblock {
 	background-color: #EA8;
 	color: #800;
 	font-weight: bold;
-	border: 1px solid #800;
 	padding: 0 5px;
-	font-size: 10pt;
 }
 
 div.closed {
@@ -980,8 +948,15 @@ div.closed {
 @media screen and (-webkit-min-device-pixel-ratio:0) {
 	tbody textarea {
 		margin-bottom: -3px !important;
-		width: 292px
 	}
+}
+
+.reply:target, .reply.highlight {
+	background: #F0C0B0 !important;
+}
+
+.hand {
+	cursor: pointer;
 }
 
 .commentpostername {
@@ -1072,22 +1047,9 @@ div.closed {
 
 .highlightPost:not(.op) {
 	background: #f0d6d6 !important;
-	border-color: #d69595 !important;
 }
 
-.reply:target, .reply.highlight {
-	background: #F0C0B0 !important;
-	border: 1px solid #D99F91 !important;
-	border-left: none !important;
-	border-top: none !important;
-	padding: 2px;
-}
-
-.hand {
-	cursor: pointer;
-}
-
-.nameBlock.capcodeAdmin span.name, span.capcodeAdmin a span.name, span.capcodeAdmin span.postertrip, span.capcodeAdmin strong.capcode {
+span.capcodeAdmin span.name, span.capcodeAdmin span.name a, span.capcodeAdmin span.postertrip, span.capcodeAdmin strong.capcode {
 	color: #F00 !important;
 }
 
@@ -1095,25 +1057,20 @@ span.capcodeFounder span.name, span.capcodeFounder span.name a, span.capcodeFoun
 	color: #117743 !important;
 }
 
-.nameBlock.capcodeMod span.name, span.capcodeMod a span.name, span.capcodeMod span.postertrip, span.capcodeMod strong.capcode {
+span.capcodeMod span.name, span.capcodeMod span.name a, span.capcodeMod span.postertrip, span.capcodeMod strong.capcode {
 	color: #800080 !important;
 }
 
-.nameBlock.capcodeDeveloper span.name, span.capcodeDeveloper a span.name, span.capcodeDeveloper span.postertrip, span.capcodeDeveloper strong.capcode {
+span.capcodeDeveloper span.name, span.capcodeDeveloper span.name a, span.capcodeDeveloper span.postertrip, span.capcodeDeveloper strong.capcode {
 	color: #0000F0 !important;
 }
 
-.nameBlock.capcodeManager span.name, span.capcodeManager a span.name, span.capcodeManager span.postertrip, span.capcodeManager strong.capcode {
+span.capcodeManager span.name, span.capcodeManager span.name a, span.capcodeManager span.postertrip, span.capcodeManager strong.capcode {
 	color: #FF0080 !important;
 }
 
-.nameBlock.capcodeVerified span.name, span.capcodeVerified span.name a, span.capcodeVerified span.postertrip, span.capcodeVerified strong.capcode {
+span.capcodeVerified span.name, span.capcodeVerified span.name a, span.capcodeVerified span.postertrip, span.capcodeVerified strong.capcode {
   color: #007FFF !important;
-}
-
-#reportTypes a,
-.useremail {
-  text-decoration: underline;
 }
 
 .omittedposts, .abbr {
@@ -1158,60 +1115,9 @@ table.exif td b {
 	text-decoration: underline;
 }
 
-div.posthover {
-	max-width: 400px;
-	margin-left: 20px;
-
-}
-
-div.posthover {
-	padding: 5px;
-
-	padding-left: 10px;
-	padding-right: 10px;
-
-}
-
-div.posthover a.fileThumb {
-	margin-left: 5px !important;
-	margin-right: 10px !important;
-}
-
-div.posthover blockquote {
-	margin: 5px;
-
-}
-
-div.posthover img[data-md5] {
-	max-width: 80px;
-	max-height: 80px;
-
-	height: auto !important;
-	width: auto !important;
-}
-
-div.posthover div.fileThumb {
-	margin-left: 0px !important;
-	margin-right: 10px !important;
-}
-
 #navtopright, #navbotright {
 	float: right;
-}
-
-.preview {
-	background: #F0E0D6;
-
-	border: 1px solid #D9BFB7 !important;
-	border-right: 2px solid #D9BFB7 !important;
-	border-bottom: 2px solid #D9BFB7 !important;
-}
-
-#settingsBox {
-	position: absolute;
-
-	right: 10px;
-	margin-top: 10px;
+	font-size: 11pt;
 }
 
 div.backlink {
@@ -1228,9 +1134,8 @@ div.backlink {
 .persistentNav,
 div#boardNavMobile {
 	padding: 2px 4px;
-	background-color: #F0E0D6;
+	background-color: #ede4dc;
 	overflow: hidden;
-	border-bottom: 2px solid #D9BFB7;
 	position: fixed;
 	top: 0px;
 	left: 0px;
@@ -1309,11 +1214,45 @@ span.qrButtonHolder img {
 	text-align: center;
 }
 
+div.posthover {
+	max-width: 400px;
+	margin-left: 20px;
+
+}
+
+div.posthover {
+	padding: 5px;
+
+	padding-left: 10px;
+	padding-right: 10px;
+
+}
+
+div.posthover a.fileThumb {
+	margin-left: 5px !important;
+	margin-right: 10px !important;
+}
+
+div.posthover blockquote {
+	margin: 5px;
+
+}
+
+div.posthover img[data-md5] {
+	max-width: 80px;
+	max-height: 80px;
+}
+
+div.posthover div.fileThumb {
+	margin-left: 0px !important;
+	margin-right: 10px !important;
+}
+
 .op .backlinkHr {
 	width: 55%;
 }
 
-.useremail:not(:hover) .name, .useremail:not(:hover) .postertrip {
+.useremail .name, .useremail .postertrip {
 	color: #0000EE !important;
 }
 
@@ -1324,6 +1263,28 @@ span.qrButtonHolder img {
 img.expandedImg {
 	max-width: none !important;
 	max-height: none !important;
+}
+
+.prettyprint {
+	border: none !important;
+	background-color: #fff;
+	padding: 5px !important;
+	display: inline-block;
+
+	max-height: 400px;
+	overflow-x: auto;
+	max-width: 600px;
+	
+	
+	margin: 0;
+	font-size: 14px;
+}
+
+.preview {
+	background-color: #F0E0D6;
+	border: 1px solid rgba(0, 0, 0, 0.20);
+	border-bottom: 2px solid rgba(0, 0, 0, 0.20);
+	border-right: 2px solid rgba(0, 0, 0, 0.20);
 }
 
 /** this is not important **/
@@ -1344,25 +1305,16 @@ img.expandedImg {
 	width: 292px;
 }
 
-.prettyprint {
-	border: none !important;
-	background-color: #fff;
-	padding: 5px !important;
-	display: inline-block;
-
-	max-height: 400px;
-	overflow-x: auto;
-	max-width: 600px;
-	
-	margin: 0;
-}
-
 .embed {
 	position: absolute;
 	width: 0px;
 	height: 0px;
 
 	overflow: hidden;
+}
+
+table.flashListing {
+	margin: 0 auto;
 }
 
 table.flashListing td.postblock {
@@ -1372,7 +1324,6 @@ table.flashListing td.postblock {
 
 table.flashListing td {
 	padding: 2px;
-	font-size: 9pt;
 }
 
 table.flashListing td:not(.subject) {
@@ -1397,14 +1348,23 @@ table.flashListing tr:nth-of-type(odd) {
 	background-color: #ede2d4;
 }
 
-input[type="text"], input[type="password"], textarea {
-	-webkit-appearance: none;
-	-webkit-border-radius: 0;
-}
-
 .countryFlag {
 	padding-top: 1px;
 	margin-bottom: -1px;
+}
+
+textarea[name="com"] {
+	width: 296px;
+}
+
+#recaptcha_response_field {
+	border: 1px solid #aaa !important;
+	width: 300px !important;
+	font-size: 10pt !important;
+}
+
+table.postForm > tbody > tr > td > input[type="text"] {
+	width: 244px;
 }
 
 .deadlink {
@@ -1413,6 +1373,7 @@ input[type="text"], input[type="password"], textarea {
 
 .oldpost {
 	background: inherit;
+	font-family: serif;
 	color: #f00000;
 	font-weight: 800;
 }
@@ -1449,14 +1410,6 @@ table.flashListing .subject {
   font-size: smaller;
 }
 
-.ad-plea a {
-  text-decoration: none;
-}
-
-.fileText a {
-  text-decoration: underline;
-}
-
 #search-box {
   height: 16px;
   line-height: 16px;
@@ -1488,19 +1441,11 @@ table.flashListing .subject {
   color: inherit !important;
   text-decoration: line-through;
 }
-#postForm textarea {
-  width: 292px;
-}
-
 #postForm {
   width: 468px;
-  display: none;
 }
-
-#togglePostFormLink {
-  font-size: 22px;
-  font-weight: bold;
-  text-align: center;
+#postForm textarea {
+  width: 292px;
 }
 
 .fileWebm:hover:before {
@@ -1572,7 +1517,7 @@ table.flashListing .subject {
 
 .dd-menu {
   position: absolute;
-  font-size: 12px;
+  font-size: 13px;
   line-height: 1.3em;
 }
 .dd-menu a {
@@ -1583,7 +1528,7 @@ table.flashListing .subject {
 .dd-menu ul {
   background-color: #F0E0D6;
   border: 1px solid #D9BFB7;
-  border-right-width: 2px;
+  border-bottom: none;
   list-style: none;
   padding: 0;
   margin: 0;

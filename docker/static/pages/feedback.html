@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Feedback - 4chan</title>
+    <link rel="stylesheet" type="text/css" href="/static/css/feedback.css">
+  <link rel="shortcut icon" href="/static/image/favicon.ico" type="image/x-icon">
+  <script type="text/javascript" src="/static/js/feedback.js?11"></script>
+  <script src="https://hcaptcha.com/1/api.js" async defer></script>
+  <noscript>
+    <style type="text/css">
+      #form {
+        display: block;
+      }
+      #captcha-cnt { height: auto; }
+    </style>
+  </noscript>
+</head>
+<body>
+<header>
+  <h1 id="title">4chan Feedback</h1>
+</header>
+<section id="content">
+<div id="form">
+  <h2>Submit Feedback</h2>
+  <form method="post" enctype="multipart/form-data">
+    <div class="form-col">
+      <label for="form-cat">Category:</label>
+      <select name="category" id="form-cat">
+        <option value=""></option>
+                <option value="0">Bug Report</option>
+                <option value="1">IP Range Ban Issue</option>
+              </select>
+    </div>
+<fieldset class="js-cat-forms" id="js-cat-form-0">
+    <label for="form-subject">Subject:</label>
+    <input maxlength="250" type="text" name="subject" id="form-subject" required>
+    <label for="form-page-url">The URL of the page where the bug occured:</label>
+    <input maxlength="250" type="text" name="page_url" id="form-page-url" required>
+    <label for="form-ua">The browser you were using:</label>
+    <input maxlength="250" type="text" name="user_agent" id="form-ua" required>
+    <label for="form-os">The Operating System you were using:</label>
+    <input maxlength="250" type="text" name="os" id="form-os" required>
+    <label for="form-message">Describe the issue:</label>
+    <textarea maxlength="7000" name="message" rows="8" cols="40" id="form-message" required></textarea>
+</fieldset>
+<fieldset class="js-cat-forms" id="js-cat-form-1">
+    <p>Please <b>only</b> submit reports if your home or mobile connection is <b>permanently</b> blocked (when posting, the error message would indicate whether the block is temporary or permanent).</p>
+    <p>Make sure you are not unknowingly connecting through a proxy.<br>You can check your public IP <a target="_blank" href="https://radar.cloudflare.com/ip" rel="noreferrer nofollow">here</a>.</p>
+    <label for="form-isp">The name of your Internet Service Provider:</label>
+    <input maxlength="250" type="text" name="isp_name" id="form-isp" required>
+    <label for="form-isp-url">The website URL of your Internet Service Provider:</label>
+    <input maxlength="250" type="text" name="isp_url" id="form-isp-url" required>
+</fieldset>
+    <div id="captcha-cnt"><label>Verification:</label><div class="g-recaptcha" data-sitekey="34863344-4062-4566-a180-d9c6e34ad6bc"></div></div>
+    <button type="submit" id="form-submit">Submit</button>
+    <input type="hidden" name="action" value="submit">
+  </form>
+</div>
+</section>
+<footer>
+<ul>  <li><a href="/">Home</a></li>
+    <li><a href="/4channews">News</a></li>
+    <li><a href="/blotter">Blog</a></li>
+    <li><a href="/faq">FAQ</a></li>
+    <li><a href="/rules">Rules</a></li>
+    <li><a href="/pass">Support 4chan</a></li>
+    <li><a href="/advertise">Advertise</a></li>
+    <li><a href="/press">Press</a></li>
+    <li><a href="/japanese">日本語</a></li>
+  </ul>
+<div id="copyright"><a href="/faq#what4chan">About</a> &bull; <a href="/feedback">Feedback</a> &bull; <a href="/legal">Legal</a> &bull; <a href="/contact">Contact</a><br>
+Copyright &copy; 2003-2026 4chan community support LLC. All rights reserved.
+</div>
+</footer>
+</body>
+</html>
