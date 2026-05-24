@@ -1,0 +1,1 @@
+<span style="color: red; font-weight: bold;">Welcome to 4chan</span> &mdash; This is a local development instance running the original Yotsuba engine. All global rules are in effect.
