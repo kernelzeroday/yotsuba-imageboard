@@ -786,7 +786,7 @@ function iplog_add( $board, $no, $ip, $time, $is_thread, $tim, $had_image )
 	$db = YotsubaDB::global();
 	$db->query(
 		"INSERT INTO " . $db->qi('user_actions') . " (board, postno, ip, time, uploaded, action, had_image) VALUES (?, ?, ?, " . $db->fromUnixtime('?') . ", ?, ?, ?)",
-		[$board, (int)$no, ip2long($ip), (int)$time, (int)$tim, $is_thread ? "new_thread" : "new_reply", (int)$had_image]
+		[$board, (int)$no, ip2long($ip), (int)$time, $tim ? 1 : 0, $is_thread ? "new_thread" : "new_reply", (int)$had_image]
 	);
 }
 
@@ -995,7 +995,7 @@ function log_cache($invalidate = 0, $thread = 0, $archive_mode = 0) {
 
 	$sql_cache = "sql_no_cache";
 
-	$query  = $db->query("SELECT $sql_cache $fields FROM {$db->qi(SQLLOG)}" . $where, $where_params);
+	$query  = $db->query("SELECT $sql_cache $fields FROM {$db->qi(SQLLOG)}" . $where . " ORDER BY resto ASC, no ASC", $where_params);
 	$offset = 0;
 
 	while( $row = $query->fetch(PDO::FETCH_ASSOC) ) {
@@ -1374,7 +1374,7 @@ function copy_thread($thread_id, $to_board, $delete = false) {
   }
 
   $posts[] = $row;
-  $res = $db->query("SELECT * FROM {$db->qi(BOARD_DIR)} WHERE resto = ?", [$thread_id]);
+  $res = $db->query("SELECT * FROM {$db->qi(BOARD_DIR)} WHERE resto = ? ORDER BY no ASC", [$thread_id]);
 
   while ($row = $res->fetch(PDO::FETCH_ASSOC)) {
     if (!$row) {
@@ -1554,7 +1554,7 @@ function move_thread($thread_id, $to_board, $delete = false) {
 
   $posts[] = $row;
 
-  $res = $db->query("SELECT * FROM {$db->qi($board)} WHERE resto = ?", [$thread_id]);
+  $res = $db->query("SELECT * FROM {$db->qi($board)} WHERE resto = ? ORDER BY no ASC", [$thread_id]);
 
   while ($row = $res->fetch(PDO::FETCH_ASSOC)) {
     if (!$row) {
@@ -1575,7 +1575,7 @@ function move_thread($thread_id, $to_board, $delete = false) {
     $comment = str_replace($from_pids, $to_pids, $post['com']);
 
     if ($new_resto === 0) {
-      $root_time_sql = 'NOW()';
+      $root_time_sql = $db->unixTimestamp();
       $root_params = [];
     }
     else {
@@ -1789,7 +1789,7 @@ function archive_thread($thread_id) {
 
   // Update the OP. "root" is used for archive pruning.
   $res = $db->query(
-    "UPDATE {$db->qi($board)} SET archived = 1, closed = 1, sticky = 0, email = '', host = '', 4pass_id = '', pwd = '', root = NOW()$uid_col WHERE no = ? LIMIT 1",
+    "UPDATE {$db->qi($board)} SET archived = 1, closed = 1, sticky = 0, email = '', host = '', 4pass_id = '', pwd = '', root = {$db->unixTimestamp()}$uid_col WHERE no = ? LIMIT 1",
     array_merge($uid_params, [$thread_id])
   );
 
@@ -2802,7 +2802,7 @@ function trim_archive() {
   
   $db = YotsubaDB::board();
 
-  $res = $db->query("SELECT no FROM " . $db->qi(BOARD_DIR) . " WHERE archived = 1 AND resto = 0 AND root < DATE_SUB(NOW(), INTERVAL $interval HOUR)");
+  $res = $db->query("SELECT no FROM " . $db->qi(BOARD_DIR) . " WHERE archived = 1 AND resto = 0 AND root < ({$db->unixTimestamp()} - ? * 3600)", [$interval]);
 
   if (!$res->rowCount()) {
     return;
@@ -9290,17 +9290,9 @@ function rebuild_archive_list($print = false) {
   $hour_clause = $max_age_in_days * 24;
   
   $thread_limit = 3000;
-  
-  $query = <<<SQL
-SELECT no, sub, com
-FROM `$board`
-WHERE archived = 1 AND resto = 0 AND root >= DATE_SUB(NOW(), INTERVAL $hour_clause HOUR)
-ORDER BY root DESC
-LIMIT $thread_limit
-SQL;
-  
+
   $db = YotsubaDB::board();
-  $res = $db->query("SELECT no, sub, com FROM " . $db->qi($board) . " WHERE archived = 1 AND resto = 0 AND root >= DATE_SUB(NOW(), INTERVAL $hour_clause HOUR) ORDER BY root DESC LIMIT $thread_limit");
+  $res = $db->query("SELECT no, sub, com FROM " . $db->qi($board) . " WHERE archived = 1 AND resto = 0 AND root >= ({$db->unixTimestamp()} - ? * 3600) ORDER BY root DESC LIMIT ?", [$hour_clause, $thread_limit]);
 
   $thread_count = $res->rowCount();
 

@@ -351,13 +351,32 @@ CREATE TABLE IF NOT EXISTS "user_actions" (
   "board" VARCHAR(10) NOT NULL DEFAULT '',
   "postno" INTEGER NOT NULL DEFAULT 0,
   "time" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  "uploaded" SMALLINT NOT NULL DEFAULT 0,
+  "uploaded" BIGINT NOT NULL DEFAULT 0,
   "action" VARCHAR(64) NOT NULL DEFAULT '',
   "had_image" SMALLINT NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS "user_actions_ip" ON "user_actions" ("ip");
 CREATE INDEX IF NOT EXISTS "user_actions_board" ON "user_actions" ("board");
 CREATE INDEX IF NOT EXISTS "user_actions_time" ON "user_actions" ("time");
+
+-- Post log
+CREATE TABLE IF NOT EXISTS "post_log" (
+  "id" SERIAL PRIMARY KEY,
+  "board" VARCHAR(16) NOT NULL,
+  "post_no" INTEGER NOT NULL,
+  "resto" INTEGER NOT NULL DEFAULT 0,
+  "name" VARCHAR(64) NOT NULL DEFAULT '',
+  "sub" VARCHAR(128) NOT NULL DEFAULT '',
+  "com" TEXT,
+  "ip" VARCHAR(255) NOT NULL DEFAULT '',
+  "time" INTEGER NOT NULL DEFAULT 0,
+  "has_file" SMALLINT NOT NULL DEFAULT 0,
+  "filename" VARCHAR(255) NOT NULL DEFAULT '',
+  "capcode" VARCHAR(8) NOT NULL DEFAULT '',
+  "created_at" TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS "idx_post_log_board_time" ON "post_log" ("board", "time");
+CREATE INDEX IF NOT EXISTS "idx_post_log_post" ON "post_log" ("board", "post_no");
 
 -- Reports
 CREATE TABLE IF NOT EXISTS "reports" (

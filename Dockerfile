@@ -121,6 +121,12 @@ RUN { \
         echo '    ForceType application/json'; \
         echo '    Header set Content-Encoding gzip'; \
         echo '  </FilesMatch>'; \
+        echo '  <FilesMatch "\\.html\\.gz$">'; \
+        echo '    ForceType text/html'; \
+        echo '    Header set Content-Encoding gzip'; \
+        echo '  </FilesMatch>'; \
+        echo '  RewriteCond %{DOCUMENT_ROOT}/$1/$2.html.gz -f'; \
+        echo '  RewriteRule ^/([a-z0-9]+)/([0-9]+)$ /$1/$2.html.gz [L,E=no-gzip:1]'; \
         echo '  RewriteRule ^/([a-z0-9]+)/?$ /$1/imgboard.php [QSA,L]'; \
         echo '  RewriteRule ^/([a-z0-9]+)/post /$1/imgboard.php [QSA,L]'; \
         echo '  RewriteRule ^/([a-z0-9]+)/delete /$1/imgboard.php [QSA,L]'; \
