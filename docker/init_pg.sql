@@ -213,7 +213,7 @@ BEGIN
     "archived","undead","since4pass","m_img","clip_nsfw","clip_desc","clip_vector",
     "board_flag","upvotes","downvotes")
   VALUES (TG_TABLE_NAME,
-    COALESCE(NEW."no", 0), COALESCE(NEW."resto", 0), COALESCE(NEW."root", 0),
+    nextval('posts_no_seq'), COALESCE(NEW."resto", 0), COALESCE(NEW."root", 0),
     COALESCE(NEW."now", ''), COALESCE(NEW."time", 0), COALESCE(NEW."last_modified", 0),
     COALESCE(NEW."name", ''), COALESCE(NEW."sub", ''), COALESCE(NEW."com", ''),
     COALESCE(NEW."host", ''), COALESCE(NEW."pwd", ''), COALESCE(NEW."4pass_id", ''),
