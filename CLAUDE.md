@@ -49,7 +49,9 @@ docker compose down                                    # stop prod (NEVER use -v
 - `config/global_strings.ini` — UI strings and error messages
 - `config/boards/*.config.ini` — per-board overrides
 - `docker/entrypoint.sh` — container bootstrap (patches source for local use)
-- `docker/clip/` — CLIP image tagging service (ViT-B-32, CPU)
+- `docker/clip/server.py` — ML inference server (CLIP + BLIP + toxicity + visual vocab, 670 lines)
+- `docker/retag.php` — Batch ML reprocessing script (3 phases: images, text, context)
+- `tagboard.php` — Tag index and semantic search UI
 
 ## Architecture
 
@@ -66,7 +68,8 @@ docker compose down                                    # stop prod (NEVER use -v
 - **DBAL:** `lib/dbal.php` translates MySQL SQL to PG via regex pipeline in `translateSQL()` — handles backticks, INTERVAL, UNIX_TIMESTAMP, TIMESTAMPDIFF, INSERT IGNORE, GROUP_CONCAT, IF(), LIMIT in UPDATE/DELETE, etc.
 - **Sequences:** `posts_no_seq` for auto-incrementing post numbers across all boards
 - **Reserved words:** Column names `now`, `length`, `4pass_id` need backtick-quoting in queries (DBAL auto-quotes `4pass_id`; `now`/`length` must be manually backtick-quoted)
-- **CLIP:** Posts get `clip_nsfw` (float) and `clip_desc` (text) on image upload via the CLIP service
+- **ML Pipeline:** Every post gets real-time ML analysis — see `ML.md` for full documentation. Key columns: `clip_nsfw`, `clip_anime`, `clip_desc` (image tags), `clip_text_desc` (text keywords), `clip_vector` (512-dim CLIP embedding), `clip_toxicity` + 6 granular toxicity dimensions, `clip_context_toxicity` (reply context scoring), `moderation_flag`/`moderation_reason`
+- **pgvector:** HNSW index on `clip_vector` for cosine similarity search (visual + semantic)
 
 ## Conventions
 

@@ -155,7 +155,21 @@ CREATE TABLE IF NOT EXISTS "posts" (
   "since4pass" SMALLINT NOT NULL DEFAULT 0,
   "m_img" SMALLINT NOT NULL DEFAULT 0,
   "clip_nsfw" REAL NOT NULL DEFAULT 0,
+  "clip_anime" REAL NOT NULL DEFAULT 0,
+  "clip_toxicity" REAL NOT NULL DEFAULT 0,
+  "clip_ai_score" REAL NOT NULL DEFAULT 0,
+  "clip_severe_toxicity" REAL NOT NULL DEFAULT 0,
+  "clip_obscene" REAL NOT NULL DEFAULT 0,
+  "clip_threat" REAL NOT NULL DEFAULT 0,
+  "clip_insult" REAL NOT NULL DEFAULT 0,
+  "clip_identity_attack" REAL NOT NULL DEFAULT 0,
+  "clip_sexual_explicit" REAL NOT NULL DEFAULT 0,
+  "clip_context_toxicity" REAL NOT NULL DEFAULT 0,
+  "moderation_flag" SMALLINT NOT NULL DEFAULT 0,
+  "moderation_reason" VARCHAR(200) NOT NULL DEFAULT '',
+  "clip_caption" TEXT NOT NULL DEFAULT '',
   "clip_desc" VARCHAR(500) NOT NULL DEFAULT '',
+  "clip_text_desc" VARCHAR(500) NOT NULL DEFAULT '',
   "clip_vector" vector(512),
   "image_data" BYTEA,
   "thumb_data" BYTEA,
@@ -212,7 +226,11 @@ BEGIN
     "name","sub","com","host","pwd","4pass_id","email","filename","ext",
     "w","h","tn_w","tn_h","tim","md5","tmd5","fsize","filedeleted",
     "id","capcode","country","sticky","permasage","permaage","closed",
-    "archived","undead","since4pass","m_img","clip_nsfw","clip_desc","clip_vector",
+    "archived","undead","since4pass","m_img","clip_nsfw","clip_anime","clip_toxicity","clip_ai_score",
+    "clip_severe_toxicity","clip_obscene","clip_threat","clip_insult","clip_identity_attack","clip_sexual_explicit",
+    "clip_context_toxicity",
+    "moderation_flag","moderation_reason",
+    "clip_caption","clip_desc","clip_text_desc","clip_vector",
     "image_data","thumb_data",
     "board_flag","upvotes","downvotes")
   VALUES (TG_TABLE_NAME,
@@ -229,7 +247,12 @@ BEGIN
     COALESCE(NEW."permaage", 0::smallint), COALESCE(NEW."closed", 0::smallint),
     COALESCE(NEW."archived", 0::smallint), COALESCE(NEW."undead", 0::smallint),
     COALESCE(NEW."since4pass", 0::smallint), COALESCE(NEW."m_img", 0::smallint),
-    COALESCE(NEW."clip_nsfw", 0), COALESCE(NEW."clip_desc", ''), NEW."clip_vector",
+    COALESCE(NEW."clip_nsfw", 0), COALESCE(NEW."clip_anime", 0), COALESCE(NEW."clip_toxicity", 0), COALESCE(NEW."clip_ai_score", 0),
+    COALESCE(NEW."clip_severe_toxicity", 0), COALESCE(NEW."clip_obscene", 0), COALESCE(NEW."clip_threat", 0),
+    COALESCE(NEW."clip_insult", 0), COALESCE(NEW."clip_identity_attack", 0), COALESCE(NEW."clip_sexual_explicit", 0),
+    COALESCE(NEW."clip_context_toxicity", 0),
+    COALESCE(NEW."moderation_flag", 0::smallint), COALESCE(NEW."moderation_reason", ''),
+    COALESCE(NEW."clip_caption", ''), COALESCE(NEW."clip_desc", ''), COALESCE(NEW."clip_text_desc", ''), NEW."clip_vector",
     NEW."image_data", NEW."thumb_data",
     COALESCE(NEW."board_flag", ''), COALESCE(NEW."upvotes", 0), COALESCE(NEW."downvotes", 0));
   RETURN NEW;
@@ -249,7 +272,12 @@ BEGIN
     "country"=NEW."country", "sticky"=NEW."sticky", "permasage"=NEW."permasage",
     "permaage"=NEW."permaage", "closed"=NEW."closed", "archived"=NEW."archived",
     "undead"=NEW."undead", "since4pass"=NEW."since4pass", "m_img"=NEW."m_img",
-    "clip_nsfw"=NEW."clip_nsfw", "clip_desc"=NEW."clip_desc", "clip_vector"=NEW."clip_vector",
+    "clip_nsfw"=NEW."clip_nsfw", "clip_anime"=NEW."clip_anime", "clip_toxicity"=NEW."clip_toxicity", "clip_ai_score"=NEW."clip_ai_score",
+    "clip_severe_toxicity"=NEW."clip_severe_toxicity", "clip_obscene"=NEW."clip_obscene", "clip_threat"=NEW."clip_threat",
+    "clip_insult"=NEW."clip_insult", "clip_identity_attack"=NEW."clip_identity_attack", "clip_sexual_explicit"=NEW."clip_sexual_explicit",
+    "clip_context_toxicity"=NEW."clip_context_toxicity",
+    "moderation_flag"=NEW."moderation_flag", "moderation_reason"=NEW."moderation_reason",
+    "clip_caption"=NEW."clip_caption", "clip_desc"=NEW."clip_desc", "clip_text_desc"=NEW."clip_text_desc", "clip_vector"=NEW."clip_vector",
     "image_data"=NEW."image_data", "thumb_data"=NEW."thumb_data",
     "board_flag"=NEW."board_flag", "upvotes"=NEW."upvotes", "downvotes"=NEW."downvotes"
   WHERE "board" = TG_TABLE_NAME AND "no" = OLD."no";
@@ -268,7 +296,7 @@ $$ LANGUAGE plpgsql;
 DO $$
 DECLARE
   board_dir TEXT;
-  col_list TEXT := '"no","resto","root","now","time","last_modified","name","sub","com","host","pwd","4pass_id","email","filename","ext","w","h","tn_w","tn_h","tim","md5","tmd5","fsize","filedeleted","id","capcode","country","sticky","permasage","permaage","closed","archived","undead","since4pass","m_img","clip_nsfw","clip_desc","clip_vector","image_data","thumb_data","board_flag","upvotes","downvotes"';
+  col_list TEXT := '"no","resto","root","now","time","last_modified","name","sub","com","host","pwd","4pass_id","email","filename","ext","w","h","tn_w","tn_h","tim","md5","tmd5","fsize","filedeleted","id","capcode","country","sticky","permasage","permaage","closed","archived","undead","since4pass","m_img","clip_nsfw","clip_anime","clip_toxicity","clip_ai_score","clip_severe_toxicity","clip_obscene","clip_threat","clip_insult","clip_identity_attack","clip_sexual_explicit","clip_context_toxicity","moderation_flag","moderation_reason","clip_caption","clip_desc","clip_text_desc","clip_vector","image_data","thumb_data","board_flag","upvotes","downvotes"';
 BEGIN
   FOR board_dir IN SELECT dir FROM boardlist LOOP
     EXECUTE format('CREATE OR REPLACE VIEW %I AS SELECT %s FROM posts WHERE board = %L', board_dir, col_list, board_dir);

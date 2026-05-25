@@ -166,3 +166,14 @@
 .n-xa24-GACHI:hover {
   background-image: url('https:/static/image/emotes/634a21ba_gachiHYPER.png');
 }
+
+.clipTagLink { color: inherit; border-bottom: 1px dotted currentColor; text-decoration: none; }
+.clipTagLink:hover { color: #DD0000; }
+.mlFileLine { font-size: 11px; padding: 1px 0; color: #666; }
+.mlBlip { }
+.mlClip { font-family: monospace; font-size: 10px; }
+.tomorrow .mlFileLine { color: #999; }
+.tomorrow .mlFileLine .clipTagLink { color: #81a2be; }
+.tomorrow .mlFileLine .clipTagLink:hover { color: #c5c8c6; }
+.tagboardBar { text-align: center; font-size: 12px; padding: 4px 0; }
+.tagboardBar .clipTagLink { margin: 0 3px; }

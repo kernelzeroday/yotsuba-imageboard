@@ -253,7 +253,22 @@ function post_json_force_type( &$post )
 		'archived_on'    => 'integer',
 		'since4pass'     => 'integer',
 		'm_img'          => 'integer',
-		'clip_desc'      => 'string'
+		'clip_desc'      => 'string',
+		'clip_text_desc' => 'string',
+		'clip_nsfw'      => 'float',
+		'clip_anime'     => 'float',
+		'clip_toxicity'  => 'float',
+		'clip_ai_score'  => 'float',
+		'clip_severe_toxicity' => 'float',
+		'clip_obscene'   => 'float',
+		'clip_threat'    => 'float',
+		'clip_insult'    => 'float',
+		'clip_identity_attack' => 'float',
+		'clip_sexual_explicit' => 'float',
+		'clip_context_toxicity' => 'float',
+		'moderation_flag' => 'int',
+		'moderation_reason' => 'string',
+		'clip_caption'   => 'string'
 	);
 
 

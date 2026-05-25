@@ -470,12 +470,14 @@ PHPEOF
 # ---------------------------------------------------------------------------
 # Create board directories with symlinks
 # ---------------------------------------------------------------------------
+mkdir -p "$BOARDS_ROOT/_serve"
+ln -sf "$SRC/serve_image.php" "$BOARDS_ROOT/_serve/serve_image.php"
+ln -sf "$SRC/tagboard.php" "$BOARDS_ROOT/_serve/tagboard.php"
+
 for board_conf in "$SRC/config/boards/"*.config.ini; do
     board=$(basename "$board_conf" .config.ini)
     board_dir="$BOARDS_ROOT/$board"
     mkdir -p "$board_dir" "$board_dir/thread"
-    mkdir -p "/www/4chan.org/web/images/$board"
-    mkdir -p "/www/4chan.org/web/thumbs/$board"
 
     for f in imgboard.php catalog.php catalog_serve.php json.php rid.php boards.php; do
         ln -sf "$SRC/$f" "$board_dir/$f"
@@ -776,8 +778,12 @@ fi
 # ---------------------------------------------------------------------------
 # Pre-rebuild safety backup — if DB has data, dump it before migrations
 # ---------------------------------------------------------------------------
-echo "[entrypoint] Checking for existing data to back up..."
-/usr/local/bin/backup.sh pre-rebuild || true
+if echo "$YOTSUBA_PG_NAME" | grep -q '_dev'; then
+    echo "[entrypoint] Dev environment — skipping pre-rebuild backup"
+else
+    echo "[entrypoint] Checking for existing data to back up..."
+    /usr/local/bin/backup.sh pre-rebuild || true
+fi
 
 /usr/local/bin/run-migrations.sh
 /usr/local/bin/init-boards.sh
@@ -787,11 +793,15 @@ kill $APACHE_PID 2>/dev/null
 wait $APACHE_PID 2>/dev/null || true
 
 # ---------------------------------------------------------------------------
-# Start periodic backups in the background (hourly, keep last 24)
+# Start periodic backups in the background (prod only, keep last 3)
 # ---------------------------------------------------------------------------
-echo "[entrypoint] Starting periodic backup daemon (hourly)..."
-/usr/local/bin/backup.sh periodic &
-BACKUP_PID=$!
+if echo "$YOTSUBA_PG_NAME" | grep -q '_dev'; then
+    echo "[entrypoint] Dev environment — skipping periodic backups"
+else
+    echo "[entrypoint] Starting periodic backup daemon (hourly)..."
+    /usr/local/bin/backup.sh periodic &
+    BACKUP_PID=$!
+fi
 
 echo "[entrypoint] Initialization complete. Starting Apache..."
 # Run Apache in the background so we can catch SIGTERM for shutdown backup

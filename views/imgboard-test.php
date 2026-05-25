@@ -581,10 +581,20 @@ function updatelog_real( $resno = 0, $noidx = 0, $lazy_rebuild = false )
       $dat .= '<div class="adc-resp-bg" data-ad-bg="' . AD_BIDGEAR_BOTTOM . '"></div>';
     }
     */
+    $_toptags = get_top_tags(15);
+    if ($_toptags) {
+      $_tag_links = [];
+      foreach ($_toptags as $_tt) {
+        $_tslug = str_replace(' ', '-', $_tt);
+        $_tag_links[] = '<a href="/tag/' . htmlspecialchars($_tslug, ENT_QUOTES) . '" class="clipTagLink">' . htmlspecialchars($_tt, ENT_QUOTES) . '</a>';
+      }
+      $dat .= '<div class="tagboardBar">[<a href="/' . BOARD_DIR . '/">Return</a>] [<a href="/tags">tags</a>] ' . implode(' ', $_tag_links) . '</div><hr>';
+    }
+
     else if (defined('ADS_DANBO') && ADS_DANBO)  {
       $dat .= '<div id="danbo-s-b" class="danbo-slot"></div><div class="adl">[<a target="_blank" href="https://www.4chan.org/advertise">Advertise on 4chan</a>]</div><hr>';
     }
-    
+
 		if( $resno ) {
 			$resredir = '<input type="hidden" name="res" value="' . $resno . '">';
 		} else {

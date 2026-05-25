@@ -979,7 +979,7 @@ function log_cache($invalidate = 0, $thread = 0, $archive_mode = 0) {
     }
 	}
 
-	$fields = "no,sticky,permasage,closed,now,name,sub,com,host,pwd,filename,ext,w,h,tn_w,tn_h,tim,time,md5,fsize,last_modified,root,resto,filedeleted,id,capcode,country,undead,permaage,since4pass,clip_desc";
+	$fields = "no,sticky,permasage,closed,now,name,sub,com,host,pwd,filename,ext,w,h,tn_w,tn_h,tim,time,md5,fsize,last_modified,root,resto,filedeleted,id,capcode,country,undead,permaage,since4pass,clip_nsfw,clip_anime,clip_toxicity,clip_ai_score,clip_severe_toxicity,clip_obscene,clip_threat,clip_insult,clip_identity_attack,clip_sexual_explicit,clip_context_toxicity,clip_caption,clip_desc,clip_text_desc,moderation_flag,moderation_reason";
 
 	if ($query_archived) {
 	  $fields .= ",archived";
@@ -2034,8 +2034,63 @@ function renderPostHtml($no, $in_thread, $sorted_replies = null, $reply_count = 
 		$com .= '<br><br><span class="abbr">Comment too long. <a href="/' . BOARD_DIR . '/' . RES_DIR2 . ( $resto ? $resto : $no ) . PHP_EXT2 . '#p' . $no . '">Click here</a> to view the full text.</span>';
 	}
 
-	// Image tag creation
 	$file = '';
+	$text_clip_info = '';
+	$_ml_file_line = '';
+	$_ml_line_parts = [];
+
+	if (!empty($clip_desc)) {
+		$_clip_tags = array_map('trim', explode(',', $clip_desc));
+		$_clip_links = [];
+		foreach ($_clip_tags as $_ct) {
+			if ($_ct === '') continue;
+			$_slug = str_replace(' ', '-', $_ct);
+			$_clip_links[] = '<a href="/tag/' . htmlspecialchars($_slug, ENT_QUOTES) . '" class="clipTagLink">' . htmlspecialchars($_ct, ENT_QUOTES) . '</a>';
+		}
+		if ($_clip_links) {
+			$_ml_line_parts[] = '<span class="mlBlip">image-blip: (' . implode(', ', $_clip_links) . ')</span>';
+		}
+	}
+
+	if (!empty($clip_text_desc)) {
+		$_text_tags = array_map('trim', explode(',', $clip_text_desc));
+		$_text_links = [];
+		foreach ($_text_tags as $_tt) {
+			if ($_tt === '') continue;
+			$_slug = str_replace(' ', '-', $_tt);
+			$_text_links[] = '<a href="/tag/' . htmlspecialchars($_slug, ENT_QUOTES) . '" class="clipTagLink">' . htmlspecialchars($_tt, ENT_QUOTES) . '</a>';
+		}
+		if ($_text_links) {
+			$_ml_line_parts[] = '<span class="mlBlip">text: (' . implode(', ', $_text_links) . ')</span>';
+		}
+	}
+
+	$_score_fields = [
+		'nsfw' => isset($clip_nsfw) ? (float)$clip_nsfw : 0,
+		'anime' => isset($clip_anime) ? (float)$clip_anime : 0,
+		'toxic' => isset($clip_toxicity) ? (float)$clip_toxicity : 0,
+		'severe' => isset($clip_severe_toxicity) ? (float)$clip_severe_toxicity : 0,
+		'obscene' => isset($clip_obscene) ? (float)$clip_obscene : 0,
+		'threat' => isset($clip_threat) ? (float)$clip_threat : 0,
+		'insult' => isset($clip_insult) ? (float)$clip_insult : 0,
+		'identity' => isset($clip_identity_attack) ? (float)$clip_identity_attack : 0,
+		'sexual' => isset($clip_sexual_explicit) ? (float)$clip_sexual_explicit : 0,
+		'ai' => isset($clip_ai_score) ? (float)$clip_ai_score : 0,
+		'ctx' => isset($clip_context_toxicity) ? (float)$clip_context_toxicity : 0,
+	];
+	$_clip_scores = [];
+	foreach ($_score_fields as $_k => $_v) {
+		$_clip_scores[] = $_k . ':' . number_format($_v, 2);
+	}
+	$_mod_flag = isset($moderation_flag) ? (int)$moderation_flag : 0;
+	$_mod_reason = isset($moderation_reason) ? $moderation_reason : '';
+	if ($_mod_flag > 0) {
+		$_clip_scores[] = '<span style="color:#c41;font-weight:bold">REVIEW: ' . htmlspecialchars($_mod_reason) . '</span>';
+	}
+	$_ml_line_parts[] = '<span class="mlClip mlScores">scores: ' . implode(' ', $_clip_scores) . '</span>';
+
+	$_ml_file_line = '<div class="mlFileLine">' . implode(' ', $_ml_line_parts) . '</div>';
+	$text_clip_info = $_ml_file_line;
 	if( $ext ) {
 		$img        = IMG_DIR . $tim . $ext;
 		$displaysrc = IMG_DIR2 . $tim . $ext;
@@ -2123,21 +2178,19 @@ function renderPostHtml($no, $in_thread, $sorted_replies = null, $reply_count = 
 		}
 		else {
 			$dimensions = ( $ext == '.pdf' ) ? 'PDF' : $w . 'x' . $h;
-			$clip_info = '';
-			if (!empty($clip_desc)) {
-				$clip_info = ' <span class="clipTags">clip: (' . htmlspecialchars($clip_desc, ENT_QUOTES) . ')</span>';
-			}
 			if( !$spoiler ) {
-				$fileinfo = '<div class="fileText" id="fT' . $no . '">' . S_PICNAME . ': <a' . ($need_file_tooltip ? (' title="' . $longname . '"') : '') . ' href="' . $linksrc . '" target="_blank">' . $shortname . '</a> (' . $size . 'B, ' . $dimensions . ')' . $clip_info . '</div>';
+				$fileinfo = '<div class="fileText" id="fT' . $no . '">' . S_PICNAME . ': <a' . ($need_file_tooltip ? (' title="' . $longname . '"') : '') . ' href="' . $linksrc . '" target="_blank">' . $shortname . '</a> (' . $size . 'B, ' . $dimensions . ')</div>';
 			}
 			else {
-				$fileinfo = '<div class="fileText" id="fT' . $no . '" title="' . $longname . '">' . S_PICNAME . ': <a href="' . $linksrc . '" target="_blank">Spoiler Image</a> (' . $size . 'B, ' . $dimensions . ')' . $clip_info . '</div>';
+				$fileinfo = '<div class="fileText" id="fT' . $no . '" title="' . $longname . '">' . S_PICNAME . ': <a href="' . $linksrc . '" target="_blank">Spoiler Image</a> (' . $size . 'B, ' . $dimensions . ')</div>';
 			}
 		}
 		
+		$text_clip_info = '';
 		$file = <<<HTML
 	<div class="file" id="f$no">
 		$fileinfo
+		$_ml_file_line
 		$imgsrc
 	</div>
 HTML;
@@ -2419,7 +2472,7 @@ HTML;
 
 				</div>
 				$reply_file
-				<blockquote class="postMessage" id="m$no">$com</blockquote>
+				<blockquote class="postMessage" id="m$no">$com</blockquote>$text_clip_info
 			</div>
 		$postInfo
 		$oldtext
@@ -2661,7 +2714,7 @@ function delete_post($resno, $pwd, $imgonly = 0, $automatic = 0, $children = 1, 
 			}
 		}
 		if( $imgonly ) {
-			$db->query("UPDATE " . $db->qi(SQLLOG) . " SET filedeleted=1,root=root,last_modified=? WHERE no=?", array($_SERVER['REQUEST_TIME'], $delrow['no']));
+			$db->query("UPDATE " . $db->qi(SQLLOG) . " SET filedeleted=1,image_data=NULL,thumb_data=NULL,root=root,last_modified=? WHERE no=?", array($_SERVER['REQUEST_TIME'], $delrow['no']));
 			$log[$delrow['no']]['filedeleted'] = TRUE;
 
 			if ($delrow['resto']) {
@@ -3747,6 +3800,8 @@ JS;
 $embedearly
 $adembedearly
 <noscript><style type="text/css">#postForm { display: table !important; }#g-recaptcha { display: none; }</style></noscript>
+<style>.mlScores{display:none}.mlScoresVisible .mlScores{display:inline}</style>
+<script>if(localStorage.getItem('show_ml_scores')==='1')document.documentElement.classList.add('mlScoresVisible');</script>
 </head>
 <body class="$board_class">
 <span id="id_css"></span>
@@ -3758,6 +3813,11 @@ $includenav
 	<div class="boardTitle">$title</div>
 	$subtitle
 </div>
+<div id="boardSettings" style="text-align:right;padding:2px 5px;font-size:11px">
+[<a href="#" id="toggleScores" onclick="var v=document.documentElement.classList.toggle('mlScoresVisible');localStorage.setItem('show_ml_scores',v?'1':'0');this.textContent=v?'Hide Scores':'Show Scores';return false">Show Scores</a>]
+[<a href="/tags">Tags</a>]
+</div>
+<script>if(localStorage.getItem('show_ml_scores')==='1'){var t=document.getElementById('toggleScores');if(t)t.textContent='Hide Scores';}</script>
 $abovePostForm
 HTML;
   
@@ -6065,15 +6125,17 @@ function new_post( $name, $email, $sub, $com, $url, $pwd, $upfile, $upfile_name,
       }
       
 			$name_part = UPLOAD_BOARD ? $insfile : $tim;
-			$image_path = IMG_DIR . $name_part . $ext;
-			if( move_uploaded_file( $dest, $image_path ) === false ) {
-				error( S_FAILEDUPLOAD, $dest );
+			$image_path = $dest;
+			$_image_bytes = file_get_contents($dest);
+			if (!$_image_bytes) {
+				error(S_FAILEDUPLOAD, $dest);
 			}
-			chmod( $image_path, 0664 );
-			
-			if (MOBILE_IMG_RESIZE) {
-			  $m_img = resize_mobile_image($image_path, $W, $H, $fsize, $tim, $ext);
-			}
+
+			$_thumb_path = THUMB_DIR . $tim . 's.jpg';
+			$_thumb_bytes = file_exists($_thumb_path) ? file_get_contents($_thumb_path) : null;
+			if ($_thumb_bytes) @unlink($_thumb_path);
+
+			$m_img = false;
       
       // Oekaki
       if (ENABLE_PAINTERJS) {
@@ -6529,10 +6591,83 @@ function new_post( $name, $email, $sub, $com, $url, $pwd, $upfile, $upfile_name,
 		do {
 			if( SKIP_DOUBLES == 1 ) $db->query("START TRANSACTION");
 
-			// Build column list and params dynamically
 			$_clip_nsfw = ($clip_result && isset($clip_result['nsfw'])) ? (float)$clip_result['nsfw'] : 0;
+			$_clip_anime = ($clip_result && isset($clip_result['anime'])) ? (float)$clip_result['anime'] : 0;
+			$_clip_caption = ($clip_result && isset($clip_result['caption'])) ? substr($clip_result['caption'], 0, 1000) : '';
 			$_clip_desc = ($clip_result && isset($clip_result['description'])) ? substr($clip_result['description'], 0, 500) : '';
-			$ins_cols = "`now`,name,sub,com,host,pwd,email,filename,ext,w,h,tn_w,tn_h,tim,time,last_modified,md5,fsize,root,resto$flag_cols,tmd5,id,country$board_flag_col,clip_nsfw,clip_desc";
+			$_clip_text_desc = '';
+			$_clip_toxicity = 0;
+			$_clip_ai_score = 0;
+			$_clip_severe_toxicity = 0;
+			$_clip_obscene = 0;
+			$_clip_threat = 0;
+			$_clip_insult = 0;
+			$_clip_identity_attack = 0;
+			$_clip_sexual_explicit = 0;
+			$_clip_context_toxicity = 0;
+			$_moderation_flag = 0;
+			$_moderation_reason = '';
+
+			if ($com && strlen(strip_tags($com)) >= 10) {
+				$_plain = html_entity_decode(strip_tags($com), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+				$_ctx_scores = [];
+				$_delta = [];
+
+				$_ctx_str = ($resto) ? build_moderation_context($_plain, $resto, $_thread_com ?? '') : null;
+
+				if ($_ctx_str) {
+					$_mod_full = clip_moderate_context($_plain, $_ctx_str);
+					if ($_mod_full) {
+						$_mod = $_mod_full['solo'] ?? [];
+						$_ctx_scores = $_mod_full['context'] ?? [];
+						$_delta = $_mod_full['delta'] ?? [];
+						$_clip_context_toxicity = (float)($_ctx_scores['toxicity'] ?? 0);
+					} else {
+						$_mod = clip_moderate_text($_plain) ?: [];
+					}
+				} else {
+					$_mod = clip_moderate_text($_plain) ?: [];
+				}
+
+				if ($_mod) {
+					$_clip_toxicity = (float)($_mod['toxicity'] ?? 0);
+					$_clip_ai_score = (float)($_mod['ai_score'] ?? 0);
+					$_clip_severe_toxicity = (float)($_mod['severe_toxicity'] ?? 0);
+					$_clip_obscene = (float)($_mod['obscene'] ?? 0);
+					$_clip_threat = (float)($_mod['threat'] ?? 0);
+					$_clip_insult = (float)($_mod['insult'] ?? 0);
+					$_clip_identity_attack = (float)($_mod['identity_attack'] ?? 0);
+					$_clip_sexual_explicit = (float)($_mod['sexual_explicit'] ?? 0);
+				}
+
+				$_mod_result = evaluate_moderation_rules($_mod ?: [], $_ctx_scores, $_delta);
+
+				if ($_mod_result['action'] === 'block' && !has_level()) {
+					error(get_moderation_error_message($_mod_result), $dest);
+				}
+				if ($_mod_result['action'] === 'review') {
+					$_moderation_flag = 1;
+					$_moderation_reason = get_moderation_review_message($_mod_result);
+					$db->query("INSERT INTO " . $db->qi('event_log') . " (type, ip, board, thread_id, post_id, meta, created) VALUES (?, ?, ?, ?, 0, ?, NOW())",
+						['mod_review', $host, BOARD_DIR, (int)$resto, json_encode($_mod_result)]);
+				}
+
+				$_text_tags = clip_extract_keywords($_plain);
+				if ($_text_tags) $_clip_text_desc = $_text_tags;
+			}
+
+			$_nsfw_review = defined('ML_NSFW_REVIEW') ? (float)ML_NSFW_REVIEW : 0.70;
+			$_nsfw_block = defined('ML_NSFW_BLOCK') ? (float)ML_NSFW_BLOCK : 0.85;
+			if ($has_image && !has_level() && DEFAULT_BURICHAN) {
+				if ($_clip_nsfw > $_nsfw_block) {
+					error(sprintf('NSFW content not allowed on this board (nsfw: %.2f, limit: %.2f)', $_clip_nsfw, $_nsfw_block), $dest);
+				} elseif ($_clip_nsfw > $_nsfw_review) {
+					$_moderation_flag = 1;
+					$_moderation_reason = 'Potentially NSFW image';
+				}
+			}
+
+			$ins_cols = "`now`,name,sub,com,host,pwd,email,filename,ext,w,h,tn_w,tn_h,tim,time,last_modified,md5,fsize,root,resto$flag_cols,tmd5,id,country$board_flag_col,clip_nsfw,clip_anime,clip_toxicity,clip_ai_score,clip_severe_toxicity,clip_obscene,clip_threat,clip_insult,clip_identity_attack,clip_sexual_explicit,clip_context_toxicity,clip_caption,clip_desc,clip_text_desc,moderation_flag,moderation_reason";
 			$ins_params = array(
 				$now, $name, $sub ?: '', $com, $host, $pass, $user_meta, $insfile,
 				$ext ?: '', (int)$W, (int)$H, (int)$TN_W, (int)$TN_H,
@@ -6582,9 +6717,23 @@ function new_post( $name, $email, $sub, $com, $url, $pwd, $upfile, $upfile_name,
 			if ($board_flag_code) {
 				$ph_list .= ',?'; // board_flag
 			}
-			$ph_list .= ',?,?'; // clip_nsfw, clip_desc
+			$ph_list .= ',?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?'; // clip_nsfw, clip_anime, clip_toxicity..clip_text_desc (14) + moderation_flag, moderation_reason (2)
 			$ins_params[] = $_clip_nsfw;
+			$ins_params[] = $_clip_anime;
+			$ins_params[] = $_clip_toxicity;
+			$ins_params[] = $_clip_ai_score;
+			$ins_params[] = $_clip_severe_toxicity;
+			$ins_params[] = $_clip_obscene;
+			$ins_params[] = $_clip_threat;
+			$ins_params[] = $_clip_insult;
+			$ins_params[] = $_clip_identity_attack;
+			$ins_params[] = $_clip_sexual_explicit;
+			$ins_params[] = $_clip_context_toxicity;
+			$ins_params[] = $_clip_caption;
 			$ins_params[] = $_clip_desc;
+			$ins_params[] = $_clip_text_desc;
+			$ins_params[] = (int)$_moderation_flag;
+			$ins_params[] = $_moderation_reason;
 
 			$query = "INSERT INTO " . $db->qi(SQLLOG) . " ($ins_cols) VALUES ($ph_list)";
 
@@ -6791,12 +6940,21 @@ function new_post( $name, $email, $sub, $com, $url, $pwd, $upfile, $upfile_name,
       tensorchan_log(BOARD_DIR, $insertid, $resto, $tim, $ext, $clip_result);
     }
 
-    if ($has_image && $insertid && $image_path) {
-      $embedding = clip_embed_image($image_path);
+    if ($has_image && $insertid && isset($_image_bytes)) {
+      $embedding = clip_embed_image_bytes($_image_bytes);
       if ($embedding) {
         clip_store_embedding($insertid, $embedding);
       }
-      store_image_data($insertid, $image_path, $tim);
+      $db->query(
+        "UPDATE " . $db->qi(SQLLOG) . " SET image_data = ?, thumb_data = ? WHERE no = ?",
+        [new BinaryParam($_image_bytes), $_thumb_bytes ? new BinaryParam($_thumb_bytes) : null, (int)$insertid]
+      );
+      unset($_image_bytes, $_thumb_bytes);
+    } elseif (!$has_image && $insertid && $com && strlen(strip_tags($com)) >= 10) {
+      $text_emb = clip_embed_text(html_entity_decode(strip_tags($com), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+      if ($text_emb) {
+        clip_store_embedding($insertid, $text_emb);
+      }
     }
 	} else {
 		// silent reject
@@ -7116,10 +7274,7 @@ function tensorchan_predict($data) {
   return $resp;
 }
 
-function clip_embed_image($image_path) {
-  if (!$image_path || !file_exists($image_path)) return false;
-
-  $data = file_get_contents($image_path);
+function clip_embed_image_bytes($data) {
   if (!$data || strlen($data) < 100) return false;
 
   $host = defined('TENSORCHAN_HOST') ? TENSORCHAN_HOST : 'clip';
@@ -7152,6 +7307,231 @@ function clip_embed_image($image_path) {
   return $json['embedding'];
 }
 
+function clip_moderate_text($text) {
+  if (!$text || strlen($text) < 5) return false;
+
+  $host = defined('TENSORCHAN_HOST') ? TENSORCHAN_HOST : 'clip';
+  $port = defined('TENSORCHAN_PORT') ? TENSORCHAN_PORT : 8501;
+
+  $payload = json_encode(['text' => mb_substr($text, 0, 500)]);
+
+  $curl = curl_init("http://{$host}:{$port}/moderate");
+  curl_setopt($curl, CURLOPT_RETURNTRANSFER, 1);
+  curl_setopt($curl, CURLOPT_CONNECTTIMEOUT, 3);
+  curl_setopt($curl, CURLOPT_TIMEOUT, 10);
+  curl_setopt($curl, CURLOPT_POST, 1);
+  curl_setopt($curl, CURLOPT_POSTFIELDS, $payload);
+  curl_setopt($curl, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
+
+  $resp = curl_exec($curl);
+  $status = curl_getinfo($curl, CURLINFO_HTTP_CODE);
+  curl_close($curl);
+
+  if ($resp === false || $status >= 300) return false;
+
+  $json = json_decode($resp, true);
+  if (!$json) return false;
+
+  return $json;
+}
+
+function clip_moderate_context($text, $context) {
+  if (!$text || strlen($text) < 5) return false;
+
+  $host = defined('TENSORCHAN_HOST') ? TENSORCHAN_HOST : 'clip';
+  $port = defined('TENSORCHAN_PORT') ? TENSORCHAN_PORT : 8501;
+
+  $payload = json_encode(['text' => mb_substr($text, 0, 500), 'context' => mb_substr($context, 0, 600)]);
+
+  $curl = curl_init("http://{$host}:{$port}/moderate_context");
+  curl_setopt($curl, CURLOPT_RETURNTRANSFER, 1);
+  curl_setopt($curl, CURLOPT_CONNECTTIMEOUT, 3);
+  curl_setopt($curl, CURLOPT_TIMEOUT, 15);
+  curl_setopt($curl, CURLOPT_POST, 1);
+  curl_setopt($curl, CURLOPT_POSTFIELDS, $payload);
+  curl_setopt($curl, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
+
+  $resp = curl_exec($curl);
+  $status = curl_getinfo($curl, CURLINFO_HTTP_CODE);
+  curl_close($curl);
+
+  if ($resp === false || $status >= 300) return false;
+
+  $json = json_decode($resp, true);
+  if (!$json || !isset($json['solo'])) return false;
+
+  return $json;
+}
+
+function build_moderation_context($com_plain, $resto, $thread_com_html = '') {
+  if (!$resto) return null;
+
+  $parts = [];
+
+  if ($thread_com_html) {
+    $op_plain = trim(strip_tags(htmlspecialchars_decode($thread_com_html, ENT_QUOTES)));
+    if ($op_plain) $parts[] = '[OP]: ' . mb_substr($op_plain, 0, 200);
+  }
+
+  if (preg_match_all('/>>(\d+)/', $com_plain, $m)) {
+    $quote_nos = array_unique(array_slice($m[1], 0, 3));
+    if ($quote_nos) {
+      $db = YotsubaDB::board();
+      $ph = implode(',', array_fill(0, count($quote_nos), '?'));
+      $params = array_map('intval', $quote_nos);
+      $q = $db->query("SELECT no, com FROM " . $db->qi(SQLLOG) . " WHERE no IN($ph)", $params);
+      $per_quote = (int)(150 / count($quote_nos));
+      while ($row = $q->fetch(PDO::FETCH_ASSOC)) {
+        $qtxt = trim(strip_tags(htmlspecialchars_decode($row['com'], ENT_QUOTES)));
+        if ($qtxt) $parts[] = '[>>' . $row['no'] . ']: ' . mb_substr($qtxt, 0, $per_quote);
+      }
+    }
+  }
+
+  $parts[] = '[Reply]: ' . mb_substr($com_plain, 0, 150);
+
+  if (count($parts) < 2) return null;
+  return implode("\n", $parts);
+}
+
+function evaluate_moderation_rules($solo, $context_scores = [], $delta = []) {
+  $checks = [
+    'TOXICITY'         => ['key' => 'toxicity',         'review_default' => 0.70, 'block_default' => 0.93],
+    'SEVERE_TOXICITY'  => ['key' => 'severe_toxicity',  'review_default' => 0.40, 'block_default' => 0.60],
+    'OBSCENE'          => ['key' => 'obscene',          'review_default' => 0.70, 'block_default' => 0.93],
+    'THREAT'           => ['key' => 'threat',           'review_default' => 0.50, 'block_default' => 0.70],
+    'INSULT'           => ['key' => 'insult',           'review_default' => 0.75, 'block_default' => 0.93],
+    'IDENTITY_ATTACK'  => ['key' => 'identity_attack',  'review_default' => 0.60, 'block_default' => 0.80],
+    'SEXUAL_EXPLICIT'  => ['key' => 'sexual_explicit',  'review_default' => 0.70, 'block_default' => 0.90],
+    'AI'               => ['key' => 'ai_score',         'review_default' => 0.65, 'block_default' => 1.0],
+  ];
+
+  $worst_review = null;
+
+  foreach ($checks as $name => $cfg) {
+    $review_const = "ML_{$name}_REVIEW";
+    $block_const  = "ML_{$name}_BLOCK";
+    $review_thresh = defined($review_const) ? (float)constant($review_const) : $cfg['review_default'];
+    $block_thresh  = defined($block_const)  ? (float)constant($block_const)  : $cfg['block_default'];
+    $score = (float)($solo[$cfg['key']] ?? 0);
+
+    if ($block_thresh < 1.0 && $score > $block_thresh) {
+      return ['action' => 'block', 'rule' => $name, 'score' => $score, 'threshold' => $block_thresh, 'context_triggered' => false];
+    }
+    if ($review_thresh < 1.0 && $score > $review_thresh && !$worst_review) {
+      $worst_review = ['action' => 'review', 'rule' => $name, 'score' => $score, 'threshold' => $review_thresh, 'context_triggered' => false];
+    }
+  }
+
+  $ctx_mode = defined('ML_CONTEXT_MODE') ? (int)ML_CONTEXT_MODE : 1;
+  if ($ctx_mode >= 1 && $context_scores) {
+    $abs_thresh = defined('ML_CONTEXT_ABSOLUTE_THRESHOLD') ? (float)ML_CONTEXT_ABSOLUTE_THRESHOLD : 0.85;
+    $delta_thresh = defined('ML_CONTEXT_DELTA_THRESHOLD') ? (float)ML_CONTEXT_DELTA_THRESHOLD : 0.30;
+
+    foreach (['toxicity', 'severe_toxicity', 'threat', 'sexual_explicit', 'identity_attack'] as $dim) {
+      $ctx_val = (float)($context_scores[$dim] ?? 0);
+      $d = (float)($delta[$dim] ?? 0);
+      if ($ctx_val > $abs_thresh && $d > $delta_thresh) {
+        $action = ($ctx_mode == 2) ? 'block' : 'review';
+        return ['action' => $action, 'rule' => 'CONTEXT', 'score' => $ctx_val, 'threshold' => $abs_thresh,
+                'delta' => $d, 'dimension' => $dim, 'context_triggered' => true];
+      }
+    }
+  }
+
+  if ($worst_review) return $worst_review;
+
+  return ['action' => 'allow'];
+}
+
+function get_moderation_error_message($result) {
+  $msgs = [
+    'TOXICITY'         => 'Post rejected: toxic content',
+    'SEVERE_TOXICITY'  => 'Post rejected: severely toxic content',
+    'THREAT'           => 'Post rejected: threatening language',
+    'INSULT'           => 'Post rejected: inflammatory content',
+    'IDENTITY_ATTACK'  => 'Post rejected: identity-based attack',
+    'SEXUAL_EXPLICIT'  => 'Post rejected: sexually explicit content',
+    'OBSCENE'          => 'Post rejected: obscene content',
+    'AI'               => 'Post rejected: AI-generated content detected',
+    'CONTEXT'          => 'Post rejected: harmful in conversational context',
+  ];
+  $base = $msgs[$result['rule']] ?? 'Post rejected by moderation';
+  $dim = isset($result['dimension']) ? " ({$result['dimension']})" : '';
+  return sprintf('%s%s (score: %.2f, limit: %.2f)', $base, $dim, $result['score'], $result['threshold']);
+}
+
+function get_moderation_review_message($result) {
+  $msgs = [
+    'TOXICITY'         => 'Potentially toxic content',
+    'SEVERE_TOXICITY'  => 'Potentially severely toxic',
+    'THREAT'           => 'Potentially threatening language',
+    'INSULT'           => 'Potentially inflammatory content',
+    'IDENTITY_ATTACK'  => 'Potential identity-based attack',
+    'SEXUAL_EXPLICIT'  => 'Potentially sexually explicit',
+    'OBSCENE'          => 'Potentially obscene content',
+    'AI'               => 'Possibly AI-generated',
+    'CONTEXT'          => 'Potentially harmful in context',
+  ];
+  return $msgs[$result['rule']] ?? 'Flagged for review';
+}
+
+function clip_embed_text($text) {
+  if (!$text || strlen($text) < 10) return false;
+
+  $host = defined('TENSORCHAN_HOST') ? TENSORCHAN_HOST : 'clip';
+  $port = defined('TENSORCHAN_PORT') ? TENSORCHAN_PORT : 8501;
+
+  $payload = json_encode(['text' => mb_substr($text, 0, 500)]);
+
+  $curl = curl_init("http://{$host}:{$port}/embed_text");
+  curl_setopt($curl, CURLOPT_RETURNTRANSFER, 1);
+  curl_setopt($curl, CURLOPT_CONNECTTIMEOUT, 3);
+  curl_setopt($curl, CURLOPT_TIMEOUT, 10);
+  curl_setopt($curl, CURLOPT_POST, 1);
+  curl_setopt($curl, CURLOPT_POSTFIELDS, $payload);
+  curl_setopt($curl, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
+
+  $resp = curl_exec($curl);
+  $status = curl_getinfo($curl, CURLINFO_HTTP_CODE);
+  curl_close($curl);
+
+  if ($resp === false || $status >= 300) return false;
+
+  $json = json_decode($resp, true);
+  if (!$json || !isset($json['embedding'])) return false;
+
+  return $json['embedding'];
+}
+
+function clip_extract_keywords($text) {
+  if (!$text || strlen($text) < 10) return '';
+
+  $host = defined('TENSORCHAN_HOST') ? TENSORCHAN_HOST : 'clip';
+  $port = defined('TENSORCHAN_PORT') ? TENSORCHAN_PORT : 8501;
+
+  $payload = json_encode(['text' => mb_substr($text, 0, 1000), 'max_keywords' => 10]);
+
+  $curl = curl_init("http://{$host}:{$port}/extract_keywords");
+  curl_setopt($curl, CURLOPT_RETURNTRANSFER, 1);
+  curl_setopt($curl, CURLOPT_CONNECTTIMEOUT, 3);
+  curl_setopt($curl, CURLOPT_TIMEOUT, 10);
+  curl_setopt($curl, CURLOPT_POST, 1);
+  curl_setopt($curl, CURLOPT_POSTFIELDS, $payload);
+  curl_setopt($curl, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
+
+  $resp = curl_exec($curl);
+  $status = curl_getinfo($curl, CURLINFO_HTTP_CODE);
+  curl_close($curl);
+
+  if ($resp === false || $status >= 300) return '';
+
+  $json = json_decode($resp, true);
+  if (!$json || empty($json['keywords'])) return '';
+
+  return substr(implode(', ', $json['keywords']), 0, 500);
+}
+
 function clip_store_embedding($post_no, $embedding) {
   if (!$embedding || !is_array($embedding)) return;
   $db = YotsubaDB::board();
@@ -7162,19 +7542,26 @@ function clip_store_embedding($post_no, $embedding) {
   );
 }
 
-function store_image_data($post_no, $image_path, $tim) {
-  if (!$image_path || !file_exists($image_path)) return;
-  $image_data = file_get_contents($image_path);
-  if (!$image_data) return;
-
-  $thumb_path = THUMB_DIR . $tim . 's.jpg';
-  $thumb_data = file_exists($thumb_path) ? file_get_contents($thumb_path) : null;
-
-  $db = YotsubaDB::board();
-  $db->query(
-    "UPDATE " . $db->qi(SQLLOG) . " SET image_data = ?, thumb_data = ? WHERE no = ?",
-    [new BinaryParam($image_data), $thumb_data ? new BinaryParam($thumb_data) : null, (int)$post_no]
-  );
+function get_top_tags($limit = 15) {
+  static $_cache = null;
+  if ($_cache !== null) return $_cache;
+  try {
+    $db = YotsubaDB::global();
+    $res = $db->query(
+      "SELECT tag, COUNT(*) AS cnt FROM (
+        SELECT TRIM(unnest(string_to_array(clip_desc, ','))) AS tag
+        FROM posts WHERE clip_desc != '' AND filedeleted = 0
+      ) t WHERE LENGTH(tag) > 1 GROUP BY tag ORDER BY cnt DESC LIMIT ?",
+      [(int)$limit]
+    );
+    $_cache = [];
+    while ($row = $res->fetch(PDO::FETCH_ASSOC)) {
+      $_cache[] = $row['tag'];
+    }
+  } catch (Exception $e) {
+    $_cache = [];
+  }
+  return $_cache;
 }
 
 function background_color( $im, $is_thread )

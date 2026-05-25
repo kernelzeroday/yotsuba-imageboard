@@ -75,19 +75,11 @@ RUN { \
         echo '<VirtualHost *:80>'; \
         echo '  DocumentRoot /www/4chan.org/web/boards'; \
         echo '  DirectoryIndex imgboard.php'; \
-        echo '  Alias /images /www/4chan.org/web/images'; \
-        echo '  Alias /thumbs /www/4chan.org/web/thumbs'; \
         echo '  Alias /static /www/4chan.org/web/static'; \
         echo '  Alias /sys /www/4chan.org/web/sys'; \
         echo '  <Directory /www/4chan.org/web/boards>'; \
         echo '    Options FollowSymLinks'; \
         echo '    AllowOverride All'; \
-        echo '    Require all granted'; \
-        echo '  </Directory>'; \
-        echo '  <Directory /www/4chan.org/web/images>'; \
-        echo '    Require all granted'; \
-        echo '  </Directory>'; \
-        echo '  <Directory /www/4chan.org/web/thumbs>'; \
         echo '    Require all granted'; \
         echo '  </Directory>'; \
         echo '  <Directory /www/4chan.org/web/static>'; \
@@ -98,6 +90,9 @@ RUN { \
         echo '  </Directory>'; \
         echo '  ErrorDocument 404 /static/pages/404.html'; \
         echo '  RewriteEngine On'; \
+        echo '  RewriteRule ^/(images|thumbs)/.+ /_serve/serve_image.php [END]'; \
+        echo '  RewriteRule ^/tags?$ /_serve/tagboard.php [END]'; \
+        echo '  RewriteRule ^/tag/(.+)$ /_serve/tagboard.php?tag=$1 [END]'; \
         echo '  RewriteRule ^/boards\\.json$ /b/boards.php [QSA,L]'; \
         echo '  RewriteRule ^/?$ /b/homepage.php [QSA,L]'; \
         echo '  RewriteRule ^/blotter$ /static/pages/blotter.html [PT,L]'; \
@@ -164,8 +159,9 @@ RUN cd /var/www/html && composer install --no-interaction --no-progress 2>/dev/n
 RUN mkdir -p /www/global \
     && ln -s /var/www/html /www/global/yotsuba \
     && mkdir -p /www/4chan.org/web/boards \
-    && mkdir -p /www/4chan.org/web/images \
-    && mkdir -p /www/4chan.org/web/thumbs \
+    && mkdir -p /www/4chan.org/web/boards/_serve \
+    && ln -s /var/www/html/serve_image.php /www/4chan.org/web/boards/_serve/serve_image.php \
+    && ln -s /var/www/html/tagboard.php /www/4chan.org/web/boards/_serve/tagboard.php \
     && mkdir -p /www/4chan.org/web/sys \
     && mkdir -p /www/keys \
     && mkdir -p /www/perhost \

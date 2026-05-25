@@ -1,6 +1,7 @@
 <?php
 /**
  * Batch-embed: Generate CLIP vectors for all existing images missing clip_vector.
+ * Reads image data from PG BYTEA column (no filesystem dependency).
  * Run inside the web container: php /var/www/html/docker/reembed.php
  */
 
@@ -16,38 +17,31 @@ $clip_port = getenv('YOTSUBA_CLIP_PORT') ?: '8501';
 $dsn = "pgsql:host={$pg_host};port={$pg_port};dbname={$pg_db}";
 $pdo = new PDO($dsn, $pg_user, $pg_pass, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
 
-$images_dir = '/www/4chan.org/web/images';
-
-$stmt = $pdo->query("SELECT no, board, tim, ext FROM posts WHERE ext IS NOT NULL AND ext != '' AND clip_vector IS NULL ORDER BY no");
+$stmt = $pdo->query("SELECT no, board, ext FROM posts WHERE ext IS NOT NULL AND ext != '' AND clip_vector IS NULL AND image_data IS NOT NULL ORDER BY no");
 $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 $total = count($rows);
 echo "Found {$total} images to embed\n";
 
+$fetch = $pdo->prepare("SELECT image_data FROM posts WHERE no = ? AND board = ?");
+$upd = $pdo->prepare("UPDATE posts SET clip_vector = ?::vector WHERE no = ? AND board = ?");
+
 $done = 0;
 $errors = 0;
-$skipped = 0;
 
 foreach ($rows as $row) {
     $no = $row['no'];
     $board = $row['board'];
-    $tim = $row['tim'];
     $ext = $row['ext'];
 
-    $file_path = "{$images_dir}/{$board}/{$tim}{$ext}";
+    $fetch->execute([$no, $board]);
+    $img_row = $fetch->fetch(PDO::FETCH_ASSOC);
+    $data = $img_row ? $img_row['image_data'] : null;
 
-    if (!file_exists($file_path)) {
-        $skipped++;
-        $done++;
-        if ($done % 50 === 0 || $done === $total) {
-            fprintf(STDERR, "[%d/%d] progress — %d ok, %d skip, %d err\n", $done, $total, $done - $skipped - $errors, $skipped, $errors);
-        }
-        continue;
-    }
+    if (is_resource($data)) $data = stream_get_contents($data);
 
-    $data = file_get_contents($file_path);
     if (!$data || strlen($data) < 100) {
-        $skipped++;
+        $errors++;
         $done++;
         continue;
     }
@@ -58,6 +52,7 @@ foreach ($rows as $row) {
         . "Content-Type: application/octet-stream\r\n\r\n"
         . $data . "\r\n"
         . "--{$boundary}--\r\n";
+    unset($data);
 
     $ch = curl_init("http://{$clip_host}:{$clip_port}/embed");
     curl_setopt_array($ch, [
@@ -69,6 +64,7 @@ foreach ($rows as $row) {
         CURLOPT_TIMEOUT => 30,
         CURLOPT_USERAGENT => 'yotsuba/reembed',
     ]);
+    unset($body);
 
     $resp = curl_exec($ch);
     $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
@@ -90,7 +86,6 @@ foreach ($rows as $row) {
     }
 
     $vec_str = '[' . implode(',', $result['embedding']) . ']';
-    $upd = $pdo->prepare("UPDATE posts SET clip_vector = ?::vector WHERE no = ? AND board = ?");
     $upd->execute([$vec_str, $no, $board]);
 
     $done++;
@@ -99,7 +94,7 @@ foreach ($rows as $row) {
     }
 }
 
-echo "\nDone: {$done} processed, {$errors} errors, {$skipped} skipped (file not found)\n";
+echo "\nDone: {$done} processed, {$errors} errors\n";
 
 $embedded = $pdo->query("SELECT COUNT(*) FROM posts WHERE clip_vector IS NOT NULL")->fetchColumn();
 echo "Total posts with embeddings: {$embedded}\n";

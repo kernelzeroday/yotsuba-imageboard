@@ -3,8 +3,9 @@ FROM python:3.10-slim
 ENV PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 
-RUN pip install --default-timeout=1000 \
-    torch torchvision --index-url https://download.pytorch.org/whl/cpu
+RUN pip install --default-timeout=1000 typing-extensions>=4.10.0 \
+    && pip install --default-timeout=1000 \
+    torch==2.6.0+cpu torchvision --index-url https://download.pytorch.org/whl/cpu
 
 COPY requirements.txt /app/requirements.txt
 RUN pip install --default-timeout=1000 -r /app/requirements.txt
