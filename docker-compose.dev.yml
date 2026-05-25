@@ -12,7 +12,7 @@ services:
       - YOTSUBA_DB_USER=yotsuba
       - YOTSUBA_DB_PASS=yotsuba
       - YOTSUBA_DB_NAME=yotsuba_global
-      - YOTSUBA_DB_DRIVER=mysql
+      - YOTSUBA_DB_DRIVER=pgsql
       - YOTSUBA_PG_HOST=pgdb
       - YOTSUBA_PG_PORT=5432
       - YOTSUBA_PG_USER=yotsuba
@@ -31,8 +31,8 @@ services:
         condition: service_started
     stop_grace_period: 30s
     volumes:
-      - dev_uploads:/www/4chan.org/web/images
-      - dev_thumbs:/www/4chan.org/web/thumbs
+      - uploads:/www/4chan.org/web/images
+      - thumbs:/www/4chan.org/web/thumbs
       - dev_boards:/www/4chan.org/web/boards
       - dev_backups:/www/backups
       - dev_logs:/www/logs
@@ -112,24 +112,16 @@ services:
       start_period: 120s
     restart: unless-stopped
 
-  adminer:
-    image: adminer:4-standalone
-    container_name: yotsuba-dev-adminer
-    ports:
-      - "8085:8080"
-    environment:
-      ADMINER_DEFAULT_SERVER: db
-    depends_on:
-      - db
-    networks:
-      - dev-net
-    restart: unless-stopped
 
 volumes:
   dev_db_data:
   dev_pg_data:
-  dev_uploads:
-  dev_thumbs:
+  uploads:
+    external: true
+    name: yotsuba-board_uploads_data
+  thumbs:
+    external: true
+    name: yotsuba-board_thumbs_data
   dev_boards:
   dev_backups:
   dev_logs:

@@ -12,10 +12,16 @@
 # ---------------------------------------------------------------------------
 
 BACKUP_DIR="/www/backups"
+DB_DRIVER="${YOTSUBA_DB_DRIVER:-mysql}"
 DB_HOST="${YOTSUBA_DB_HOST:-db}"
 DB_USER="${YOTSUBA_DB_USER:-yotsuba}"
 DB_PASS="${YOTSUBA_DB_PASS:-yotsuba}"
 DB_NAME="${YOTSUBA_DB_NAME:-yotsuba_global}"
+PG_HOST="${YOTSUBA_PG_HOST:-pgdb}"
+PG_PORT="${YOTSUBA_PG_PORT:-5432}"
+PG_USER="${YOTSUBA_PG_USER:-yotsuba}"
+PG_PASS="${YOTSUBA_PG_PASS:-yotsuba}"
+PG_NAME="${YOTSUBA_PG_NAME:-yotsuba_dev}"
 MAX_HOURLY=24
 
 mkdir -p "$BACKUP_DIR"
@@ -24,11 +30,15 @@ log() {
     echo "[backup] $(date '+%Y-%m-%d %H:%M:%S') $*"
 }
 
-# Check if database is reachable and has tables
 db_has_data() {
     local count
-    count=$(mysql --skip-ssl -h "$DB_HOST" -u "$DB_USER" -p"$DB_PASS" "$DB_NAME" \
-        -N -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='$DB_NAME'" 2>/dev/null)
+    if [ "$DB_DRIVER" = "pgsql" ]; then
+        count=$(PGPASSWORD="$PG_PASS" psql -h "$PG_HOST" -p "$PG_PORT" -U "$PG_USER" -d "$PG_NAME" \
+            -tAc "SELECT COUNT(*) FROM pg_tables WHERE schemaname='public'" 2>/dev/null)
+    else
+        count=$(mysql --skip-ssl -h "$DB_HOST" -u "$DB_USER" -p"$DB_PASS" "$DB_NAME" \
+            -N -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='$DB_NAME'" 2>/dev/null)
+    fi
     [ -n "$count" ] && [ "$count" -gt 0 ]
 }
 
@@ -50,10 +60,11 @@ do_dump() {
     # Use a temp file to avoid corrupting existing backups on failure
     local tmpfile="${filepath}.tmp"
 
-    # mysqldump 11.x is incompatible with MariaDB 10.1 server.
-    # Use mysqldump with --force to skip tables that fail, and pipe through
-    # a version-compatible wrapper that queries SHOW CREATE TABLE + SELECT.
-    /usr/local/bin/backup-dump.sh "$DB_HOST" root rootpass "$DB_NAME" | gzip > "$tmpfile"
+    if [ "$DB_DRIVER" = "pgsql" ]; then
+        PGPASSWORD="$PG_PASS" pg_dump -h "$PG_HOST" -p "$PG_PORT" -U "$PG_USER" "$PG_NAME" | gzip > "$tmpfile"
+    else
+        /usr/local/bin/backup-dump.sh "$DB_HOST" root rootpass "$DB_NAME" | gzip > "$tmpfile"
+    fi
 
     local size
     size=$(stat -c%s "$tmpfile" 2>/dev/null || stat -f%z "$tmpfile" 2>/dev/null)

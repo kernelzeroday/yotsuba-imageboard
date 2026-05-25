@@ -2158,11 +2158,15 @@ function renderPostHtml($no, $in_thread, $sorted_replies = null, $reply_count = 
 		}
 		else {
 			$dimensions = ( $ext == '.pdf' ) ? 'PDF' : $w . 'x' . $h;
+			$clip_info = '';
+			if (!empty($clip_desc)) {
+				$clip_info = ' <span class="clipTags">clip: (' . htmlspecialchars($clip_desc, ENT_QUOTES) . ')</span>';
+			}
 			if( !$spoiler ) {
-				$fileinfo = '<div class="fileText" id="fT' . $no . '">' . S_PICNAME . ': <a' . ($need_file_tooltip ? (' title="' . $longname . '"') : '') . ' href="' . $linksrc . '" target="_blank">' . $shortname . '</a> (' . $size . 'B, ' . $dimensions . ')</div>';
+				$fileinfo = '<div class="fileText" id="fT' . $no . '">' . S_PICNAME . ': <a' . ($need_file_tooltip ? (' title="' . $longname . '"') : '') . ' href="' . $linksrc . '" target="_blank">' . $shortname . '</a> (' . $size . 'B, ' . $dimensions . ')' . $clip_info . '</div>';
 			}
 			else {
-				$fileinfo = '<div class="fileText" id="fT' . $no . '" title="' . $longname . '">' . S_PICNAME . ': <a href="' . $linksrc . '" target="_blank">Spoiler Image</a> (' . $size . 'B, ' . $dimensions . ')</div>';
+				$fileinfo = '<div class="fileText" id="fT' . $no . '" title="' . $longname . '">' . S_PICNAME . ': <a href="' . $linksrc . '" target="_blank">Spoiler Image</a> (' . $size . 'B, ' . $dimensions . ')' . $clip_info . '</div>';
 			}
 		}
 		

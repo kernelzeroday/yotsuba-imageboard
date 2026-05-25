@@ -113,8 +113,7 @@ function mysql_board_lock($local=false) {
 
 	if (_db_driver() === 'pgsql') {
 		$con->beginTransaction();
-		$qi = '"' . str_replace('"', '', BOARD_DIR) . '"';
-		$con->exec("LOCK TABLE {$qi} IN SHARE MODE");
+		$con->exec("LOCK TABLE posts IN SHARE MODE");
 	} else {
 		$con->exec("lock tables ".BOARD_DIR." read".($local ? " local" : ""));
 	}
@@ -429,6 +428,16 @@ function mysql_board_get_post_lazy( $board, $no )
 
 function mysql_board_insert_id() {
 	global $con;
+	if (_db_driver() === 'pgsql') {
+		$board = defined('BOARD_DIR') ? BOARD_DIR : '';
+		if ($board) {
+			$stmt = $con->query("SELECT current_no FROM board_sequences WHERE board = " . $con->quote($board));
+			if ($stmt) {
+				$row = $stmt->fetch(PDO::FETCH_NUM);
+				if ($row) return $row[0];
+			}
+		}
+	}
 	return $con->lastInsertId();
 }
 
@@ -521,6 +530,13 @@ function mysql_insert_id($link = null) {
 	global $con, $gcon;
 	$c = $link ?: $con ?: $gcon;
 	if (!($c instanceof PDO)) return 0;
+	if (_db_driver() === 'pgsql' && defined('BOARD_DIR') && BOARD_DIR) {
+		$stmt = $c->query("SELECT current_no FROM board_sequences WHERE board = " . $c->quote(BOARD_DIR));
+		if ($stmt) {
+			$row = $stmt->fetch(PDO::FETCH_NUM);
+			if ($row) return $row[0];
+		}
+	}
 	return $c->lastInsertId();
 }
 

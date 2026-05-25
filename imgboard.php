@@ -1430,7 +1430,7 @@ VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
       continue;
     }
 
-    $new_pid = $db->lastInsertId();
+    $new_pid = $db->lastInsertIdForTable('posts');
 
     if ($new_resto === 0) {
       $new_resto = $new_pid;
@@ -1621,7 +1621,7 @@ VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,{$root_time_sql},?,?,?,?,?,?,?,?)";
       continue;
     }
 
-    $new_pid = $db->lastInsertId();
+    $new_pid = $db->lastInsertIdForTable('posts');
 
     if ($new_resto === 0) {
       $new_resto = $new_pid;
@@ -2123,11 +2123,15 @@ function renderPostHtml($no, $in_thread, $sorted_replies = null, $reply_count = 
 		}
 		else {
 			$dimensions = ( $ext == '.pdf' ) ? 'PDF' : $w . 'x' . $h;
+			$clip_info = '';
+			if (!empty($clip_desc)) {
+				$clip_info = ' <span class="clipTags">clip: (' . htmlspecialchars($clip_desc, ENT_QUOTES) . ')</span>';
+			}
 			if( !$spoiler ) {
-				$fileinfo = '<div class="fileText" id="fT' . $no . '">' . S_PICNAME . ': <a' . ($need_file_tooltip ? (' title="' . $longname . '"') : '') . ' href="' . $linksrc . '" target="_blank">' . $shortname . '</a> (' . $size . 'B, ' . $dimensions . ')</div>';
+				$fileinfo = '<div class="fileText" id="fT' . $no . '">' . S_PICNAME . ': <a' . ($need_file_tooltip ? (' title="' . $longname . '"') : '') . ' href="' . $linksrc . '" target="_blank">' . $shortname . '</a> (' . $size . 'B, ' . $dimensions . ')' . $clip_info . '</div>';
 			}
 			else {
-				$fileinfo = '<div class="fileText" id="fT' . $no . '" title="' . $longname . '">' . S_PICNAME . ': <a href="' . $linksrc . '" target="_blank">Spoiler Image</a> (' . $size . 'B, ' . $dimensions . ')</div>';
+				$fileinfo = '<div class="fileText" id="fT' . $no . '" title="' . $longname . '">' . S_PICNAME . ': <a href="' . $linksrc . '" target="_blank">Spoiler Image</a> (' . $size . 'B, ' . $dimensions . ')' . $clip_info . '</div>';
 			}
 		}
 		
@@ -6528,7 +6532,7 @@ function new_post( $name, $email, $sub, $com, $url, $pwd, $upfile, $upfile_name,
 			// Build column list and params dynamically
 			$_clip_nsfw = ($clip_result && isset($clip_result['nsfw'])) ? (float)$clip_result['nsfw'] : 0;
 			$_clip_desc = ($clip_result && isset($clip_result['description'])) ? substr($clip_result['description'], 0, 500) : '';
-			$ins_cols = "now,name,sub,com,host,pwd,email,filename,ext,w,h,tn_w,tn_h,tim,time,last_modified,md5,fsize,root,resto$flag_cols,tmd5,id,country$board_flag_col,clip_nsfw,clip_desc";
+			$ins_cols = "`now`,name,sub,com,host,pwd,email,filename,ext,w,h,tn_w,tn_h,tim,time,last_modified,md5,fsize,root,resto$flag_cols,tmd5,id,country$board_flag_col,clip_nsfw,clip_desc";
 			$ins_params = array(
 				$now, $name, $sub ?: '', $com, $host, $pass, $user_meta, $insfile,
 				$ext ?: '', (int)$W, (int)$H, (int)$TN_W, (int)$TN_H,
@@ -6590,7 +6594,7 @@ function new_post( $name, $email, $sub, $com, $url, $pwd, $upfile, $upfile_name,
 			} //post registration
 			time_log( "i" );
 
-			$insertid = $db->lastInsertId();
+			$insertid = $db->lastInsertIdForTable('posts');
 			if( SKIP_DOUBLES == 1 ) {
 				if( has_doubles( $insertid ) ) {
 					$db->query("ROLLBACK");
@@ -8607,7 +8611,10 @@ function check_for_ban($ip, $fields = array(), $thread_id = 0, $user_verified = 
   
   if (!isset($gdb)) $gdb = YotsubaDB::global();
   foreach ($fields as $key => $value) {
-    $result = $gdb->query("SELECT no, global, board, post_num, template_id, 4pass_id, admin, reason, UNIX_TIMESTAMP(now) as starts_on, UNIX_TIMESTAMP(length) as ends_on FROM banned_users WHERE active = 1 AND $key = ?", array($value));
+    $qkey = $gdb->qi($key);
+    $_ts_now = $gdb->unixTimestamp($gdb->qi('now'));
+    $_ts_len = $gdb->qi('length');
+    $result = $gdb->query("SELECT no, global, board, post_num, template_id, {$gdb->qi('4pass_id')}, admin, reason, $_ts_now as starts_on, $_ts_len as ends_on FROM banned_users WHERE active = 1 AND $qkey = ?", array($value));
 
     // Not banned
     if ($result->rowCount() < 1) {

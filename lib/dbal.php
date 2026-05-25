@@ -463,10 +463,30 @@ class YotsubaDB {
         // Backticks → double-quotes
         $sql = str_replace('`', '"', $sql);
 
+        // Quote column names that conflict with PG reserved words/syntax
+        $sql = preg_replace('/(?<!["\w])4pass_id(?!["\w])/', '"4pass_id"', $sql);
+
         // Strip MySQL query hints
         $sql = preg_replace('/\bHIGH_PRIORITY\b/i', '', $sql);
         $sql = preg_replace('/\bSQL_CACHE\b/i', '', $sql);
         $sql = preg_replace('/\bSQL_NO_CACHE\b/i', '', $sql);
+
+        // TIMESTAMPDIFF(UNIT, start, end) → EXTRACT(EPOCH FROM (end - start))::INTEGER / divisor
+        $sql = preg_replace_callback(
+            '/\bTIMESTAMPDIFF\s*\(\s*(\w+)\s*,\s*(.+?)\s*,\s*(\w+)\s*\)/i',
+            function($m) {
+                $unit = strtoupper($m[1]);
+                $divisor = match($unit) {
+                    'SECOND' => 1,
+                    'MINUTE' => 60,
+                    'HOUR' => 3600,
+                    'DAY' => 86400,
+                    default => 1,
+                };
+                return "EXTRACT(EPOCH FROM ({$m[3]} - ({$m[2]})))::INTEGER / {$divisor}";
+            },
+            $sql
+        );
 
         // DATE_SUB(expr, INTERVAL n UNIT) → expr - INTERVAL 'n UNIT'
         $sql = preg_replace_callback(
@@ -482,21 +502,24 @@ class YotsubaDB {
             $sql
         );
 
-        // UNIX_TIMESTAMP(col) → EXTRACT(EPOCH FROM col)::INTEGER
-        $sql = preg_replace_callback(
-            '/\bUNIX_TIMESTAMP\s*\(\s*(.+?)\s*\)/i',
-            function($m) {
-                $arg = trim($m[1]);
-                if ($arg === '') {
-                    return "EXTRACT(EPOCH FROM NOW())::INTEGER";
-                }
-                return "EXTRACT(EPOCH FROM {$arg})::INTEGER";
-            },
+        // Bare INTERVAL n UNIT → INTERVAL 'n UNIT' (PG requires quoted interval)
+        $sql = preg_replace(
+            "/\\bINTERVAL\\s+(?!')\\s*(\\d+)\\s+(SECOND|MINUTE|HOUR|DAY|WEEK|MONTH|YEAR)\\b/i",
+            "INTERVAL '\\1 \\2'",
             $sql
         );
 
-        // UNIX_TIMESTAMP() with no args
+        // UNIX_TIMESTAMP() → EXTRACT(EPOCH FROM NOW())::INTEGER (no-arg form first)
         $sql = preg_replace('/\bUNIX_TIMESTAMP\s*\(\s*\)/i', "EXTRACT(EPOCH FROM NOW())::INTEGER", $sql);
+
+        // UNIX_TIMESTAMP(col) → EXTRACT(EPOCH FROM col)::INTEGER
+        $sql = preg_replace_callback(
+            '/\bUNIX_TIMESTAMP\s*\(\s*([^)]+)\s*\)/i',
+            function($m) {
+                return "EXTRACT(EPOCH FROM {$m[1]})::INTEGER";
+            },
+            $sql
+        );
 
         // FROM_UNIXTIME(n) → TO_TIMESTAMP(n)
         $sql = preg_replace('/\bFROM_UNIXTIME\s*\(/i', 'TO_TIMESTAMP(', $sql);
@@ -522,12 +545,22 @@ class YotsubaDB {
             $sql
         );
 
+        // Strip LIMIT from UPDATE/DELETE (PG doesn't support it)
+        $sql = preg_replace('/^(\s*UPDATE\b.+?)\s+LIMIT\s+\d+/is', '$1', $sql);
+        $sql = preg_replace('/^(\s*DELETE\b.+?)\s+LIMIT\s+\d+/is', '$1', $sql);
+
         // LIMIT offset, count → LIMIT count OFFSET offset
         $sql = preg_replace_callback(
             '/\bLIMIT\s+(\d+)\s*,\s*(\d+)/i',
             function($m) { return "LIMIT {$m[2]} OFFSET {$m[1]}"; },
             $sql
         );
+
+        // INSERT IGNORE INTO ... → INSERT INTO ... ON CONFLICT DO NOTHING
+        if (preg_match('/\bINSERT\s+IGNORE\b/i', $sql)) {
+            $sql = preg_replace('/\bINSERT\s+IGNORE\b/i', 'INSERT', $sql);
+            $sql = rtrim($sql, "; \t\n\r") . ' ON CONFLICT DO NOTHING';
+        }
 
         // LOCK TABLES ... → no-op for PG (handled by lockTable method)
         $sql = preg_replace('/\bLOCK\s+TABLES?\s+.+?(READ|WRITE)\s*(LOCAL)?/i', '-- LOCK TABLE (no-op, handled by DBAL)', $sql);

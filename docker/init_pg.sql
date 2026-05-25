@@ -1,4 +1,5 @@
 -- 4chan Yotsuba imageboard schema (PostgreSQL)
+-- Consolidated: single posts table + per-board views
 
 -- Board directory
 CREATE TABLE IF NOT EXISTS "boardlist" (
@@ -110,12 +111,12 @@ INSERT INTO "boardlist" ("dir", "name", "db", "section", "hidden") VALUES
 ON CONFLICT DO NOTHING;
 
 -- ============================================================
--- Per-board post tables
+-- Consolidated posts table (replaces 82 per-board tables)
 -- ============================================================
 
--- Board: /a/ - Anime & Manga
-CREATE TABLE IF NOT EXISTS "a" (
-  "no" SERIAL PRIMARY KEY,
+CREATE TABLE IF NOT EXISTS "posts" (
+  "board" VARCHAR(10) NOT NULL,
+  "no" INTEGER NOT NULL,
   "resto" INTEGER NOT NULL DEFAULT 0,
   "root" INTEGER NOT NULL DEFAULT 0,
   "now" VARCHAR(32) NOT NULL DEFAULT '',
@@ -123,7 +124,7 @@ CREATE TABLE IF NOT EXISTS "a" (
   "last_modified" INTEGER NOT NULL DEFAULT 0,
   "name" VARCHAR(64) NOT NULL DEFAULT '',
   "sub" VARCHAR(128) NOT NULL DEFAULT '',
-  "com" TEXT NOT NULL,
+  "com" TEXT NOT NULL DEFAULT '',
   "host" VARCHAR(255) NOT NULL DEFAULT '',
   "pwd" VARCHAR(32) NOT NULL DEFAULT '',
   "4pass_id" VARCHAR(64) NOT NULL DEFAULT '',
@@ -154,258 +155,118 @@ CREATE TABLE IF NOT EXISTS "a" (
   "clip_desc" VARCHAR(500) NOT NULL DEFAULT '',
   "board_flag" VARCHAR(16) NOT NULL DEFAULT '',
   "upvotes" INTEGER NOT NULL DEFAULT 0,
-  "downvotes" INTEGER NOT NULL DEFAULT 0
+  "downvotes" INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY ("board", "no")
 );
-CREATE INDEX IF NOT EXISTS "a_resto" ON "a" ("resto");
-CREATE INDEX IF NOT EXISTS "a_root" ON "a" ("root");
-CREATE INDEX IF NOT EXISTS "a_time" ON "a" ("time");
-CREATE INDEX IF NOT EXISTS "a_sticky" ON "a" ("sticky");
-CREATE INDEX IF NOT EXISTS "a_archived" ON "a" ("archived");
-CREATE INDEX IF NOT EXISTS "a_last_modified" ON "a" ("last_modified");
-CREATE INDEX IF NOT EXISTS "a_filedeleted" ON "a" ("filedeleted");
 
--- Board: /3/ - 3DCG
-CREATE TABLE IF NOT EXISTS "3" (LIKE "a" INCLUDING ALL);
-
--- Board: /b/ - Random
-CREATE TABLE IF NOT EXISTS "b" (LIKE "a" INCLUDING ALL);
-
--- Board: /c/ - Anime/Cute
-CREATE TABLE IF NOT EXISTS "c" (LIKE "a" INCLUDING ALL);
-
--- Board: /w/ - Anime/Wallpapers
-CREATE TABLE IF NOT EXISTS "w" (LIKE "a" INCLUDING ALL);
-
--- Board: /m/ - Mecha
-CREATE TABLE IF NOT EXISTS "m" (LIKE "a" INCLUDING ALL);
-
--- Board: /cgl/ - Cosplay & EGL
-CREATE TABLE IF NOT EXISTS "cgl" (LIKE "a" INCLUDING ALL);
-
--- Board: /cm/ - Cute/Male
-CREATE TABLE IF NOT EXISTS "cm" (LIKE "a" INCLUDING ALL);
-
--- Board: /f/ - Flash
-CREATE TABLE IF NOT EXISTS "f" (LIKE "a" INCLUDING ALL);
-
--- Board: /n/ - Transportation
-CREATE TABLE IF NOT EXISTS "n" (LIKE "a" INCLUDING ALL);
-
--- Board: /jp/ - Otaku Culture
-CREATE TABLE IF NOT EXISTS "jp" (LIKE "a" INCLUDING ALL);
-
--- Board: /vp/ - Pokemon
-CREATE TABLE IF NOT EXISTS "vp" (LIKE "a" INCLUDING ALL);
-
--- Board: /v/ - Video Games
-CREATE TABLE IF NOT EXISTS "v" (LIKE "a" INCLUDING ALL);
-
--- Board: /vg/ - Video Game Generals
-CREATE TABLE IF NOT EXISTS "vg" (LIKE "a" INCLUDING ALL);
-
--- Board: /vr/ - Retro Games
-CREATE TABLE IF NOT EXISTS "vr" (LIKE "a" INCLUDING ALL);
-
--- Board: /vrpg/ - Video Games/RPG
-CREATE TABLE IF NOT EXISTS "vrpg" (LIKE "a" INCLUDING ALL);
-
--- Board: /vst/ - Video Games/Strategy
-CREATE TABLE IF NOT EXISTS "vst" (LIKE "a" INCLUDING ALL);
-
--- Board: /vm/ - Video Games/Multiplayer
-CREATE TABLE IF NOT EXISTS "vm" (LIKE "a" INCLUDING ALL);
-
--- Board: /vmg/ - Video Games/Mobile
-CREATE TABLE IF NOT EXISTS "vmg" (LIKE "a" INCLUDING ALL);
-
--- Board: /co/ - Comics & Cartoons
-CREATE TABLE IF NOT EXISTS "co" (LIKE "a" INCLUDING ALL);
-
--- Board: /g/ - Technology
-CREATE TABLE IF NOT EXISTS "g" (LIKE "a" INCLUDING ALL);
-
--- Board: /tv/ - Television & Film
-CREATE TABLE IF NOT EXISTS "tv" (LIKE "a" INCLUDING ALL);
-
--- Board: /k/ - Weapons
-CREATE TABLE IF NOT EXISTS "k" (LIKE "a" INCLUDING ALL);
-
--- Board: /o/ - Auto
-CREATE TABLE IF NOT EXISTS "o" (LIKE "a" INCLUDING ALL);
-
--- Board: /an/ - Animals & Nature
-CREATE TABLE IF NOT EXISTS "an" (LIKE "a" INCLUDING ALL);
-
--- Board: /tg/ - Traditional Games
-CREATE TABLE IF NOT EXISTS "tg" (LIKE "a" INCLUDING ALL);
-
--- Board: /sp/ - Sports
-CREATE TABLE IF NOT EXISTS "sp" (LIKE "a" INCLUDING ALL);
-
--- Board: /xs/ - Extreme Sports
-CREATE TABLE IF NOT EXISTS "xs" (LIKE "a" INCLUDING ALL);
-
--- Board: /pw/ - Professional Wrestling
-CREATE TABLE IF NOT EXISTS "pw" (LIKE "a" INCLUDING ALL);
-
--- Board: /sci/ - Science & Math
-CREATE TABLE IF NOT EXISTS "sci" (LIKE "a" INCLUDING ALL);
-
--- Board: /his/ - History & Humanities
-CREATE TABLE IF NOT EXISTS "his" (LIKE "a" INCLUDING ALL);
-
--- Board: /int/ - International
-CREATE TABLE IF NOT EXISTS "int" (LIKE "a" INCLUDING ALL);
-
--- Board: /out/ - Outdoors
-CREATE TABLE IF NOT EXISTS "out" (LIKE "a" INCLUDING ALL);
-
--- Board: /toy/ - Toys
-CREATE TABLE IF NOT EXISTS "toy" (LIKE "a" INCLUDING ALL);
-
--- Board: /biz/ - Business & Finance
-CREATE TABLE IF NOT EXISTS "biz" (LIKE "a" INCLUDING ALL);
-
--- Board: /trv/ - Travel
-CREATE TABLE IF NOT EXISTS "trv" (LIKE "a" INCLUDING ALL);
-
--- Board: /fit/ - Fitness
-CREATE TABLE IF NOT EXISTS "fit" (LIKE "a" INCLUDING ALL);
-
--- Board: /news/ - Current News
-CREATE TABLE IF NOT EXISTS "news" (LIKE "a" INCLUDING ALL);
-
--- Board: /wsg/ - Worksafe GIF
-CREATE TABLE IF NOT EXISTS "wsg" (LIKE "a" INCLUDING ALL);
-
--- Board: /qst/ - Quests
-CREATE TABLE IF NOT EXISTS "qst" (LIKE "a" INCLUDING ALL);
-
--- Board: /diy/ - Do It Yourself
-CREATE TABLE IF NOT EXISTS "diy" (LIKE "a" INCLUDING ALL);
-
--- Board: /wsr/ - Worksafe Requests
-CREATE TABLE IF NOT EXISTS "wsr" (LIKE "a" INCLUDING ALL);
-
--- Board: /vt/ - Virtual YouTubers
-CREATE TABLE IF NOT EXISTS "vt" (LIKE "a" INCLUDING ALL);
-
--- Board: /adv/ - Advice
-CREATE TABLE IF NOT EXISTS "adv" (LIKE "a" INCLUDING ALL);
-
--- Board: /po/ - Papercraft & Origami
-CREATE TABLE IF NOT EXISTS "po" (LIKE "a" INCLUDING ALL);
-
--- Board: /p/ - Photo
-CREATE TABLE IF NOT EXISTS "p" (LIKE "a" INCLUDING ALL);
-
--- Board: /ck/ - Food & Cooking
-CREATE TABLE IF NOT EXISTS "ck" (LIKE "a" INCLUDING ALL);
-
--- Board: /ic/ - Artwork/Critique
-CREATE TABLE IF NOT EXISTS "ic" (LIKE "a" INCLUDING ALL);
-
--- Board: /gd/ - Graphic Design
-CREATE TABLE IF NOT EXISTS "gd" (LIKE "a" INCLUDING ALL);
-
--- Board: /lit/ - Literature
-CREATE TABLE IF NOT EXISTS "lit" (LIKE "a" INCLUDING ALL);
-
--- Board: /mu/ - Music
-CREATE TABLE IF NOT EXISTS "mu" (LIKE "a" INCLUDING ALL);
-
--- Board: /fa/ - Fashion
-CREATE TABLE IF NOT EXISTS "fa" (LIKE "a" INCLUDING ALL);
-
--- Board: /i/ - Oekaki
-CREATE TABLE IF NOT EXISTS "i" (LIKE "a" INCLUDING ALL);
-
--- Board: /r9k/ - ROBOT9001
-CREATE TABLE IF NOT EXISTS "r9k" (LIKE "a" INCLUDING ALL);
-
--- Board: /pol/ - Politically Incorrect
-CREATE TABLE IF NOT EXISTS "pol" (LIKE "a" INCLUDING ALL);
-
--- Board: /bant/ - International/Random
-CREATE TABLE IF NOT EXISTS "bant" (LIKE "a" INCLUDING ALL);
-
--- Board: /soc/ - Cams & Meetups
-CREATE TABLE IF NOT EXISTS "soc" (LIKE "a" INCLUDING ALL);
-
--- Board: /s4s/ - Shit 4chan Says
-CREATE TABLE IF NOT EXISTS "s4s" (LIKE "a" INCLUDING ALL);
-
--- Board: /vip/ - Very Important Posts
-CREATE TABLE IF NOT EXISTS "vip" (LIKE "a" INCLUDING ALL);
-
--- Board: /qa/ - Question & Answer
-CREATE TABLE IF NOT EXISTS "qa" (LIKE "a" INCLUDING ALL);
-
--- Board: /trash/ - Off-Topic
-CREATE TABLE IF NOT EXISTS "trash" (LIKE "a" INCLUDING ALL);
-
--- Board: /mlp/ - Pony
-CREATE TABLE IF NOT EXISTS "mlp" (LIKE "a" INCLUDING ALL);
-
--- Board: /x/ - Paranormal
-CREATE TABLE IF NOT EXISTS "x" (LIKE "a" INCLUDING ALL);
-
--- Board: /wg/ - Wallpapers/General
-CREATE TABLE IF NOT EXISTS "wg" (LIKE "a" INCLUDING ALL);
-
--- Board: /s/ - Sexy Beautiful Women
-CREATE TABLE IF NOT EXISTS "s" (LIKE "a" INCLUDING ALL);
-
--- Board: /hc/ - Hardcore
-CREATE TABLE IF NOT EXISTS "hc" (LIKE "a" INCLUDING ALL);
-
--- Board: /hm/ - Handsome Men
-CREATE TABLE IF NOT EXISTS "hm" (LIKE "a" INCLUDING ALL);
-
--- Board: /h/ - Hentai
-CREATE TABLE IF NOT EXISTS "h" (LIKE "a" INCLUDING ALL);
-
--- Board: /e/ - Ecchi
-CREATE TABLE IF NOT EXISTS "e" (LIKE "a" INCLUDING ALL);
-
--- Board: /u/ - Yuri
-CREATE TABLE IF NOT EXISTS "u" (LIKE "a" INCLUDING ALL);
-
--- Board: /d/ - Hentai/Alternative
-CREATE TABLE IF NOT EXISTS "d" (LIKE "a" INCLUDING ALL);
-
--- Board: /y/ - Yaoi
-CREATE TABLE IF NOT EXISTS "y" (LIKE "a" INCLUDING ALL);
-
--- Board: /t/ - Torrents
-CREATE TABLE IF NOT EXISTS "t" (LIKE "a" INCLUDING ALL);
-
--- Board: /hr/ - High Resolution
-CREATE TABLE IF NOT EXISTS "hr" (LIKE "a" INCLUDING ALL);
-
--- Board: /gif/ - Adult GIF
-CREATE TABLE IF NOT EXISTS "gif" (LIKE "a" INCLUDING ALL);
-
--- Board: /aco/ - Adult Cartoons
-CREATE TABLE IF NOT EXISTS "aco" (LIKE "a" INCLUDING ALL);
-
--- Board: /r/ - Adult Requests
-CREATE TABLE IF NOT EXISTS "r" (LIKE "a" INCLUDING ALL);
-
--- Board: /lgbt/ - LGBT
-CREATE TABLE IF NOT EXISTS "lgbt" (LIKE "a" INCLUDING ALL);
-
--- Board: /j/ - Janitor (hidden)
-CREATE TABLE IF NOT EXISTS "j" (LIKE "a" INCLUDING ALL);
-
--- Board: /test/ - Testing (hidden)
-CREATE TABLE IF NOT EXISTS "test" (LIKE "a" INCLUDING ALL);
-
--- Board: /asp/ - Alternative Sports (hidden)
-CREATE TABLE IF NOT EXISTS "asp" (LIKE "a" INCLUDING ALL);
-
--- Board: /qb/ - QB (hidden)
-CREATE TABLE IF NOT EXISTS "qb" (LIKE "a" INCLUDING ALL);
+CREATE INDEX IF NOT EXISTS "posts_board_resto" ON "posts" ("board", "resto");
+CREATE INDEX IF NOT EXISTS "posts_board_time" ON "posts" ("board", "time");
+CREATE INDEX IF NOT EXISTS "posts_board_sticky_last" ON "posts" ("board", "sticky" DESC, "last_modified" DESC);
+CREATE INDEX IF NOT EXISTS "posts_board_root" ON "posts" ("board", "root" DESC);
+CREATE INDEX IF NOT EXISTS "posts_board_archived" ON "posts" ("board", "archived");
+CREATE INDEX IF NOT EXISTS "posts_board_filedeleted" ON "posts" ("board", "filedeleted");
+
+-- Per-board post number sequences
+CREATE TABLE IF NOT EXISTS "board_sequences" (
+  "board" VARCHAR(10) PRIMARY KEY,
+  "current_no" INTEGER NOT NULL DEFAULT 0
+);
+
+-- Auto-assign per-board post numbers on INSERT
+CREATE OR REPLACE FUNCTION posts_auto_no() RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW."no" IS NULL OR NEW."no" = 0 THEN
+    UPDATE "board_sequences" SET "current_no" = "current_no" + 1
+    WHERE "board" = NEW."board"
+    RETURNING "current_no" INTO NEW."no";
+    IF NOT FOUND THEN
+      INSERT INTO "board_sequences" ("board", "current_no") VALUES (NEW."board", 1);
+      NEW."no" := 1;
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_posts_auto_no ON "posts";
+CREATE TRIGGER trg_posts_auto_no BEFORE INSERT ON "posts"
+FOR EACH ROW EXECUTE FUNCTION posts_auto_no();
+
+-- ============================================================
+-- Board views (transparent compatibility with per-board queries)
+-- ============================================================
+
+-- Column list used by all board views (everything except "board")
+-- Views let the PHP code query "g", "b", etc. as if they were tables
+
+CREATE OR REPLACE FUNCTION board_view_insert() RETURNS TRIGGER AS $$
+BEGIN
+  INSERT INTO "posts" ("board","no","resto","root","now","time","last_modified",
+    "name","sub","com","host","pwd","4pass_id","email","filename","ext",
+    "w","h","tn_w","tn_h","tim","md5","tmd5","fsize","filedeleted",
+    "id","capcode","country","sticky","permasage","permaage","closed",
+    "archived","undead","since4pass","m_img","clip_nsfw","clip_desc",
+    "board_flag","upvotes","downvotes")
+  VALUES (TG_TABLE_NAME,
+    COALESCE(NEW."no", 0), COALESCE(NEW."resto", 0), COALESCE(NEW."root", 0),
+    COALESCE(NEW."now", ''), COALESCE(NEW."time", 0), COALESCE(NEW."last_modified", 0),
+    COALESCE(NEW."name", ''), COALESCE(NEW."sub", ''), COALESCE(NEW."com", ''),
+    COALESCE(NEW."host", ''), COALESCE(NEW."pwd", ''), COALESCE(NEW."4pass_id", ''),
+    COALESCE(NEW."email", ''), COALESCE(NEW."filename", ''), COALESCE(NEW."ext", ''),
+    COALESCE(NEW."w", 0), COALESCE(NEW."h", 0), COALESCE(NEW."tn_w", 0), COALESCE(NEW."tn_h", 0),
+    COALESCE(NEW."tim", ''), COALESCE(NEW."md5", ''), COALESCE(NEW."tmd5", ''),
+    COALESCE(NEW."fsize", 0), COALESCE(NEW."filedeleted", 0::smallint),
+    COALESCE(NEW."id", ''), COALESCE(NEW."capcode", ''), COALESCE(NEW."country", ''),
+    COALESCE(NEW."sticky", 0::smallint), COALESCE(NEW."permasage", 0::smallint),
+    COALESCE(NEW."permaage", 0::smallint), COALESCE(NEW."closed", 0::smallint),
+    COALESCE(NEW."archived", 0::smallint), COALESCE(NEW."undead", 0::smallint),
+    COALESCE(NEW."since4pass", 0::smallint), COALESCE(NEW."m_img", 0::smallint),
+    COALESCE(NEW."clip_nsfw", 0), COALESCE(NEW."clip_desc", ''),
+    COALESCE(NEW."board_flag", ''), COALESCE(NEW."upvotes", 0), COALESCE(NEW."downvotes", 0));
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION board_view_update() RETURNS TRIGGER AS $$
+BEGIN
+  UPDATE "posts" SET
+    "resto"=NEW."resto", "root"=NEW."root", "now"=NEW."now", "time"=NEW."time",
+    "last_modified"=NEW."last_modified", "name"=NEW."name", "sub"=NEW."sub",
+    "com"=NEW."com", "host"=NEW."host", "pwd"=NEW."pwd", "4pass_id"=NEW."4pass_id",
+    "email"=NEW."email", "filename"=NEW."filename", "ext"=NEW."ext",
+    "w"=NEW."w", "h"=NEW."h", "tn_w"=NEW."tn_w", "tn_h"=NEW."tn_h",
+    "tim"=NEW."tim", "md5"=NEW."md5", "tmd5"=NEW."tmd5", "fsize"=NEW."fsize",
+    "filedeleted"=NEW."filedeleted", "id"=NEW."id", "capcode"=NEW."capcode",
+    "country"=NEW."country", "sticky"=NEW."sticky", "permasage"=NEW."permasage",
+    "permaage"=NEW."permaage", "closed"=NEW."closed", "archived"=NEW."archived",
+    "undead"=NEW."undead", "since4pass"=NEW."since4pass", "m_img"=NEW."m_img",
+    "clip_nsfw"=NEW."clip_nsfw", "clip_desc"=NEW."clip_desc",
+    "board_flag"=NEW."board_flag", "upvotes"=NEW."upvotes", "downvotes"=NEW."downvotes"
+  WHERE "board" = TG_TABLE_NAME AND "no" = OLD."no";
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION board_view_delete() RETURNS TRIGGER AS $$
+BEGIN
+  DELETE FROM "posts" WHERE "board" = TG_TABLE_NAME AND "no" = OLD."no";
+  RETURN OLD;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Generate views + triggers for every board
+DO $$
+DECLARE
+  board_dir TEXT;
+  col_list TEXT := '"no","resto","root","now","time","last_modified","name","sub","com","host","pwd","4pass_id","email","filename","ext","w","h","tn_w","tn_h","tim","md5","tmd5","fsize","filedeleted","id","capcode","country","sticky","permasage","permaage","closed","archived","undead","since4pass","m_img","clip_nsfw","clip_desc","board_flag","upvotes","downvotes"';
+BEGIN
+  FOR board_dir IN SELECT dir FROM boardlist LOOP
+    EXECUTE format('CREATE OR REPLACE VIEW %I AS SELECT %s FROM posts WHERE board = %L', board_dir, col_list, board_dir);
+    EXECUTE format('CREATE OR REPLACE TRIGGER trg_%s_insert INSTEAD OF INSERT ON %I FOR EACH ROW EXECUTE FUNCTION board_view_insert()', replace(board_dir, '-', '_'), board_dir);
+    EXECUTE format('CREATE OR REPLACE TRIGGER trg_%s_update INSTEAD OF UPDATE ON %I FOR EACH ROW EXECUTE FUNCTION board_view_update()', replace(board_dir, '-', '_'), board_dir);
+    EXECUTE format('CREATE OR REPLACE TRIGGER trg_%s_delete INSTEAD OF DELETE ON %I FOR EACH ROW EXECUTE FUNCTION board_view_delete()', replace(board_dir, '-', '_'), board_dir);
+  END LOOP;
+END $$;
 
 -- ============================================================
 -- Staff / moderation tables

@@ -621,6 +621,11 @@ div.post div.postInfo {
   white-space: nowrap;
 }
 
+.clipTags {
+  color: #789922;
+  font-size: 11px;
+}
+
 div.post div.postInfo span.postNum {
 
 }
