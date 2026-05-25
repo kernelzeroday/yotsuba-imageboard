@@ -1,5 +1,10 @@
 <?php
 
+class BinaryParam {
+    public string $data;
+    public function __construct(string $data) { $this->data = $data; }
+}
+
 class YotsubaDB {
     private PDO $pdo;
     private string $driver;
@@ -114,6 +119,8 @@ class YotsubaDB {
                 $stmt->bindValue($key, $val, PDO::PARAM_INT);
             } elseif (is_null($val)) {
                 $stmt->bindValue($key, null, PDO::PARAM_NULL);
+            } elseif ($val instanceof BinaryParam) {
+                $stmt->bindValue($key, $val->data, PDO::PARAM_LOB);
             } else {
                 $stmt->bindValue($key, (string)$val, PDO::PARAM_STR);
             }

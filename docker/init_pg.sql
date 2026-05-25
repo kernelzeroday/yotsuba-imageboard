@@ -157,6 +157,8 @@ CREATE TABLE IF NOT EXISTS "posts" (
   "clip_nsfw" REAL NOT NULL DEFAULT 0,
   "clip_desc" VARCHAR(500) NOT NULL DEFAULT '',
   "clip_vector" vector(512),
+  "image_data" BYTEA,
+  "thumb_data" BYTEA,
   "board_flag" VARCHAR(16) NOT NULL DEFAULT '',
   "upvotes" INTEGER NOT NULL DEFAULT 0,
   "downvotes" INTEGER NOT NULL DEFAULT 0,
@@ -211,6 +213,7 @@ BEGIN
     "w","h","tn_w","tn_h","tim","md5","tmd5","fsize","filedeleted",
     "id","capcode","country","sticky","permasage","permaage","closed",
     "archived","undead","since4pass","m_img","clip_nsfw","clip_desc","clip_vector",
+    "image_data","thumb_data",
     "board_flag","upvotes","downvotes")
   VALUES (TG_TABLE_NAME,
     nextval('posts_no_seq'), COALESCE(NEW."resto", 0), COALESCE(NEW."root", 0),
@@ -227,6 +230,7 @@ BEGIN
     COALESCE(NEW."archived", 0::smallint), COALESCE(NEW."undead", 0::smallint),
     COALESCE(NEW."since4pass", 0::smallint), COALESCE(NEW."m_img", 0::smallint),
     COALESCE(NEW."clip_nsfw", 0), COALESCE(NEW."clip_desc", ''), NEW."clip_vector",
+    NEW."image_data", NEW."thumb_data",
     COALESCE(NEW."board_flag", ''), COALESCE(NEW."upvotes", 0), COALESCE(NEW."downvotes", 0));
   RETURN NEW;
 END;
@@ -246,6 +250,7 @@ BEGIN
     "permaage"=NEW."permaage", "closed"=NEW."closed", "archived"=NEW."archived",
     "undead"=NEW."undead", "since4pass"=NEW."since4pass", "m_img"=NEW."m_img",
     "clip_nsfw"=NEW."clip_nsfw", "clip_desc"=NEW."clip_desc", "clip_vector"=NEW."clip_vector",
+    "image_data"=NEW."image_data", "thumb_data"=NEW."thumb_data",
     "board_flag"=NEW."board_flag", "upvotes"=NEW."upvotes", "downvotes"=NEW."downvotes"
   WHERE "board" = TG_TABLE_NAME AND "no" = OLD."no";
   RETURN NEW;
@@ -263,7 +268,7 @@ $$ LANGUAGE plpgsql;
 DO $$
 DECLARE
   board_dir TEXT;
-  col_list TEXT := '"no","resto","root","now","time","last_modified","name","sub","com","host","pwd","4pass_id","email","filename","ext","w","h","tn_w","tn_h","tim","md5","tmd5","fsize","filedeleted","id","capcode","country","sticky","permasage","permaage","closed","archived","undead","since4pass","m_img","clip_nsfw","clip_desc","clip_vector","board_flag","upvotes","downvotes"';
+  col_list TEXT := '"no","resto","root","now","time","last_modified","name","sub","com","host","pwd","4pass_id","email","filename","ext","w","h","tn_w","tn_h","tim","md5","tmd5","fsize","filedeleted","id","capcode","country","sticky","permasage","permaage","closed","archived","undead","since4pass","m_img","clip_nsfw","clip_desc","clip_vector","image_data","thumb_data","board_flag","upvotes","downvotes"';
 BEGIN
   FOR board_dir IN SELECT dir FROM boardlist LOOP
     EXECUTE format('CREATE OR REPLACE VIEW %I AS SELECT %s FROM posts WHERE board = %L', board_dir, col_list, board_dir);

@@ -6796,6 +6796,7 @@ function new_post( $name, $email, $sub, $com, $url, $pwd, $upfile, $upfile_name,
       if ($embedding) {
         clip_store_embedding($insertid, $embedding);
       }
+      store_image_data($insertid, $image_path, $tim);
     }
 	} else {
 		// silent reject
@@ -7158,6 +7159,21 @@ function clip_store_embedding($post_no, $embedding) {
   $db->query(
     "UPDATE " . $db->qi(SQLLOG) . " SET clip_vector = ?::vector WHERE no = ?",
     [$vec_str, (int)$post_no]
+  );
+}
+
+function store_image_data($post_no, $image_path, $tim) {
+  if (!$image_path || !file_exists($image_path)) return;
+  $image_data = file_get_contents($image_path);
+  if (!$image_data) return;
+
+  $thumb_path = THUMB_DIR . $tim . 's.jpg';
+  $thumb_data = file_exists($thumb_path) ? file_get_contents($thumb_path) : null;
+
+  $db = YotsubaDB::board();
+  $db->query(
+    "UPDATE " . $db->qi(SQLLOG) . " SET image_data = ?, thumb_data = ? WHERE no = ?",
+    [new BinaryParam($image_data), $thumb_data ? new BinaryParam($thumb_data) : null, (int)$post_no]
   );
 }
 
