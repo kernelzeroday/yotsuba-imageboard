@@ -51,6 +51,16 @@ for board in $BOARDS; do
     else
         echo "[init] $board — $HTTP_CODE"
     fi
+
+    # Generate empty archive page if missing
+    ARCHIVE_FILE="/www/4chan.org/web/boards/$board/archive.html.gz"
+    if [ ! -f "$ARCHIVE_FILE" ]; then
+        curl -s "$BASE_URL/$board/imgboard.php?mode=rebuild_archive" -o /dev/null 2>/dev/null
+        if [ ! -f "$ARCHIVE_FILE" ]; then
+            echo "<html><head><title>/$board/ - Archive</title></head><body><h4 class=\"center\">No archived threads.</h4></body></html>" \
+                | gzip > "$ARCHIVE_FILE"
+        fi
+    fi
 done
 
 echo "[init] Board pre-generation complete."
