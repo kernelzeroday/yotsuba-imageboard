@@ -1,6 +1,9 @@
 -- 4chan Yotsuba imageboard schema (PostgreSQL)
 -- Consolidated: single posts table + per-board views
 
+-- pgvector extension for embedding similarity search
+CREATE EXTENSION IF NOT EXISTS vector;
+
 -- Board directory
 CREATE TABLE IF NOT EXISTS "boardlist" (
   "id" SERIAL PRIMARY KEY,
@@ -153,6 +156,7 @@ CREATE TABLE IF NOT EXISTS "posts" (
   "m_img" SMALLINT NOT NULL DEFAULT 0,
   "clip_nsfw" REAL NOT NULL DEFAULT 0,
   "clip_desc" VARCHAR(500) NOT NULL DEFAULT '',
+  "clip_vector" vector(512),
   "board_flag" VARCHAR(16) NOT NULL DEFAULT '',
   "upvotes" INTEGER NOT NULL DEFAULT 0,
   "downvotes" INTEGER NOT NULL DEFAULT 0,
@@ -165,6 +169,7 @@ CREATE INDEX IF NOT EXISTS "posts_board_sticky_last" ON "posts" ("board", "stick
 CREATE INDEX IF NOT EXISTS "posts_board_root" ON "posts" ("board", "root" DESC);
 CREATE INDEX IF NOT EXISTS "posts_board_archived" ON "posts" ("board", "archived");
 CREATE INDEX IF NOT EXISTS "posts_board_filedeleted" ON "posts" ("board", "filedeleted");
+CREATE INDEX IF NOT EXISTS "posts_clip_vector_idx" ON "posts" USING hnsw ("clip_vector" vector_cosine_ops) WHERE "clip_vector" IS NOT NULL;
 
 -- Per-board post number sequences
 CREATE TABLE IF NOT EXISTS "board_sequences" (
@@ -205,7 +210,7 @@ BEGIN
     "name","sub","com","host","pwd","4pass_id","email","filename","ext",
     "w","h","tn_w","tn_h","tim","md5","tmd5","fsize","filedeleted",
     "id","capcode","country","sticky","permasage","permaage","closed",
-    "archived","undead","since4pass","m_img","clip_nsfw","clip_desc",
+    "archived","undead","since4pass","m_img","clip_nsfw","clip_desc","clip_vector",
     "board_flag","upvotes","downvotes")
   VALUES (TG_TABLE_NAME,
     COALESCE(NEW."no", 0), COALESCE(NEW."resto", 0), COALESCE(NEW."root", 0),
@@ -221,7 +226,7 @@ BEGIN
     COALESCE(NEW."permaage", 0::smallint), COALESCE(NEW."closed", 0::smallint),
     COALESCE(NEW."archived", 0::smallint), COALESCE(NEW."undead", 0::smallint),
     COALESCE(NEW."since4pass", 0::smallint), COALESCE(NEW."m_img", 0::smallint),
-    COALESCE(NEW."clip_nsfw", 0), COALESCE(NEW."clip_desc", ''),
+    COALESCE(NEW."clip_nsfw", 0), COALESCE(NEW."clip_desc", ''), NEW."clip_vector",
     COALESCE(NEW."board_flag", ''), COALESCE(NEW."upvotes", 0), COALESCE(NEW."downvotes", 0));
   RETURN NEW;
 END;
@@ -240,7 +245,7 @@ BEGIN
     "country"=NEW."country", "sticky"=NEW."sticky", "permasage"=NEW."permasage",
     "permaage"=NEW."permaage", "closed"=NEW."closed", "archived"=NEW."archived",
     "undead"=NEW."undead", "since4pass"=NEW."since4pass", "m_img"=NEW."m_img",
-    "clip_nsfw"=NEW."clip_nsfw", "clip_desc"=NEW."clip_desc",
+    "clip_nsfw"=NEW."clip_nsfw", "clip_desc"=NEW."clip_desc", "clip_vector"=NEW."clip_vector",
     "board_flag"=NEW."board_flag", "upvotes"=NEW."upvotes", "downvotes"=NEW."downvotes"
   WHERE "board" = TG_TABLE_NAME AND "no" = OLD."no";
   RETURN NEW;
@@ -258,7 +263,7 @@ $$ LANGUAGE plpgsql;
 DO $$
 DECLARE
   board_dir TEXT;
-  col_list TEXT := '"no","resto","root","now","time","last_modified","name","sub","com","host","pwd","4pass_id","email","filename","ext","w","h","tn_w","tn_h","tim","md5","tmd5","fsize","filedeleted","id","capcode","country","sticky","permasage","permaage","closed","archived","undead","since4pass","m_img","clip_nsfw","clip_desc","board_flag","upvotes","downvotes"';
+  col_list TEXT := '"no","resto","root","now","time","last_modified","name","sub","com","host","pwd","4pass_id","email","filename","ext","w","h","tn_w","tn_h","tim","md5","tmd5","fsize","filedeleted","id","capcode","country","sticky","permasage","permaage","closed","archived","undead","since4pass","m_img","clip_nsfw","clip_desc","clip_vector","board_flag","upvotes","downvotes"';
 BEGIN
   FOR board_dir IN SELECT dir FROM boardlist LOOP
     EXECUTE format('CREATE OR REPLACE VIEW %I AS SELECT %s FROM posts WHERE board = %L', board_dir, col_list, board_dir);

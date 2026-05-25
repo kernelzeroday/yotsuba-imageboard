@@ -6790,6 +6790,13 @@ function new_post( $name, $email, $sub, $com, $url, $pwd, $upfile, $upfile_name,
     if ($clip_result) {
       tensorchan_log(BOARD_DIR, $insertid, $resto, $tim, $ext, $clip_result);
     }
+
+    if ($has_image && $insertid && $image_path) {
+      $embedding = clip_embed_image($image_path);
+      if ($embedding) {
+        clip_store_embedding($insertid, $embedding);
+      }
+    }
 	} else {
 		// silent reject
 		$insertid = 0;
@@ -7106,6 +7113,52 @@ function tensorchan_predict($data) {
   }
 
   return $resp;
+}
+
+function clip_embed_image($image_path) {
+  if (!$image_path || !file_exists($image_path)) return false;
+
+  $data = file_get_contents($image_path);
+  if (!$data || strlen($data) < 100) return false;
+
+  $host = defined('TENSORCHAN_HOST') ? TENSORCHAN_HOST : 'clip';
+  $port = defined('TENSORCHAN_PORT') ? TENSORCHAN_PORT : 8501;
+
+  $boundary = '----ClipEmbed' . uniqid();
+  $body = "--{$boundary}\r\n"
+    . "Content-Disposition: form-data; name=\"file\"; filename=\"image.jpg\"\r\n"
+    . "Content-Type: application/octet-stream\r\n\r\n"
+    . $data . "\r\n"
+    . "--{$boundary}--\r\n";
+
+  $curl = curl_init("http://{$host}:{$port}/embed");
+  curl_setopt($curl, CURLOPT_RETURNTRANSFER, 1);
+  curl_setopt($curl, CURLOPT_CONNECTTIMEOUT, 5);
+  curl_setopt($curl, CURLOPT_TIMEOUT, 15);
+  curl_setopt($curl, CURLOPT_POST, 1);
+  curl_setopt($curl, CURLOPT_POSTFIELDS, $body);
+  curl_setopt($curl, CURLOPT_HTTPHEADER, ["Content-Type: multipart/form-data; boundary={$boundary}"]);
+
+  $resp = curl_exec($curl);
+  $status = curl_getinfo($curl, CURLINFO_HTTP_CODE);
+  curl_close($curl);
+
+  if ($resp === false || $status >= 300) return false;
+
+  $json = json_decode($resp, true);
+  if (!$json || !isset($json['embedding'])) return false;
+
+  return $json['embedding'];
+}
+
+function clip_store_embedding($post_no, $embedding) {
+  if (!$embedding || !is_array($embedding)) return;
+  $db = YotsubaDB::board();
+  $vec_str = '[' . implode(',', $embedding) . ']';
+  $db->query(
+    "UPDATE " . $db->qi(SQLLOG) . " SET clip_vector = ?::vector WHERE no = ?",
+    [$vec_str, (int)$post_no]
+  );
 }
 
 function background_color( $im, $is_thread )

@@ -199,6 +199,41 @@ def _analyze(image_bytes: bytes) -> dict:
     }
 
 
+@app.post("/embed")
+async def embed(file: UploadFile = File(...)):
+    """Return the raw 512-dim CLIP embedding for an image."""
+    try:
+        image_bytes = await file.read()
+        if len(image_bytes) > 20 * 1024 * 1024:
+            raise HTTPException(status_code=413, detail="Image too large (max 20MB)")
+        if len(image_bytes) < 100:
+            raise HTTPException(status_code=400, detail="Image too small or empty")
+        image_features = process_image(image_bytes)
+        return {"embedding": image_features.squeeze(0).cpu().numpy().tolist()}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("Embedding failed")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/embed_text")
+async def embed_text(request: Request):
+    """Return the raw 512-dim CLIP embedding for a text string."""
+    try:
+        body = await request.json()
+        text = body.get("text", "")
+        if not text:
+            raise HTTPException(status_code=400, detail="Missing 'text' field")
+        features = encode_text_prompts([text])
+        return {"embedding": features.squeeze(0).cpu().numpy().tolist()}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("Text embedding failed")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.get("/health")
 async def health():
-    return {"status": "ok", "device": device, "model": "ViT-B-32::openai"}
+    return {"status": "ok", "device": device, "model": "ViT-B-32::openai", "embedding_dim": 512}
