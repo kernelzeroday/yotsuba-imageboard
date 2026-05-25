@@ -10,30 +10,158 @@ This project takes that original leaked source and turns it into a fully functio
 
 1. **Reconstruction from the code itself** — the leaked source contains extensive comments, config keys, database references, and dead code paths that reveal how missing features worked. Much of what looks "new" is actually just wiring up what was already described in the code but couldn't run without 4chan's internal infrastructure.
 
-2. **Reference from KusabaX (99chan)** — for features where the leak gives us no clues, we reference the [99chan fork of KusabaX](../99chan), a contemporary open-source imageboard engine from the same era. KusabaX powered dozens of small-to-mid-size imageboards in the 2006-2014 period and shared many architectural patterns with Yotsuba. It serves as our "what it probably looked like" reference, not as code we copy wholesale.
+2. **Reference from KusabaX (99chan)** — for features where the leak gives us no clues, we reference the [99chan fork of KusabaX](../99chan), a contemporary open-source imageboard engine from the same era. KusabaX powered dozens of small-to-mid-size imageboards in the 2006-2012 period and shared many architectural patterns with Yotsuba. It serves as our "what it probably looked like" reference, not as code we copy wholesale.
 
 The goal is part historical restoration, part educated speculation — a "what we thought it might have been like" behind the scenes, informed by what admins, mods, and janitors of that era described publicly, and what the code itself reveals.
 
 ## Quick Start
 
 ```bash
-docker compose up --build     # First run takes ~2min (builds PHP 5.6 image)
-```
+# Production
+docker compose up --build           # http://d.local:8082/b/
 
-Open `http://localhost:8082/` for the homepage, or `http://localhost:8082/b/` for /b/.
+# Development (recommended for all work)
+docker compose -f docker-compose.dev.yml up --build   # http://d.local:8084/b/
+```
 
 ```bash
-docker compose down -v        # Full reset (wipes DB + uploads)
+docker compose down -v              # Full reset (wipes DB + uploads)
 ```
 
-## Services
+## Environments
 
-| Service   | URL                     | Purpose                |
-|-----------|-------------------------|------------------------|
-| Web       | http://localhost:8082    | Imageboard (PHP 5.6/Apache) |
-| Adminer   | http://localhost:8081    | Database admin UI      |
-| MariaDB   | localhost:3306           | Database (MariaDB 10.1)|
-| Memcached | localhost:11211          | Session/config cache   |
+| Env | Port | Compose File | Containers | Purpose |
+|-----|------|--------------|------------|---------|
+| **PROD** | 8082 | `docker-compose.yml` | yotsuba-web, yotsuba-db | Stable build, MySQL |
+| **DEV** | 8084 | `docker-compose.dev.yml` | yotsuba-dev-web, yotsuba-dev-db, pgdb, clip, etc. | Active development |
+
+All development happens in DEV. Never test against prod.
+
+## Services (Dev Stack)
+
+| Service | Container | Port | Purpose |
+|---------|-----------|------|---------|
+| Web | yotsuba-dev-web | 8084 | PHP 8.2 / Apache |
+| MariaDB | yotsuba-dev-db | 3307 | MySQL database |
+| PostgreSQL | yotsuba-dev-pgdb | 5433 | PostgreSQL 16 (migration target) |
+| CLIP | yotsuba-dev-clip | 8501 | CLIP inference server (NSFW + tagging) |
+| Memcached | yotsuba-dev-memcached | 11212 | Session/config cache |
+| Adminer | yotsuba-dev-adminer | 8085 | Database admin UI |
+
+---
+
+## Changelog / Surgery Log
+
+Chronological record of major changes made to the leaked codebase.
+
+### Phase 1: Containerization and Basic Restoration
+
+**PHP 5.6 → PHP 8.2 migration**
+- Upgraded from PHP 5.6 to 8.2 with Apache
+- Fixed hundreds of deprecation warnings, `mysql_*` API calls, short array syntax
+- Added `short_open_tag = On` for legacy `<?` files
+
+**Docker infrastructure**
+- `Dockerfile` — PHP 8.2-apache with GD, Imagick, memcached, intl, zip, mbstring, pdo_mysql, pdo_pgsql
+- `docker-compose.yml` — prod stack (web + MariaDB 10.1 + memcached + adminer)
+- `docker-compose.dev.yml` — dev stack with additional services (PostgreSQL, CLIP)
+- `docker/entrypoint.sh` — container bootstrap that patches source for local use, rewrites all external URLs, generates config, creates board symlink farms
+- `docker/init.sql` — full database schema reconstructed from PHP source (84 board tables, 20+ system tables)
+- `docker/init-boards.sh` — pre-generates board HTML pages on startup
+
+**Database schema reconstruction**
+- Traced every `mysql_*_call()` in the source to reconstruct table schemas
+- 84 board tables (one per board, created via `CREATE TABLE board LIKE a`)
+- System tables: `mod_users`, `banned_users`, `ban_templates`, `ban_requests`, `del_log`, `reports`, `user_actions`, `postfilter`, `blacklist`, `event_log`, `iprangebans`, `blotter`, `boardlist`, etc.
+- All 83 boards seeded with sticky welcome threads, capcode icons, blotter entries
+
+**Homepage and info pages**
+- `homepage.php` — front page querying `boardlist` table, matching original 4chan.org layout
+- Static info pages scraped from 4chan.org: blotter, rules, FAQ, legal, contact, feedback, advertise
+- Apache vhost with rewrite rules for clean URLs
+
+**Admin panel restoration**
+- Login form added (original relied on separate internal auth system)
+- Salt file generation at container startup
+- Dashboard landing page with board switcher and tool links
+- Thread management: sticky, lock, permasage, cleanup, banning
+
+**Static assets**
+- 242 authentic banner images for random rotation
+- All 6 classic CSS themes plus 18 additional community themes
+- Minified client-side JavaScript (core + extensions)
+- Capcode icons (admin, mod, manager, developer, founder)
+- Party hat overlays, sticky/archived/closed icons
+
+### Phase 2: DBAL Abstraction Layer
+
+**Custom database abstraction** (`lib/dbal.php`, ~500 lines)
+- `YotsubaDB` class wrapping PDO with MySQL/PostgreSQL dual-driver support
+- Automatic SQL dialect translation (backticks → double quotes, MySQL functions → PG equivalents)
+- Prepared statement support with type-detected parameter binding
+- Query builder: `select()`, `insert()`, `update()`, `delete()`, `upsert()`
+- Identifier quoting via `qi()` — handles PG reserved word board names (`int`, `out`, `test`)
+- Table locking abstraction (MySQL `LOCK TABLES` → PG `BEGIN + LOCK TABLE`)
+- `translateSQL()` pipeline: `HIGH_PRIORITY`, `DATE_SUB`, `UNIX_TIMESTAMP`, `IF()`, `GROUP_CONCAT`, `ON DUPLICATE KEY UPDATE`, `LIMIT offset,count` → PG equivalents
+
+**Backward-compatible shim** (`lib/db.php`)
+- Existing `mysql_global_call()` / `mysql_board_call()` routed through DBAL
+- vsprintf queries translated via `translateSQL()` before execution
+- All compatibility shims (`mysql_fetch_assoc`, `mysql_num_rows`, etc.) work with PDOStatement regardless of driver
+
+**PostgreSQL schema** (`docker/init_pg.sql`)
+- Full translation of MySQL schema to PostgreSQL
+- `AUTO_INCREMENT` → `SERIAL`, `tinyint` → `SMALLINT`, `ENGINE=InnoDB` stripped
+- Secondary indexes as `CREATE INDEX` statements
+- `ON UPDATE CURRENT_TIMESTAMP` → trigger functions
+- Reserved word board names always double-quoted
+
+**Migration infrastructure**
+- `docker/migrations/` — numbered SQL migration files
+- `docker/run-migrations.sh` — applies pending migrations, tracks in `schema_migrations` table
+- `YOTSUBA_DB_DRIVER` env var switches between `mysql` and `pgsql`
+
+**PHPUnit test suite**
+- `composer.json` with PHPUnit 10.5
+- `tests/DBALTest.php` — 45 tests covering connection, query building, SQL translation, identifier quoting, upsert
+- `tests/UtilTest.php` — 52 tests covering domain mapping, board config, string utilities
+- `composer test` runs with `short_open_tag=On` for legacy file compatibility
+
+### Phase 3: CLIP / TENSORCHAN Rewrite
+
+The original leaked code contained `tensorchan_check_nsfw()` which sent images to 4chan's internal ML server (`danbo.int:8501`) for NSFW detection. We replaced this dead endpoint with a local CLIP-based inference server.
+
+**CLIP server** (`docker/clip/`)
+- `server.py` — FastAPI server running OpenAI ViT-B-32 via `open_clip`
+- `Dockerfile` — `python:3.10-slim` base, CPU-only PyTorch (~1.1GB image)
+- Zero-shot NSFW scoring: 7 unsafe + 10 safe text prompts, `score = unsafe_max / (unsafe_max + safe_max)`
+- Image tagging: 40 curated prompts (anime, photograph, meme, screenshot, etc.), top-5 returned above threshold
+- `/predict` endpoint accepts raw binary PNG — backward-compatible with original tensorchan API
+- `/analyze` endpoint accepts multipart uploads
+- `/health` endpoint for Docker healthcheck
+- Model weights cached in `clip_cache` Docker volume (~350MB, downloaded on first start)
+
+**PHP integration** (`imgboard.php`)
+- `tensorchan_predict()` — now targets configurable `TENSORCHAN_HOST`/`TENSORCHAN_PORT` instead of hardcoded `danbo.int`
+- `tensorchan_check_nsfw()` — returns full result array `{nsfw, tags, description}` instead of bare float
+- `tensorchan_log()` — stores NSFW score, description, and tags JSON in `tensor_log` table
+- `tensorchan_is_needed()` — simplified: removed user trust bypass (`isUserKnownOrVerified`), runs on ALL image posts when enabled
+- Image `<img>` alt text uses CLIP description when available (e.g., `alt="anime or manga art, a digital illustration, cute or wholesome content"`)
+
+**Database additions**
+- `clip_nsfw` (float) and `clip_desc` (varchar 500) columns on all board tables, after `m_img`
+- `tensor_log` table: stores all inference results with board, post ID, file ID, NSFW score, description, tags JSON
+- `docker/migrations/015_tensorchan_clip.sql` — migration to add columns to existing tables
+
+**JSON API** (`json.php`)
+- `clip_desc` field exported in post JSON objects
+
+**Configuration**
+- `TENSORCHAN_HOST` / `TENSORCHAN_PORT` config keys
+- `YOTSUBA_CLIP_HOST` env var in `docker-compose.dev.yml` — when set, entrypoint enables TENSORCHAN_MODE=2
+- `TENSORCHAN_LOG_ONLY = no` — NSFW scores are now actionable, not just logged
+
+---
 
 ## Source Provenance
 
@@ -41,69 +169,126 @@ Every component in this project falls into one of three categories:
 
 ### Original (from the leak)
 
-These files are from the leaked Yotsuba source, modified only to fix runtime errors and rewrite hardcoded 4chan.org URLs to local paths:
+These files are from the leaked Yotsuba source, modified only to fix runtime errors, rewrite hardcoded 4chan.org URLs, and adapt for PHP 8.2:
 
 | Component | Files | Notes |
 |-----------|-------|-------|
-| Board engine | `imgboard.php` (7,500+ lines) | The heart of the system. Thread creation, posting, image processing, page rendering, flood control, ban checking. |
+| Board engine | `imgboard.php` (10,000+ lines) | Thread creation, posting, image processing, page rendering, flood control, ban checking, CLIP integration. |
 | Catalog | `catalog.php` | Catalog view with JSON generation. |
 | Admin panel | `admin.php` (4,400+ lines) | Full moderation interface: bans, deletions, thread options, cleanup, IP lookups. |
-| Auth system | `lib/auth.php` | Role hierarchy (janitor/mod/manager/admin), permission flags, board access control. Cookie-based session using SHA-256 HMAC with a salt file. |
+| Auth system | `lib/auth.php` | Role hierarchy (janitor/mod/manager/admin), permission flags, board access control. |
 | Config engine | `yotsuba_config.php`, `lib/ini.php` | Cascading INI config: global → category → board. |
-| Database layer | `lib/db.php`, `lib/db_pdo.php` | MySQL abstraction with query logging, error handling. Uses the deprecated `mysql_*` API. |
+| Database layer | `lib/db.php`, `lib/db_pdo.php` | Original MySQL abstraction, now shimmed through DBAL. |
 | Post filtering | `lib/postfilter.php` | Regex/pattern matching with auto-sage, quiet delete, auto-ban. |
-| User identity | `lib/userpwd.php` | Cookie-based user tracking, "known user" status for rate limiting. |
-| Domain router | `lib/util.php` | The `L::d()` helper that maps boards to domains (4chan.org vs 4channel.org). |
-| RPC layer | `lib/rpc.php` | Internal HTTP calls between services (used for cross-board deletions). |
-| GeoIP | `lib/geoip2.php` | MaxMind GeoIP2 integration for country flags. Stubbed locally. |
-| Ban form | `forms/ban.php` (11,000+ lines) | The ban UI with templates, durations, public/private reasons. |
-| Report form | `forms/report.php` | User-facing report submission. |
-| Report handler | `modes/report.php` | Server-side report processing. |
-| JSON API | `json.php` | Board/thread JSON endpoints. |
-| Pass auth | `auth.php` | 4chan Pass (paid account) authentication flow. |
-| Board configs | `config/boards/*.config.ini` (82 files) | Per-board settings for every board that existed at time of leak. |
-| Category configs | `config/categories/*.config.ini` | Worksafe/NSFW category overrides. |
-| Global config | `config/global_config.ini` | ~300 settings covering every aspect of the system. |
-| Global strings | `config/global_strings.ini` | All user-facing error messages and UI text. |
-| CSS themes | `css/yotsubanew.css`, `futabanew.css`, `burichannew.css`, `photon.css`, `tomorrow.css` | The five classic 4chan themes. |
-| JavaScript | `js/core.min.*.js`, `js/extension.min.*.js` | Minified client-side code (inline expand, quick reply, settings, etc). |
-| Views/templates | `views/imgboard.php`, `views/signin.tpl.php` | HTML rendering templates. |
-| Misc | `rid.php`, `derefer.php`, `clippy.html`, `rebuildd.php`, `signin.php` | Random image display, URL dereferrer, Clippy easter egg, rebuild daemon, signin flow. |
+| User identity | `lib/userpwd.php` | Cookie-based user tracking, "known user" status. |
+| Domain router | `lib/util.php` | The `L::d()` helper that maps boards to domains. |
+| JSON API | `json.php` | Board/thread JSON endpoints, now includes `clip_desc`. |
+| Ban form | `forms/ban.php` (11,000+ lines) | Ban UI with templates, durations, public/private reasons. |
+| Report form | `forms/report.php`, `modes/report.php` | Report submission and processing. |
+| Board configs | `config/boards/*.config.ini` (82 files) | Per-board settings. |
+| CSS themes | `css/yotsubanew.css`, `futabanew.css`, etc. | Classic 4chan themes. |
+| JavaScript | `js/core.min.*.js`, `js/extension.min.*.js` | Client-side code. |
+| Misc | `rid.php`, `derefer.php`, `clippy.html`, `rebuildd.php`, `signin.php` | Utility scripts. |
 
-### Reproduced / Refactored / Rewritten
+### Reproduced / Reconstructed
 
-These components existed in the original 4chan but were either missing from the leak, broken without infrastructure, or needed significant rework to function locally:
+Components that existed in the original 4chan but were missing from the leak or broken without infrastructure:
 
-| Component | What happened | How we know it existed |
-|-----------|---------------|----------------------|
-| **Homepage** (`homepage.php`) | Written from scratch. The leak only contained the board engine (`imgboard.php`), not the www site. | Every 4chan page links to `/` and the board nav references it. We built a homepage that queries the `boardlist` table and displays boards by category with a random banner, matching the well-known 4chan.org front page layout. |
-| **Info pages** (`/blotter`, `/rules`, `/faq`, `/legal`, `/contact`, `/feedback`, `/advertise`) | Scraped from the live 4chan.org site and served as static HTML with URLs rewritten for local serving. | These pages are linked from every board header/footer. The blotter data is also referenced in `global_config.ini` (`BLOTTER_URL`). |
-| **Admin login form** | The leak had `auth_user()` which reads `4chan_auser` and `apass` cookies, but no login page — original 4chan mods logged in through a separate internal system (probably on `sys.4chan.org` or an internal-only domain). We added a login form to `admin.php`. | `adminvalid()` calls `auth_user()` which expects cookies to already be set. The old (commented-out) `auth_user()` at line 310 shows a login path that accepts POST `userlogin`/`passlogin`. |
-| **Admin landing page** | The default case in admin.php's switch called the commented-out `admin_delete()`. We added a dashboard showing threads, board switcher, and tool links. | The switch cases for `ban`, `opt`, `cleanup`, `delall` all work — only the default landing was empty. |
-| **Salt file** (`/www/keys/2014_admin.salt`) | Generated at container startup. | `auth_user()` reads this file and `die()`s with "Internal Server Error (s0)" without it. Referenced in 6+ places across `lib/auth.php`, `auth.php`, and `admin.php`. |
-| **Database schema** (`docker/init.sql`) | Reconstructed from PHP code. The leak had no SQL dumps. We traced every `mysql_*_call()` in the source to build the schema: 84 board tables, `boardlist`, `mod_users`, `banned_users`, `ban_templates`, `ban_requests`, `del_log`, `reports`, `user_actions`, `postfilter`, `blacklist`, `event_log`, `iprangebans`, `blotter`, etc. | Every table is referenced by name in the PHP source with its column names visible in SQL query strings. |
-| **Board directory structure** | The entrypoint creates symlink farms in `/www/4chan.org/web/boards/` where each board is a directory of symlinks back to the PHP source. | `BOARD_DIR`, `SELF_PATH`, `INDEX_DIR` constants and the Apache vhost all assume this structure. The config system also assumes board configs live at specific paths. |
-| **URL rewriting** (`entrypoint.sh`) | All references to `boards.4chan.org`, `sys.4chan.org`, `i.4cdn.org`, `s.4cdn.org`, etc. are rewritten to local relative paths at container startup. | Hundreds of hardcoded URLs throughout the source reference 4chan's production CDN and domain structure. |
-| **TENSORCHAN bypass** | Disabled in config. The ML inference server (`danbo.int:8501`) is internal to 4chan's network. | `tensorchan_check_nsfw()` in `imgboard.php` sends images to the inference server. Config keys `TENSORCHAN_MODE`, `TENSORCHAN_DIM`, `TENSORCHAN_THRES` define the system. |
-| **Static assets** | 242 banner images, CSS for info pages, YUI sprites, favicon — all scraped from `s.4cdn.org`. | `rid.php` serves random banners from `/static/image/title/`. CSS files are referenced in page headers. |
-| **Docker infrastructure** | `Dockerfile`, `docker-compose.yml`, `entrypoint.sh` — none of this existed in the leak. 4chan ran on bare metal with a complex multi-server architecture. | We containerized it as PHP 5.6 + Apache + MariaDB 10.1 + Memcached to match the technology stack of the era. |
+| Component | What happened |
+|-----------|---------------|
+| **Homepage** (`homepage.php`) | Written from scratch — leak only contained the board engine |
+| **Info pages** | Scraped from live 4chan.org, URLs rewritten for local serving |
+| **Admin login** | Added login form — original used separate internal auth system |
+| **Database schema** (`init.sql`, `init_pg.sql`) | Reconstructed by tracing every SQL call in the PHP source |
+| **Board directory structure** | Symlink farms generated at startup by entrypoint.sh |
+| **URL rewriting** | All `boards.4chan.org`, `sys.4chan.org`, `i.4cdn.org` references patched |
+| **Docker infrastructure** | Containerized a bare-metal multi-server architecture |
 
-### New Additions (from KusabaX / Original)
+### New / Extended
 
-Features that we know existed in some form on 4chan but have no implementation in the leak. We reference the [99chan KusabaX fork](../99chan) for period-accurate implementations:
+Features added beyond what the leak contained:
 
-| Feature | Status | KusabaX Reference | Notes |
-|---------|--------|-------------------|-------|
-| **Board-specific banners** | Planned | `banners/` directory in 99chan, per-board banner serving | 4chan served different banners per board. The leak's `rid.php` only serves from a global pool. |
-| **Ban appeals** | Planned | `bans.class.php` — full appeal system with appeal dates, reasons, admin review | The leak has `ban_requests` table but no user-facing appeal form. |
-| **Word filters** | Planned | `manage.class.php::wordfilter()` — regex filters with board scope | The leak has `postfilter` table and `lib/postfilter.php` but the management UI is minimal. |
-| **Report queue UI** | Planned | `manage.class.php::reports()` — report viewer with clear/resolve | The leak's `adminreportqueue()` and `adminreportclear()` are commented out in the admin switch. |
-| **Moderation log viewer** | Planned | `manage.class.php::modlog()` — browsable action history | The leak writes to `event_log` but has no UI to read it. |
-| **Statistics/graphs** | Planned | `manage.class.php::statistics()` — posting rates, unique IPs, activity graphs | No equivalent in the leak. |
-| **Board creation UI** | Planned | `token.class.php::addBoard()` — create boards from admin panel | The leak requires manual SQL + config file creation. |
-| **File hash banning** | Planned | `token.class.php` — ban by MD5 to prevent reposting | The leak has a `blacklist` table but limited UI. |
-| **Thread archival** | Planned | `board-post.class.php` — archive instead of delete | The leak references archival in several places but the mechanism is incomplete. |
-| **Oekaki (drawing)** | Not planned | `lib/oekaki/` — integrated paint applet | 4chan never had this. KusabaX-specific feature. |
+| Feature | Status | Notes |
+|---------|--------|-------|
+| **DBAL** (`lib/dbal.php`) | Complete | MySQL/PostgreSQL dual-driver abstraction |
+| **PostgreSQL support** | In progress | Schema translated, migration tooling built, data migration pending |
+| **CLIP inference** | Complete | Replaced dead `danbo.int` with local CLIP server for NSFW + tagging |
+| **PHPUnit tests** | Complete | 97 tests across DBAL and site utilities |
+| **Migration system** | Complete | Numbered SQL migrations with tracking |
+| **24 CSS themes** | Complete | 6 classic + 18 community themes |
+
+## Architecture
+
+```
+docker-compose.yml              # Production stack
+docker-compose.dev.yml          # Dev stack (MySQL + PostgreSQL + CLIP + Adminer)
+Dockerfile                      # PHP 8.2 + Apache + extensions
+docker/
+  entrypoint.sh                 # Container bootstrap
+  init.sql                      # MySQL schema (84 board tables + system tables)
+  init_pg.sql                   # PostgreSQL schema (translated from MySQL)
+  init-boards.sh                # Board HTML pre-generation
+  run-migrations.sh             # Migration runner
+  migrations/                   # Numbered SQL migration files
+  backup.sh, backup-dump.sh     # Backup utilities
+  clip/                         # CLIP inference server
+    Dockerfile                  # python:3.10-slim + PyTorch CPU + open_clip
+    server.py                   # FastAPI server (ViT-B-32)
+    requirements.txt            # Python dependencies
+  Dockerfile.db                 # MariaDB 10.1 with init script
+  static/                       # CSS, JS, images, info pages
+
+# Leaked source (modified for local use + PHP 8.2)
+imgboard.php                    # Main board engine
+catalog.php                     # Catalog view
+admin.php                       # Moderation panel
+json.php                        # JSON API
+yotsuba_config.php              # Config loader
+lib/
+  dbal.php                      # Database abstraction layer (new)
+  db.php                        # Original MySQL layer (shimmed through DBAL)
+  auth.php, admin.php           # Auth and moderation
+  postfilter.php, userpwd.php   # Content filtering, user tracking
+  util.php, ini.php, rpc.php    # Utilities
+config/
+  global_config.ini             # ~300 global settings
+  global_strings.ini            # UI strings
+  boards/*.config.ini           # Per-board overrides (82 boards)
+  categories/                   # Category-level overrides
+
+# Test variants
+imgboard-test.php               # Staging copy of imgboard.php
+admin-test.php                  # Staging copy of admin.php
+json-test.php                   # Staging copy of json.php
+tests/                          # PHPUnit test suite
+  DBALTest.php                  # DBAL unit tests
+  UtilTest.php                  # Utility function tests
+```
+
+## Configuration
+
+The config system uses cascading INI files: `global_config.ini` → `categories/{category}.config.ini` → `boards/{board}.config.ini`. Later files override earlier ones.
+
+| Key | Default | Purpose |
+|-----|---------|---------|
+| `TENSORCHAN_MODE` | 0 | CLIP inference (0=off, 1=OPs, 2=all) |
+| `TENSORCHAN_HOST` | clip | CLIP server hostname |
+| `TENSORCHAN_PORT` | 8501 | CLIP server port |
+| `TENSORCHAN_THRES` | 0.92 | NSFW score threshold for blocking |
+| `TENSORCHAN_LOG_ONLY` | no | Log only vs. enforce |
+| `CAPTCHA` | no | Enable/disable CAPTCHA |
+| `RENZOKU` | 5 | Seconds between posts |
+
+## Default Credentials
+
+| Resource | User | Password |
+|----------|------|----------|
+| Admin panel | admin | admin |
+| MySQL | yotsuba | yotsuba |
+| PostgreSQL | yotsuba | yotsuba |
+| DB root | root | rootpass |
+
+Admin panel: `http://d.local:8084/admin`
 
 ## Historical Context
 
@@ -112,154 +297,29 @@ Features that we know existed in some form on 4chan but have no implementation i
 The source code appeared online in late 2014 during a period of significant upheaval at 4chan. What leaked was the server-side PHP that powered `boards.4chan.org` and `sys.4chan.org` — the board rendering and posting engine. It did NOT include:
 
 - The `www.4chan.org` homepage/info site (separate codebase)
-- The internal moderation tools beyond what's in `admin.php`
 - Infrastructure scripts (deployment, monitoring, CDN config)
 - The `4chan Pass` payment/account system backend
 - Database dumps or user data
 - The ad serving system ("danbo")
 - The ML content detection system ("TENSORCHAN") server
 
-The code itself is a monolithic PHP 5.x application that evolved continuously from 2003 to 2014. It carries archaeological layers of different coding styles, commented-out experiments, and references to systems that no longer existed by the time of the leak.
+The code is a monolithic PHP 5.x application that evolved continuously from 2003 to 2014. It carries archaeological layers of different coding styles, commented-out experiments, and references to systems that no longer existed by the time of the leak.
 
 ### What the Code Reveals
 
-**TENSORCHAN** — 4chan had an internal ML system for detecting NSFW content on worksafe boards. Images were resized to 300x300 PNG and sent to `danbo.int:8501/predict`, which returned a `{"nsfw": 0.XX}` score. Despite config keys for thresholds and enforcement (`TENSORCHAN_THRES = 0.92`, `TENSORCHAN_LOG_ONLY`), the PHP code only ever *logged* scores above 0.5 — the blocking/banning logic was never implemented (or lived elsewhere). The system only checked "unknown" users (< 4 hours of verified activity), skipping trusted users and 4chan Pass holders.
+**TENSORCHAN** — 4chan had an internal ML system for detecting NSFW content on worksafe boards. Images were resized to 300x300 PNG and sent to `danbo.int:8501/predict`, which returned a `{"nsfw": 0.XX}` score. The system only checked "unknown" users (< 4 hours of verified activity), skipping trusted users and 4chan Pass holders. We replaced this with a local CLIP server that provides both NSFW scoring and image descriptions.
 
-**The role system** — janitor (level 1) < mod (level 10) < manager (level 20) < admin (level 50). Janitors could clear reports and request bans. Mods could ban, delete, and manage threads. Managers had additional powers like `permaage` and developer flags. Admins had unrestricted access. Each role had per-board allow/deny lists and special permission flags (`ban`, `banmsg`, `developer`, `html`).
+**The role system** — janitor (level 1) < mod (level 10) < manager (level 20) < admin (level 50). Each role had per-board allow/deny lists and special permission flags.
 
-**Ban templates** — pre-built ban reasons with automatic post-ban actions. A template could simultaneously ban a user, delete their post/all posts, quarantine content, or revoke their 4chan Pass. Templates had special actions like `revokepass_spam` and `revokepass_illegal`, suggesting a direct integration between moderation and the payment system.
+**Ban templates** — pre-built ban reasons with automatic post-ban actions. A template could simultaneously ban a user, delete their post/all posts, quarantine content, or revoke their 4chan Pass.
 
-**The cookie system** — evolved over time. The old auth (commented out) used `4chan_apass` with raw password comparison. The new auth used `apass` with `sha256(username + db_password + salt)`. The `4chan_pass` cookie tracked user identity for posting. `userpwd` cookies tracked posting history for rate limiting and "known user" trust scoring.
-
-**Multiple domain architecture** — the `L::d()` helper mapped boards to either `4chan.org` (NSFW) or `4channel.org` (worksafe). This split happened in 2018 for advertiser compliance. The code contains both pre-split and post-split logic.
-
-**Cloudflare integration** — `lib/admin.php` contains Cloudflare API calls for cache purging with what appear to be production API tokens and zone IDs. The code purged CDN cache on post deletion across both `4chan.org` and `4cdn.org` zones.
+**Multiple domain architecture** — the `L::d()` helper mapped boards to either `4chan.org` (NSFW) or `4channel.org` (worksafe), a split that happened in 2018.
 
 **The "DISHSIS" password** — the admin password in the config was literally `DISHSIS`. Whether this was a placeholder, inside joke, or actual credential is unknown.
-
-### KusabaX and the Imageboard Ecosystem
-
-KusabaX was the dominant open-source imageboard software from roughly 2006-2012. Written by "Harrison" (later forked as "Edaha"), it powered sites like 7chan, 99chan, 420chan, and hundreds of smaller boards. Its architecture — PHP + MySQL, symlink-based board directories, INI config, template-driven rendering — closely mirrored what we now know 4chan used internally.
-
-The 99chan fork (the "gentlebot release") is particularly useful as a reference because:
-
-1. It's from the same era (PHP 5.x, MySQL, same imageboard conventions)
-2. It implements features that 4chan clearly had but the leak doesn't include (ban appeals, word filter UI, moderation logs, statistics)
-3. Its moderation panel provides a template for what 4chan's internal tools likely looked like
-4. It has a working board creation system, which the leak lacks
-
-We do NOT copy KusabaX code into this project. We reference its architecture and feature set to understand what's plausible and period-accurate when filling gaps in the leak.
-
-## Architecture
-
-```
-docker-compose.yml            # Service definitions
-Dockerfile                    # PHP 5.6 + Apache + extensions
-docker/
-  entrypoint.sh               # Container bootstrap (patches source for local use)
-  init.sql                    # Database schema (reconstructed from PHP source)
-  init-boards.sh              # Pre-generates board HTML on startup
-  Dockerfile.db               # MariaDB 10.1 with init script
-  static/                     # CSS, JS, images, info pages
-    css/                      # Board themes + info page styles
-    js/                       # Minified client-side JS
-    image/                    # Banners (242), sprites, icons
-    pages/                    # Scraped info pages (blotter, rules, faq, etc.)
-
-# === Original Leaked Source ===
-imgboard.php                  # Main board engine (7,500+ lines)
-catalog.php                   # Catalog view
-admin.php                     # Moderation panel (4,400+ lines)
-auth.php                      # 4chan Pass authentication
-json.php                      # JSON API
-yotsuba_config.php            # Config loader
-config/
-  global_config.ini           # ~300 global settings
-  global_strings.ini          # UI strings / error messages
-  boards/*.config.ini         # Per-board overrides (82 boards)
-  categories/                 # Category-level overrides
-lib/
-  auth.php                    # Role/permission system
-  admin.php                   # Moderation functions
-  db.php                      # Database abstraction (mysql_* API)
-  ini.php                     # INI config parser
-  util.php                    # Domain mapping, utilities
-  postfilter.php              # Content filtering engine
-  userpwd.php                 # User cookie/identity tracking
-  rpc.php                     # Inter-service HTTP calls
-  geoip2.php                  # GeoIP integration (stubbed)
-  json.php                    # JSON encoding helpers
-forms/
-  ban.php                     # Ban UI (11,000+ lines)
-  report.php                  # Report submission form
-modes/
-  report.php                  # Report processing
-views/
-  imgboard.php                # Board HTML template
-css/                          # Theme stylesheets
-js/                           # Client-side JavaScript
-
-# === Reproduced / New ===
-homepage.php                  # Front page (new, queries boardlist)
-infopage.php                  # Info page router (new, unused — static HTML used instead)
-```
-
-## Configuration
-
-The config system uses cascading INI files: `global_config.ini` → `categories/{category}.config.ini` → `boards/{board}.config.ini`. Later files override earlier ones. Key settings:
-
-| Key | Default | Purpose |
-|-----|---------|---------|
-| `CAPTCHA` | no (lab) | Enable/disable CAPTCHA |
-| `TENSORCHAN_MODE` | 0 | ML content detection (0=off, 1=OPs, 2=all) |
-| `MAX_USER_THREADS` | 999 (lab) | Max threads per user per period |
-| `RENZOKU` | 5 (lab) | Seconds between posts |
-| `CSS_VERSION` | 715 | Cache-busting version for stylesheets |
-| `JS_VERSION_CORE` | 1123 | Cache-busting version for core JS |
-| `STATIC_SERVER` | /static/ (lab) | CDN path for static assets |
-
-## Default Credentials
-
-| Resource | User     | Password |
-|----------|----------|----------|
-| Admin panel | admin | admin |
-| Database | yotsuba  | yotsuba  |
-| DB root  | root     | rootpass |
-
-Admin panel: `http://localhost:8082/admin` (or `/{board}/admin`)
-
-## What's Working
-
-- All 82+ boards with posting, threads, replies, images
-- Catalog view
-- Five CSS themes (Yotsuba, Yotsuba B, Futaba, Burichan, Photon, Tomorrow)
-- Random banner rotation (242 authentic banners)
-- Homepage with board directory
-- Info pages (blotter, rules, FAQ, legal, contact, feedback, advertise)
-- Admin panel with board cleanup, thread options (sticky/lock/permasage), banning
-- Admin login form with cookie-based sessions
-- JSON API
-- Image thumbnailing (JPEG, PNG, GIF, WebP)
-
-## What's Missing / Planned
-
-- [ ] Per-board banner images (currently global pool only)
-- [ ] Report queue UI (code exists but is commented out)
-- [ ] Ban appeal form (table exists, no frontend)
-- [ ] Moderation log viewer (writes to `event_log`, no reader)
-- [ ] Word filter management UI
-- [ ] Board creation from admin panel
-- [ ] File hash banning UI
-- [ ] Thread archival system
-- [ ] Statistics/activity graphs
-- [ ] RSS feeds
-- [ ] User-side ban page ("you have been banned" with appeal link)
-- [ ] Mod/janitor JS extensions
-- [ ] PHP 7.4/8.x migration (planned for `modern` branch)
 
 ## Reset
 
 ```bash
-docker compose down -v   # Removes all data volumes
-docker compose up --build
+docker compose -f docker-compose.dev.yml down -v   # Wipe dev (DB + uploads)
+docker compose -f docker-compose.dev.yml up --build
 ```
