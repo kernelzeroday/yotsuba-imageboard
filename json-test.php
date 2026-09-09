@@ -97,7 +97,7 @@ function generate_thread_json( $threadid, $return = false, $replies = false, $fo
 				}
 			}
 		}
-		
+
 		$json['last_modified'] = (int)$log[$threadid]['last_modified'];
 		
     return $json;
@@ -253,7 +253,10 @@ function post_json_force_type( &$post )
 		'archived_on'    => 'integer',
 		'since4pass'     => 'integer',
 		'm_img'          => 'integer',
-		'clip_desc'      => 'string'
+		'clip_desc'      => 'string',
+		'source_fsize'   => 'integer',
+		'upvotes'        => 'integer',
+		'downvotes'      => 'integer'
 	);
 
 
@@ -303,6 +306,12 @@ function generate_op_tail_json($op, $extra) {
 
 function generate_post_json( $var, $threadid, $extra = array(), $banskip = false )
 {
+	if (function_exists('word_filter_for_render')) {
+		if (isset($var['com'])) $var['com'] = word_filter_for_render($var['com'], 'com');
+		if (isset($var['sub'])) $var['sub'] = word_filter_for_render($var['sub'], 'sub');
+		if (isset($var['name'])) $var['name'] = word_filter_poster_name_for_render($var['name'], S_ANONAME);
+	}
+
 	$COUNTRY_FLAG_ARR = array(
 		'sp',
 		'int',
@@ -400,7 +409,17 @@ function generate_post_json( $var, $threadid, $extra = array(), $banskip = false
 		// FIXME
 		$var['filename'] = mb_convert_encoding($var['filename'], 'UTF-8', 'UTF-8');
 	}
-	
+
+	if (!empty($var['source_ext']) && function_exists('source_attachment_url')) {
+		$source_display_name = $var['source_filename'] . $var['source_ext'];
+		$source_board = $banskip ? $var['board'] : BOARD_DIR;
+		$var['source_filename'] = mb_convert_encoding($source_display_name, 'UTF-8', 'UTF-8');
+		$var['source_url'] = source_attachment_url($source_board, (int)$var['no'], $source_display_name);
+		unset($var['source_ext']);
+	} else {
+		unset($var['source_filename'], $var['source_ext'], $var['source_fsize']);
+	}
+
 	// FIXME
 	$var['com'] = mb_convert_encoding($var['com'], 'UTF-8', 'UTF-8');
 	

@@ -13,6 +13,10 @@ if ( isset($_REQUEST["sqlprofile"] )) {
 }
 */
 require_once "yotsuba_config.php";
+require_once 'lib/source_attachment.php';
+require_once 'lib/voting.php';
+require_once 'lib/word_filtering.php';
+define('SOURCE_ATTACHMENTS_IMPLEMENTED', true);
 
 require_once( "lib/ads.php" );
 
@@ -135,14 +139,23 @@ if( array_key_exists( 'upfile', $_FILES ) ) {
 	$upfile_name = $upfile = '';
 }
 
+if( array_key_exists( 'upfile2', $_FILES ) && ENABLE_SOURCE ) {
+	$source_name = $_FILES["upfile2"]["name"];
+	$source_tmp  = $_FILES["upfile2"]["tmp_name"];
+	$source_error = (int)($_FILES["upfile2"]["error"] ?? UPLOAD_ERR_OK);
+} else {
+	$source_name = $source_tmp = '';
+	$source_error = UPLOAD_ERR_NO_FILE;
+}
+
 $fwritetimer = 0.0;
 
 ignore_user_abort( true );
 
 $word_filters_enabled = false;
-if (WORD_FILT) {
+if (word_filter_should_load()) {
   $word_filt_root = '/www/global/yotsuba/wordfilters/';
-  
+
   if (file_exists($word_filt_root . BOARD_DIR . '.php')) {
     include_once($word_filt_root . BOARD_DIR . '.php');
     $word_filters_enabled = true;
@@ -806,7 +819,10 @@ function clean_log_bool( &$row )
 
 function clean_log_int( &$row )
 {
-	static $int_cols = array('no', 'w', 'h', 'tn_w', 'tn_h', 'last_modified', 'time', 'fsize', 'resto');
+	static $int_cols = array(
+		'no', 'w', 'h', 'tn_w', 'tn_h', 'last_modified', 'time', 'fsize',
+		'resto', 'source_fsize', 'upvotes', 'downvotes'
+	);
 
 	// turn columns into int (does this help?)
 	foreach( $int_cols as $col ) {
@@ -979,7 +995,7 @@ function log_cache($invalidate = 0, $thread = 0, $archive_mode = 0) {
     }
 	}
 
-	$fields = "no,sticky,permasage,closed,now,name,sub,com,host,pwd,filename,ext,w,h,tn_w,tn_h,tim,time,md5,fsize,last_modified,root,resto,filedeleted,id,capcode,country,undead,permaage,since4pass,clip_nsfw,clip_anime,clip_toxicity,clip_ai_score,clip_severe_toxicity,clip_obscene,clip_threat,clip_insult,clip_identity_attack,clip_sexual_explicit,clip_context_toxicity,clip_caption,clip_desc,clip_text_desc,moderation_flag,moderation_reason";
+	$fields = "no,sticky,permasage,closed,now,name,sub,com,host,pwd,filename,ext,w,h,tn_w,tn_h,tim,time,md5,fsize,last_modified,root,resto,filedeleted,id,capcode,country,undead,permaage,since4pass,clip_nsfw,clip_anime,clip_toxicity,clip_ai_score,clip_severe_toxicity,clip_obscene,clip_threat,clip_insult,clip_identity_attack,clip_sexual_explicit,clip_context_toxicity,clip_caption,clip_desc,clip_text_desc,moderation_flag,moderation_reason,source_filename,source_ext,source_fsize,upvotes,downvotes";
 
 	if ($query_archived) {
 	  $fields .= ",archived";
@@ -1403,8 +1419,9 @@ function copy_thread($thread_id, $to_board, $delete = false) {
 
     $query = "INSERT INTO {$db->qi($to_board)}(now,name,sub,com,host,pwd,filename,ext,w,
 h,tn_w,tn_h, tim,time,last_modified,md5,fsize,root,resto,capcode,
-4pass_id,since4pass,filedeleted,tmd5,id,sticky,closed,country)
-VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
+4pass_id,since4pass,filedeleted,tmd5,id,sticky,closed,country,
+source_filename,source_ext,source_fsize,source_data)
+VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
 
     $params = [
       $post['now'], $post['name'], $post['sub'], $comment,
@@ -1414,7 +1431,12 @@ VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
       $post['md5'], (int)$post['fsize'], $root_time, $new_resto,
       $post['capcode'], $post['4pass_id'], (int)$post['since4pass'],
       (int)$post['filedeleted'], $post['tmd5'], $post['id'],
-      (int)$post['sticky'], (int)$post['closed'], 'XX'
+      (int)$post['sticky'], (int)$post['closed'], 'XX',
+      $post['source_filename'] ?? '', $post['source_ext'] ?? '',
+      (int)($post['source_fsize'] ?? 0),
+      ($source_bytes = source_attachment_data($post['source_data'] ?? null)) !== null
+        ? new BinaryParam($source_bytes)
+        : null
     ];
 
     try {
@@ -1592,8 +1614,9 @@ function move_thread($thread_id, $to_board, $delete = false) {
 
     $query = "INSERT INTO {$db->qi($to_board)}(now,name,sub,com,host,pwd,email,filename,ext,w,
 h,tn_w,tn_h, tim,time,last_modified,md5,fsize,root,resto,capcode,
-4pass_id,since4pass,filedeleted,tmd5,id,country)
-VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,{$root_time_sql},?,?,?,?,?,?,?,?)";
+4pass_id,since4pass,filedeleted,tmd5,id,country,
+source_filename,source_ext,source_fsize,source_data)
+VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,{$root_time_sql},?,?,?,?,?,?,?,?,?,?,?,?)";
 
     $params = array_merge([
       $post['now'], $post['name'], $post['sub'], $comment,
@@ -1605,7 +1628,12 @@ VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,{$root_time_sql},?,?,?,?,?,?,?,?)";
     ], $root_params, [
       $new_resto, $post['capcode'], $post['4pass_id'],
       (int)$post['since4pass'], (int)$post['filedeleted'],
-      $post['tmd5'], '', $flag_val
+      $post['tmd5'], '', $flag_val,
+      $post['source_filename'] ?? '', $post['source_ext'] ?? '',
+      (int)($post['source_fsize'] ?? 0),
+      ($source_bytes = source_attachment_data($post['source_data'] ?? null)) !== null
+        ? new BinaryParam($source_bytes)
+        : null
     ]);
 
     try {
@@ -1909,16 +1937,23 @@ function emailencode( $str )
 
 function renderPostHtml($no, $in_thread, $sorted_replies = null, $reply_count = null, $shown_replies = null, $is_archived = false) {
 	global $log, $board_flags_array;
-	
+
 	extract($log[$no]);
-	
+
 	$namestyle = '';
 
 	if( JANITOR_BOARD == 1 ) {
 		$namestyle = broomcloset_style( $name );
 		$name = broomcloset_name( $name );
 	}
-	
+
+	if (word_filter_timing() === 'render') {
+		$com = word_filter_for_render($com, 'com');
+		if( $sub )
+			$sub = word_filter_for_render($sub, 'sub');
+		$name = word_filter_poster_name_for_render($name, S_ANONAME);
+	}
+
 	$mname = $name;
 	$mname_truncated = '';
 	if( $capcode == 'none' && mb_strlen( $name ) > 30 ) {
@@ -2195,6 +2230,17 @@ function renderPostHtml($no, $in_thread, $sorted_replies = null, $reply_count = 
 	</div>
 HTML;
 	}
+	if ($source_ext) {
+		$source_display_name = $source_filename . $source_ext;
+		$source_size = (int)$source_fsize;
+		$source_link = source_attachment_url(BOARD_DIR, (int)$no, $source_display_name);
+		$source_div = '<div class="fileText" id="src' . (int)$no . '">Source: <a href="'
+			. htmlspecialchars($source_link, ENT_QUOTES) . '">'
+			. htmlspecialchars($source_display_name, ENT_QUOTES) . '</a> ('
+			. $source_size . 'B)</div>';
+		$file .= $source_div;
+	}
+
 	
 	/**
 	 * OP specific html
@@ -2426,6 +2472,13 @@ HTML;
 	}
 	
 	$display_no = display_no($no);
+	$upvote_count = (int)($upvotes ?? 0);
+	$downvote_count = (int)($downvotes ?? 0);
+	$vote_controls = '<span class="postVotes" data-no="' . (int)$no . '">'
+		. '<button type="button" class="postVote" data-dir="up" aria-label="Upvote">▲</button>'
+		. '<span class="upvoteCount">' . $upvote_count . '</span>'
+		. '<button type="button" class="postVote" data-dir="down" aria-label="Downvote">▼</button>'
+		. '<span class="downvoteCount">' . $downvote_count . '</span></span>';
 	
 	if ($since4pass && $capcode == '' && $since4pass < 10000) {
 	  $since4passTag = " <span title=\"Pass user since $since4pass\" class=\"n-pu\"></span>";
@@ -2452,7 +2505,7 @@ HTML;
 						$subshortm
 					</span>
 
-					<span class="dateTime postNum" data-utc="$time">$now <a href="$href#p$no" title="Link to this post">No.</a><a href="$quote" title="Reply to this post">$display_no</a></span>
+					<span class="dateTime postNum" data-utc="$time">$now <a href="$href#p$no" title="Link to this post">No.</a><a href="$quote" title="Reply to this post">$display_no</a> $vote_controls</span>
 				</div>
 				
 				$op_file
@@ -2467,7 +2520,7 @@ HTML;
 					<span class="dateTime" data-utc="$time">$now</span> 
 
 					<span class="postNum desktop">
-						<a href="$href#p$no" title="Link to this post">No.</a><a href="$quote" title="Reply to this post">$display_no</a>$threadmodes$postinfo_extra
+						<a href="$href#p$no" title="Link to this post">No.</a><a href="$quote" title="Reply to this post">$display_no</a>$threadmodes$postinfo_extra $vote_controls
 					</span>
 
 				</div>
@@ -2807,6 +2860,21 @@ function delete_post($resno, $pwd, $imgonly = 0, $automatic = 0, $children = 1, 
   */
   
 	//delete from DB
+	if (!$imgonly) {
+		if ($delete_children) {
+			$db->query(
+				"DELETE FROM {$db->qi('post_votes')} WHERE board = ? AND post_id IN "
+				. "(SELECT no FROM {$db->qi(SQLLOG)} WHERE no = ? OR resto = ?)",
+				[BOARD_DIR, $resno, $resno]
+			);
+		} else {
+			$db->query(
+				"DELETE FROM {$db->qi('post_votes')} WHERE board = ? AND post_id = ?",
+				[BOARD_DIR, $resno]
+			);
+		}
+	}
+
 	if( $delete_children ) // delete thread and children
 		$result = $db->query("DELETE FROM " . $db->qi(SQLLOG) . " WHERE no=? OR resto=?", array($resno, $resno));
 	elseif( !$imgonly ) // just delete the post
@@ -3326,6 +3394,9 @@ function head( &$dat, $res, $error = 0, $page = 0, $npages = 0, $is_arclist = fa
 	// /j/ versioning fix
 	if( BOARD_DIR == 'j' ) {
 		$css = '<link rel="stylesheet" type="text/css" href="' . STATIC_SERVER . 'css/janichan.' . $cssVersion . '.css" title="Yotsuba New">';
+		$css .= '<style>.postVotes{display:inline-flex;gap:2px;align-items:center;margin-left:5px}'
+			. '.postVote{border:0;background:transparent;color:inherit;padding:0 1px;cursor:pointer;font-size:10px}'
+			. '.postVote:disabled{cursor:wait;opacity:.5}.upvoteCount,.downvoteCount{font-size:10px}</style>';
     $extra = <<<JJS
 <script type="text/javascript">
   document.addEventListener('mousedown', function(e) {
@@ -3357,9 +3428,12 @@ JJS;
         $css .= '<link rel="alternate stylesheet" style="text/css" href="' . STATIC_SERVER . 'css/'
           . CSS_EVENT_NAME . '.' . $cssVersion . '.css" title="_special">';
       }
-		}
-    
-    // Christmas 2021
+			}
+			$css .= '<style>.postVotes{display:inline-flex;gap:2px;align-items:center;margin-left:5px}'
+				. '.postVote{border:0;background:transparent;color:inherit;padding:0 1px;cursor:pointer;font-size:10px}'
+				. '.postVote:disabled{cursor:wait;opacity:.5}.upvoteCount,.downvoteCount{font-size:10px}</style>';
+
+	    // Christmas 2021
     if (defined('CSS_EVENT_NAME') && CSS_EVENT_NAME === 'tomorrow') {
       $extra = <<<JJS
 <script src='//s.4cdn.org/js/snow.js'></script>
@@ -3639,9 +3713,12 @@ JS;
 	
 	if( !$error ) $scriptjs .= '<script type="text/javascript" data-cfasync="false" src="' . STATIC_SERVER . 'js/' . $testextra . '"></script>';
   
-  if (!$error && ENABLE_AUTO_RELOAD) {
-    $scriptjs .= '<script type="text/javascript" defer src="' . STATIC_SERVER . 'js/auto-reload.js"></script>';
-  }
+	  if (!$error && ENABLE_AUTO_RELOAD) {
+	    $scriptjs .= '<script type="text/javascript" defer src="' . STATIC_SERVER . 'js/auto-reload.js"></script>';
+	  }
+	  if (!$error) {
+	    $scriptjs .= '<script type="text/javascript" defer src="' . STATIC_SERVER . 'js/votes.js"></script>';
+	  }
 
   // April 2022
   //$scriptjs .= '<script type="text/javascript" src="' . STATIC_SERVER . 'js/emotes2022.js?8"></script>';
@@ -3834,10 +3911,13 @@ HTML;
 
 function delete_uploaded_files()
 {
-	global $upfile_name, $upfile, $dest, $pchfile;
+	global $upfile_name, $upfile, $dest, $pchfile, $source_tmp;
 	if( $dest || $upfile ) {
 		@unlink( $dest );
 		@unlink( $upfile );
+	}
+	if ($source_tmp) {
+		@unlink($source_tmp);
 	}
 }
 
@@ -4889,7 +4969,22 @@ function generate_tim() {
 }
 
 /* Regist */
-function new_post( $name, $email, $sub, $com, $url, $pwd, $upfile, $upfile_name, $resto, $age, $filetag )
+function new_post(
+	$name,
+	$email,
+	$sub,
+	$com,
+	$url,
+	$pwd,
+	$upfile,
+	$upfile_name,
+	$resto,
+	$age,
+	$filetag,
+	$source_tmp = '',
+	$source_name = '',
+	$source_error = UPLOAD_ERR_NO_FILE
+)
 {
 	global $pwdc, $textonly, $admin, $spoiler, $dest, $pchfile, $word_filters_enabled, $silent_reject;
 	global $captcha_bypass, $passid;
@@ -4944,7 +5039,7 @@ function new_post( $name, $email, $sub, $com, $url, $pwd, $upfile, $upfile_name,
 			die();
 	}
 	
-	if (TEXT_ONLY && $upfile && $resto) {
+	if (TEXT_ONLY && ($upfile || $source_tmp) && $resto) {
 	  error(S_TEXT_ONLY);
 	}
 	
@@ -5077,7 +5172,41 @@ function new_post( $name, $email, $sub, $com, $url, $pwd, $upfile, $upfile_name,
     $is_undead_sticky = false;
 	}
   
+	$has_source = ENABLE_SOURCE && $source_error !== UPLOAD_ERR_NO_FILE;
+	$source_filename = '';
+	$source_ext = '';
+	$source_fsize = 0;
+	$source_data = null;
+
+	if ($has_source) {
+		if (in_array($source_error, [UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE], true)) {
+			error(S_SOURCETOOLARGE, $source_tmp);
+		}
+		if ($source_error !== UPLOAD_ERR_OK || !$source_tmp || !is_file($source_tmp)) {
+			error(S_FAILEDUPLOAD, $source_tmp);
+		}
+
+		$source_meta = source_attachment_metadata($source_name, SOURCE_EXTS);
+		if (!$source_meta) {
+			error(S_BADSOURCE, $source_tmp);
+		}
+
+		$source_fsize = (int)filesize($source_tmp);
+		if ($source_fsize > MAX_SOURCE_FILESIZE * 1024) {
+			error(S_SOURCETOOLARGE, $source_tmp);
+		}
+
+		$source_data = file_get_contents($source_tmp);
+		if ($source_data === false) {
+			error(S_FAILEDUPLOAD, $source_tmp);
+		}
+
+		$source_filename = $source_meta['filename'];
+		$source_ext = $source_meta['ext'];
+	}
+
 	$has_image = $upfile && file_exists( $upfile );
+	$has_attachment = $has_image || $has_source;
 
   $md5 = null;
   $original_md5 = null; // MD5 before exif and other metadata stripping
@@ -5475,17 +5604,17 @@ function new_post( $name, $email, $sub, $com, $url, $pwd, $upfile, $upfile_name,
 	
 	if (UPLOAD_BOARD) {
 		if( NO_TEXTONLY == 1 ) {
-			if( !$resto && !$has_image ) error( S_NOPIC, $dest );
+			if( !$resto && !$has_attachment ) error( S_NOPIC, $dest );
 		} else {
-			if( !$resto && !$textonly && !$has_image ) error( S_NOPIC, $dest );
+			if( !$resto && !$textonly && !$has_attachment ) error( S_NOPIC, $dest );
 		}
 	} else {
 	  if (!TEXT_ONLY) {
-  		if( NO_TEXTONLY == 1 && (!has_level() || $email === '') ) {
-  			if( !$resto && !$has_image ) error( S_NOPIC, $dest );
-  		} else {
-  			if( !$resto && !$textonly && !$has_image ) error( S_NOPIC, $dest );
-  		}
+			if( NO_TEXTONLY == 1 && (!has_level() || $email === '') ) {
+				if( !$resto && !$has_attachment ) error( S_NOPIC, $dest );
+			} else {
+				if( !$resto && !$textonly && !$has_attachment ) error( S_NOPIC, $dest );
+			}
 	  }
 
 		if( REQUIRE_SUBJECT && !$resto && !strlen( $sub ) ) error( S_NOSUB, $dest );
@@ -5873,22 +6002,22 @@ function new_post( $name, $email, $sub, $com, $url, $pwd, $upfile, $upfile_name,
 	// pull this down to here to get rid of any shenanigans
   if (!$resto) { // new threads require subject or comment
     if ($sub === '' && ($com === '' || preg_match('/^(?:<br>|\s)+$/', $com))) {
-      if ($options_field === '' || !$has_image || !has_level()) {
-        error(S_NOTEXT_OP, $dest);
-      }
+	      if ($options_field === '' || !$has_attachment || !has_level()) {
+	        error(S_NOTEXT_OP, $dest);
+	      }
     }
     else if (TEXT_ONLY && $sub === '') {
       error(S_NOSUB, $dest);
     }
   }
-  else if (!$has_image && ($com === '' || preg_match('/^(?:<br>|\s)+$/', $com))) { // replies without image
-    error(S_NOTEXT, $dest);
-  }
+	  else if (!$has_attachment && ($com === '' || preg_match('/^(?:<br>|\s)+$/', $com))) {
+	    error(S_NOTEXT, $dest);
+	  }
   
-	if( WORD_FILT && $word_filters_enabled ) {
-		$com = word_filter( $com, "com" );
+	if (word_filter_timing() === 'store') {
+		$com = word_filter_for_store($com, 'com');
 		if( $sub )
-			$sub = word_filter( $sub, "sub" );
+			$sub = word_filter_for_store($sub, 'sub');
 		$namearr = explode( '</span> <span class="postertrip">', $name );
 		if( strstr( $name, '</span> <span class="postertrip">' ) ) {
 			$nametrip = '</span> <span class="postertrip">' . $namearr[1];
@@ -5896,7 +6025,7 @@ function new_post( $name, $email, $sub, $com, $url, $pwd, $upfile, $upfile_name,
 			$nametrip = "";
 		}
 		if( $namearr[0] != S_ANONAME )
-			$name = word_filter( $namearr[0], "name" ) . $nametrip;
+			$name = word_filter_for_store($namearr[0], 'name') . $nametrip;
 	}
 
 	/*if( $html != 1 || ( !has_level('manager') ) ) {
@@ -6667,7 +6796,7 @@ function new_post( $name, $email, $sub, $com, $url, $pwd, $upfile, $upfile_name,
 				}
 			}
 
-			$ins_cols = "`now`,name,sub,com,host,pwd,email,filename,ext,w,h,tn_w,tn_h,tim,time,last_modified,md5,fsize,root,resto$flag_cols,tmd5,id,country$board_flag_col,clip_nsfw,clip_anime,clip_toxicity,clip_ai_score,clip_severe_toxicity,clip_obscene,clip_threat,clip_insult,clip_identity_attack,clip_sexual_explicit,clip_context_toxicity,clip_caption,clip_desc,clip_text_desc,moderation_flag,moderation_reason";
+			$ins_cols = "`now`,name,sub,com,host,pwd,email,filename,ext,w,h,tn_w,tn_h,tim,time,last_modified,md5,fsize,root,resto$flag_cols,tmd5,id,country$board_flag_col,clip_nsfw,clip_anime,clip_toxicity,clip_ai_score,clip_severe_toxicity,clip_obscene,clip_threat,clip_insult,clip_identity_attack,clip_sexual_explicit,clip_context_toxicity,clip_caption,clip_desc,clip_text_desc,moderation_flag,moderation_reason,source_filename,source_ext,source_fsize,source_data";
 			$ins_params = array(
 				$now, $name, $sub ?: '', $com, $host, $pass, $user_meta, $insfile,
 				$ext ?: '', (int)$W, (int)$H, (int)$TN_W, (int)$TN_H,
@@ -6717,7 +6846,7 @@ function new_post( $name, $email, $sub, $com, $url, $pwd, $upfile, $upfile_name,
 			if ($board_flag_code) {
 				$ph_list .= ',?'; // board_flag
 			}
-			$ph_list .= ',?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?'; // clip_nsfw, clip_anime, clip_toxicity..clip_text_desc (14) + moderation_flag, moderation_reason (2)
+			$ph_list .= ',?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?'; // clip (14) + moderation (2) + source (4)
 			$ins_params[] = $_clip_nsfw;
 			$ins_params[] = $_clip_anime;
 			$ins_params[] = $_clip_toxicity;
@@ -6734,6 +6863,10 @@ function new_post( $name, $email, $sub, $com, $url, $pwd, $upfile, $upfile_name,
 			$ins_params[] = $_clip_text_desc;
 			$ins_params[] = (int)$_moderation_flag;
 			$ins_params[] = $_moderation_reason;
+			$ins_params[] = $source_filename;
+			$ins_params[] = $source_ext;
+			$ins_params[] = (int)$source_fsize;
+			$ins_params[] = $source_data !== null ? new BinaryParam($source_data) : null;
 
 			$query = "INSERT INTO " . $db->qi(SQLLOG) . " ($ins_cols) VALUES ($ph_list)";
 
@@ -6773,7 +6906,7 @@ function new_post( $name, $email, $sub, $com, $url, $pwd, $upfile, $upfile_name,
     }
     */
     
-    $userpwd->updatePostActivity(!$resto, $has_image);
+	    $userpwd->updatePostActivity(!$resto, $has_attachment);
     
     $userpwd->setCookie($cookie_domain);
     
@@ -10638,16 +10771,20 @@ function validate_csrf() {
 }
 
 function validate_referer($strict = false) {
-  if (!$strict && (!isset($_SERVER['HTTP_REFERER']) || $_SERVER['HTTP_REFERER'] == '')) {
+  $referer = (string)($_SERVER['HTTP_REFERER'] ?? '');
+  if ($referer === '') {
+    if (!$strict) {
+      return;
+    }
+    error('Bad Request.');
+  }
+
+  // Accept local development hostnames in addition to 4chan.org.
+  if (preg_match('/^https?:\/\/(localhost|[a-z0-9\-]+\.local)(:\d+)?(\/|$)/', $referer)) {
     return;
   }
 
-  // Accept local referers (localhost, *.local, LAN IPs) in addition to 4chan.org
-  if (preg_match('/^https?:\/\/(localhost|[a-z0-9\-]+\.local)(:\d+)?(\/|$)/', $_SERVER['HTTP_REFERER'])) {
-    return;
-  }
-
-  if (!preg_match('/^https?:\/\/([_a-z0-9]+)\.(4chan|4channel)\.org(\/|$)/', $_SERVER['HTTP_REFERER'])) {
+  if (!preg_match('/^https?:\/\/([_a-z0-9]+)\.(4chan|4channel)\.org(\/|$)/', $referer)) {
     error('Bad Request.');
   }
 }
@@ -10746,7 +10883,22 @@ switch( $mode ) {
 	case 'post':
 		require_request_method( "POST" );
 		validate_referer();
-		new_post( $name, $email, $sub, $com, '', $pwd, $upfile, $upfile_name, $resto, $age, $filetag );
+		new_post(
+			$name,
+			$email,
+			$sub,
+			$com,
+			'',
+			$pwd,
+			$upfile,
+			$upfile_name,
+			$resto,
+			$age,
+			$filetag,
+			$source_tmp,
+			$source_name,
+			$source_error
+		);
 		break;
 	case 'report':
 		report();
@@ -10839,6 +10991,110 @@ switch( $mode ) {
   	//april_rake_commit();
     die('0\nNo');
     break;
+	case 'vote':
+		require_request_method("POST");
+		validate_referer(true);
+		$vote_no = (int)($_POST['no'] ?? 0);
+		$vote_dir = (string)($_POST['dir'] ?? '');
+		$vote_col = vote_direction_column($vote_dir);
+		if (!$vote_no || !$vote_col) {
+			vote_json_response(['error' => 'Missing or invalid vote parameters.'], 400);
+		}
+
+		$remote_ip = (string)($_SERVER['REMOTE_ADDR'] ?? '');
+		$vote_salt = @file_get_contents('/www/keys/2014_admin.salt');
+		if ($remote_ip === '' || !$vote_salt) {
+			vote_json_response(['error' => 'Voting is temporarily unavailable.'], 503);
+		}
+		$voter_hash = vote_voter_hash($remote_ip, $vote_salt);
+
+		$db = YotsubaDB::board();
+		$db->beginTransaction();
+		try {
+			if ($db->getDriver() === 'pgsql') {
+				$post = $db->query(
+					"SELECT resto, archived, upvotes, downvotes FROM {$db->qi('posts')} "
+					. "WHERE board = ? AND {$db->qi('no')} = ? FOR UPDATE",
+					[BOARD_DIR, $vote_no]
+				)->fetch(PDO::FETCH_ASSOC);
+			} else {
+				$post = $db->query(
+					"SELECT resto, archived, upvotes, downvotes FROM {$db->qi(SQLLOG)} "
+					. "WHERE {$db->qi('no')} = ? FOR UPDATE",
+					[$vote_no]
+				)->fetch(PDO::FETCH_ASSOC);
+			}
+			if (!$post) {
+				$db->rollBack();
+				vote_json_response(['error' => 'Post not found.'], 404);
+			}
+			if ($post['archived']) {
+				$db->rollBack();
+				vote_json_response(['error' => 'Archived posts cannot be voted on.'], 409);
+			}
+
+			$existing = $db->query(
+				"SELECT direction FROM {$db->qi('post_votes')} "
+				. "WHERE board = ? AND post_id = ? AND voter_hash = ?",
+				[BOARD_DIR, $vote_no, $voter_hash]
+			)->fetchColumn();
+
+			if (!$existing) {
+				$db->query(
+					"INSERT INTO {$db->qi('post_votes')} "
+					. "(board, post_id, voter_hash, direction) VALUES (?, ?, ?, ?)",
+					[BOARD_DIR, $vote_no, $voter_hash, $vote_dir]
+				);
+				$db->query(
+					"UPDATE {$db->qi(SQLLOG)} SET {$db->qi($vote_col)} = {$db->qi($vote_col)} + 1 "
+					. "WHERE {$db->qi('no')} = ?",
+					[$vote_no]
+				);
+			} elseif ($existing !== $vote_dir) {
+				$old_col = vote_direction_column($existing);
+				$db->query(
+					"UPDATE {$db->qi(SQLLOG)} SET "
+					. "{$db->qi($vote_col)} = {$db->qi($vote_col)} + 1, "
+					. "{$db->qi($old_col)} = GREATEST({$db->qi($old_col)} - 1, 0) "
+					. "WHERE {$db->qi('no')} = ?",
+					[$vote_no]
+				);
+				$db->query(
+					"UPDATE {$db->qi('post_votes')} SET direction = ?, updated_at = CURRENT_TIMESTAMP "
+					. "WHERE board = ? AND post_id = ? AND voter_hash = ?",
+					[$vote_dir, BOARD_DIR, $vote_no, $voter_hash]
+				);
+			}
+
+			$row = $db->query(
+				"SELECT upvotes, downvotes FROM {$db->qi(SQLLOG)} WHERE {$db->qi('no')} = ?",
+				[$vote_no]
+			)->fetch(PDO::FETCH_ASSOC);
+			$db->commit();
+		} catch (Throwable $error) {
+			try {
+				$db->rollBack();
+			} catch (Throwable $rollback_error) {
+			}
+			error_log('[vote] ' . $error->getMessage());
+			vote_json_response(['error' => 'Vote could not be saved.'], 500);
+		}
+
+		$thread_id = (int)$post['resto'] ?: $vote_no;
+		try {
+			invalidate_log($thread_id);
+			updatelog($thread_id, 1, true);
+		} catch (Throwable $error) {
+			error_log('[vote rebuild] ' . $error->getMessage());
+		}
+
+		vote_json_response([
+			'ok' => true,
+			'no' => $vote_no,
+			'direction' => $vote_dir,
+			'upvotes' => (int)$row['upvotes'],
+			'downvotes' => (int)$row['downvotes'],
+		]);
 	default:
 		require_request_method( "GET" );
 		if( JANITOR_BOARD == 1 && !has_level( 'janitor' ) ) {

@@ -28,3 +28,12 @@ www/boards/
 # Runtime secrets
 config/cloudflare_config.ini
 config/config_db.php
+
+# Backups and DB dumps (may contain real uploaded image blobs)
+*.bak
+docker/backups/
+docker/backup*.sql
+docker/data/
+
+# Nested project with its own git repo and .env secrets
+yotsuba-poster/

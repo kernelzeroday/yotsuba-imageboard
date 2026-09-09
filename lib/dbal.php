@@ -149,6 +149,14 @@ class YotsubaDB {
 
     public function lastInsertIdForTable(string $table, string $column = 'no'): string {
         if ($this->driver === 'pgsql') {
+            if ($column === 'no') {
+                $lastPostNo = $this->pdo
+                    ->query("SELECT current_setting('yotsuba.last_post_no', true)")
+                    ->fetchColumn();
+                if ($lastPostNo !== false && $lastPostNo !== '') {
+                    return (string)$lastPostNo;
+                }
+            }
             return $this->lastInsertId("{$table}_{$column}_seq");
         }
         return $this->lastInsertId();

@@ -174,7 +174,7 @@ echo ""
 echo "[5/6] Migrating board tables → posts..."
 
 # PG posts columns (minus board, which we prepend)
-PG_POST_COLS="no,resto,root,now,time,last_modified,name,sub,com,host,pwd,4pass_id,email,filename,ext,w,h,tn_w,tn_h,tim,md5,tmd5,fsize,filedeleted,id,capcode,country,sticky,permasage,permaage,closed,archived,undead,since4pass,m_img,board_flag,upvotes,downvotes"
+PG_POST_COLS="no,resto,root,now,time,last_modified,name,sub,com,host,pwd,4pass_id,email,filename,ext,w,h,tn_w,tn_h,tim,md5,tmd5,fsize,filedeleted,id,capcode,country,sticky,permasage,permaage,closed,archived,undead,since4pass,m_img,board_flag,source_filename,source_ext,source_fsize,upvotes,downvotes"
 
 total_board_rows=0
 migrated_boards=0
@@ -230,6 +230,25 @@ for tbl in $BOARD_TABLES; do
     docker cp "$DUMP_DIR/${tbl}.tsv" "$PG_CONTAINER":/tmp/load.tsv
     if docker exec "$PG_CONTAINER" psql -U "$PG_USER" -d "$PG_DB" -c \
         "\\COPY \"posts\" ($pg_col_list) FROM '/tmp/load.tsv' WITH (FORMAT text, NULL '\\N')" > /dev/null 2>&1; then
+        source_count=$(docker exec "$MYSQL_CONTAINER" mysql --skip-ssl -u "$MYSQL_USER" -p"$MYSQL_PASS" "$MYSQL_DB" -BNe \
+            "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='$MYSQL_DB' AND table_name='$tbl' AND column_name='source_data'" 2>/dev/null || echo "0")
+        if [ "$source_count" -gt 0 ]; then
+            docker exec "$MYSQL_CONTAINER" mysql --skip-ssl -u "$MYSQL_USER" -p"$MYSQL_PASS" "$MYSQL_DB" -BNe \
+                "SELECT no, HEX(source_data) FROM \`$tbl\` WHERE source_data IS NOT NULL" \
+                > "$DUMP_DIR/${tbl}_source.tsv" 2>/dev/null || true
+            if [ -s "$DUMP_DIR/${tbl}_source.tsv" ]; then
+                docker cp "$DUMP_DIR/${tbl}_source.tsv" "$PG_CONTAINER":/tmp/source.tsv
+                docker exec "$PG_CONTAINER" chmod 0644 /tmp/source.tsv
+                docker exec "$PG_CONTAINER" psql -U "$PG_USER" -d "$PG_DB" -v ON_ERROR_STOP=1 -c "
+                    CREATE TEMP TABLE source_import (no INTEGER, data TEXT);
+                    COPY source_import FROM '/tmp/source.tsv' WITH (FORMAT text, DELIMITER E'\\t');
+                    UPDATE posts AS p
+                    SET source_data = decode(s.data, 'hex')
+                    FROM source_import AS s
+                    WHERE p.board = '$tbl' AND p.no = s.no;
+                " > /dev/null 2>&1 || echo "  WARN: /$tbl/ source attachment data failed"
+            fi
+        fi
         echo "  /$tbl/: $count rows"
         total_board_rows=$((total_board_rows + count))
         migrated_boards=$((migrated_boards + 1))

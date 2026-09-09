@@ -91,6 +91,7 @@ RUN { \
         echo '  ErrorDocument 404 /static/pages/404.html'; \
         echo '  RewriteEngine On'; \
         echo '  RewriteRule ^/(images|thumbs)/.+ /_serve/serve_image.php [END]'; \
+        echo '  RewriteRule ^/source/[a-z0-9]+/[0-9]+/.+ /_serve/serve_source.php [END]'; \
         echo '  RewriteRule ^/tags?$ /_serve/tagboard.php [END]'; \
         echo '  RewriteRule ^/tag/(.+)$ /_serve/tagboard.php?tag=$1 [END]'; \
         echo '  RewriteRule ^/boards\\.json$ /b/boards.php [QSA,L]'; \
@@ -161,6 +162,7 @@ RUN mkdir -p /www/global \
     && mkdir -p /www/4chan.org/web/boards \
     && mkdir -p /www/4chan.org/web/boards/_serve \
     && ln -s /var/www/html/serve_image.php /www/4chan.org/web/boards/_serve/serve_image.php \
+    && ln -s /var/www/html/serve_source.php /www/4chan.org/web/boards/_serve/serve_source.php \
     && ln -s /var/www/html/tagboard.php /www/4chan.org/web/boards/_serve/tagboard.php \
     && mkdir -p /www/4chan.org/web/sys \
     && mkdir -p /www/keys \

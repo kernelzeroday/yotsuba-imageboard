@@ -95,10 +95,22 @@ function word_filter($text, $type) {
   
   $text = preg_replace_callback('/(\b)(s([o0οоօჿ]+)[yуΥ])(\b|[[:alpha:]]{2,4})/iu', 'word_filter_callback_soy', $text);
 
+  static $filters_by_board = [];
   $board = defined('BOARD_DIR') ? BOARD_DIR : '';
-  $db = YotsubaDB::global();
-  $res = $db->query("SELECT pattern, replacement, is_regex FROM {$db->qi('word_filters')} WHERE active = 1 AND (board = '' OR board = ?)", [$board]);
-  while ($row = $res->fetch(PDO::FETCH_ASSOC)) {
+  if (!array_key_exists($board, $filters_by_board)) {
+    $filters_by_board[$board] = [];
+    $db = YotsubaDB::global();
+    $res = $db->query(
+      "SELECT pattern, replacement, is_regex FROM {$db->qi('word_filters')} "
+      . "WHERE active = 1 AND (board = '' OR board = ?)",
+      [$board]
+    );
+    while ($row = $res->fetch(PDO::FETCH_ASSOC)) {
+      $filters_by_board[$board][] = $row;
+    }
+  }
+
+  foreach ($filters_by_board[$board] as $row) {
     if ($row['is_regex']) {
       $text = preg_replace($row['pattern'], $row['replacement'], $text);
     } else {

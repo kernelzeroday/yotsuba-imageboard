@@ -1,0 +1,21 @@
+ALTER TABLE posts
+  ADD COLUMN IF NOT EXISTS source_filename VARCHAR(255) NOT NULL DEFAULT '',
+  ADD COLUMN IF NOT EXISTS source_ext VARCHAR(16) NOT NULL DEFAULT '',
+  ADD COLUMN IF NOT EXISTS source_fsize INTEGER NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS source_data BYTEA,
+  ADD COLUMN IF NOT EXISTS upvotes INTEGER NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS downvotes INTEGER NOT NULL DEFAULT 0;
+
+CREATE TABLE IF NOT EXISTS post_votes (
+  board VARCHAR(10) NOT NULL,
+  post_id INTEGER NOT NULL,
+  voter_hash CHAR(64) NOT NULL,
+  direction VARCHAR(4) NOT NULL CHECK (direction IN ('up', 'down')),
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (board, post_id, voter_hash)
+);
+
+CREATE INDEX IF NOT EXISTS post_votes_updated ON post_votes (updated_at);
+
+\ir ../regen_views.sql

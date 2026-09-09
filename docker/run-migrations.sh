@@ -2,6 +2,7 @@
 
 DB_DRIVER="${YOTSUBA_DB_DRIVER:-mysql}"
 MIGRATIONS_DIR="/var/www/html/docker/migrations"
+failed=0
 
 echo "[migrations] Checking for pending migrations ($DB_DRIVER)..."
 
@@ -12,7 +13,7 @@ if [ "$DB_DRIVER" = "pgsql" ]; then
     PG_PASS="${YOTSUBA_PG_PASS:-yotsuba}"
     PG_NAME="${YOTSUBA_PG_NAME:-yotsuba_dev}"
     export PGPASSWORD="$PG_PASS"
-    psql_cmd="psql -h $PG_HOST -p $PG_PORT -U $PG_USER -d $PG_NAME -q"
+    psql_cmd="psql -h $PG_HOST -p $PG_PORT -U $PG_USER -d $PG_NAME -q -v ON_ERROR_STOP=1"
 
     if ! $psql_cmd -c "SELECT 1" >/dev/null 2>&1; then
         echo "[migrations] Cannot connect to PostgreSQL, skipping."
@@ -24,7 +25,9 @@ if [ "$DB_DRIVER" = "pgsql" ]; then
     applied=0
     skipped=0
 
-    for migration in "$MIGRATIONS_DIR"/*.sql; do
+    # The historical migrations are MySQL-specific. PostgreSQL starts from
+    # init_pg.sql and only applies explicitly tagged incremental migrations.
+    for migration in "$MIGRATIONS_DIR"/*.pgsql.sql; do
         [ -f "$migration" ] || continue
         version=$(basename "$migration")
 
@@ -34,17 +37,22 @@ if [ "$DB_DRIVER" = "pgsql" ]; then
         if [ "$already_run" = "0" ]; then
             echo "[migrations] Applying: $version"
             if $psql_cmd -f "$migration" 2>/dev/null; then
-                $psql_cmd -c "INSERT INTO schema_migrations (version) VALUES ('$version')" 2>/dev/null || true
-                applied=$((applied + 1))
+                if $psql_cmd -c "INSERT INTO schema_migrations (version) VALUES ('$version')" 2>/dev/null; then
+                    applied=$((applied + 1))
+                else
+                    echo "[migrations] FAILED to record: $version"
+                    failed=$((failed + 1))
+                fi
             else
                 echo "[migrations] FAILED: $version"
+                failed=$((failed + 1))
             fi
         else
             skipped=$((skipped + 1))
         fi
     done
 
-    echo "[migrations] Done: $applied applied, $skipped skipped"
+    echo "[migrations] Done: $applied applied, $skipped skipped, $failed failed"
 else
     DB_HOST="${YOTSUBA_DB_HOST:-db}"
     DB_USER="${YOTSUBA_DB_USER:-yotsuba}"
@@ -65,6 +73,9 @@ else
 
     for migration in "$MIGRATIONS_DIR"/*.sql; do
         [ -f "$migration" ] || continue
+        case "$migration" in
+            *.pgsql.sql) continue ;;
+        esac
         version=$(basename "$migration")
 
         already_run=$($mysql_cmd -N -e "SELECT COUNT(*) FROM schema_migrations WHERE version='$version'" 2>/dev/null || echo "0")
@@ -72,15 +83,24 @@ else
         if [ "$already_run" = "0" ]; then
             echo "[migrations] Applying: $version"
             if $mysql_cmd < "$migration" 2>/dev/null; then
-                $mysql_cmd -e "INSERT INTO schema_migrations (version) VALUES ('$version')" 2>/dev/null || true
-                applied=$((applied + 1))
+                if $mysql_cmd -e "INSERT INTO schema_migrations (version) VALUES ('$version')" 2>/dev/null; then
+                    applied=$((applied + 1))
+                else
+                    echo "[migrations] FAILED to record: $version"
+                    failed=$((failed + 1))
+                fi
             else
                 echo "[migrations] FAILED: $version"
+                failed=$((failed + 1))
             fi
         else
             skipped=$((skipped + 1))
         fi
     done
 
-    echo "[migrations] Done: $applied applied, $skipped skipped"
+    echo "[migrations] Done: $applied applied, $skipped skipped, $failed failed"
+fi
+
+if [ "$failed" -gt 0 ]; then
+    exit 1
 fi

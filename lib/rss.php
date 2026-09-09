@@ -29,6 +29,11 @@ function rss_dump() {
 	$db = YotsubaDB::board();
 	$query = $db->query("SELECT * FROM {$db->qi(SQLLOG)} WHERE archived = 0 AND resto = 0 ORDER BY no DESC LIMIT 20");
 	while($row = $query->fetch(PDO::FETCH_ASSOC)) {
+		if (function_exists('word_filter_for_render')) {
+			$row['com'] = word_filter_for_render($row['com'], 'com');
+			$row['sub'] = word_filter_for_render($row['sub'], 'sub');
+			$row['name'] = word_filter_poster_name_for_render($row['name'], S_ANONAME);
+		}
 		$output .= "<item>\n";
 		$spacing = '';
 		$sub = $row['sub'];

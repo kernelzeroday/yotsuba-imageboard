@@ -243,7 +243,7 @@ function whitelisted_ip( $ip = 0 )
 
 // add a global ban (indefinite for now)
 // returns true if it was new (not already inserted)
-function add_ban( $ip, $reason, $days = -1, $zonly = false, $origname = 'Anonymous', &$error, $no = 0, $pass = '', $no_reverse = false )
+function add_ban( $ip, $reason, $days = -1, $zonly = false, $origname = 'Anonymous', &$error = null, $no = 0, $pass = '', $no_reverse = false )
 {
 	global $user;
 	if( ip2long( $ip ) === false ) {
@@ -602,6 +602,6 @@ function cloudflare_purge_by_basename($board, $basename) {
 	$ext = $m[2];
 	
 	cloudflare_purge_url("https://i.4cdn.org/$board/$tim.$ext", true);
-	cloudflare_purge_url("https://i.4cdn.org/$board/${tim}s.jpg", true);
-	cloudflare_purge_url("https://i.4cdn.org/$board/${tim}m.jpg", true);
+	cloudflare_purge_url("https://i.4cdn.org/$board/{$tim}s.jpg", true);
+	cloudflare_purge_url("https://i.4cdn.org/$board/{$tim}m.jpg", true);
 }

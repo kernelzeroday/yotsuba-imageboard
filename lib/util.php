@@ -138,9 +138,10 @@ function record_post_info($fn, $ex="")
 
 function sec2hms($sec, $padTime = false, $showSeconds = false)
 {
+    $sec = (int)$sec;
     $hms = "";
-    $hours = intval(intval($sec) / 3600);
-	$minutes = intval(intval($sec) / 60);
+    $hours = intdiv($sec, 3600);
+	$minutes = intdiv($sec, 60) % 60;
 
 	if ($hours) {
     $hms .= $padTime
@@ -152,15 +153,13 @@ function sec2hms($sec, $padTime = false, $showSeconds = false)
 	}
 
 	if ($minutes) {
-    $minutes = intval(($sec / 60) % 60);
-
     $hms .= $padTime
 			? str_pad($minutes, 2, "0", STR_PAD_LEFT). " minute"
 			: $minutes. " minute";
     if( $minutes != 1 ) $hms .= 's';
 	}
 
-	$seconds = intval($sec % 60);
+	$seconds = $sec % 60;
 
 	if ($showSeconds && $seconds) {
 		$hms .= ' ';
@@ -518,4 +517,3 @@ function country_code_to_name_troll( $code )
 
 	return isset( $trollCountries[$code] ) ? $trollCountries[$code] : $trollCountries['IL'];
 }
-

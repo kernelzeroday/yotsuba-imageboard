@@ -10,6 +10,7 @@ if ( isset($_REQUEST["sqlprofile"] )) {
 }
 */
 require_once "yotsuba_config.php";
+require_once 'lib/word_filtering.php';
 
 require_once( "lib/ads.php" );
 
@@ -137,9 +138,9 @@ $fwritetimer = 0.0;
 ignore_user_abort( true );
 
 $word_filters_enabled = false;
-if (WORD_FILT) {
+if (word_filter_should_load()) {
   $word_filt_root = '/www/global/yotsuba/wordfilters/';
-  
+
   if (file_exists($word_filt_root . BOARD_DIR . '.php')) {
     include_once($word_filt_root . BOARD_DIR . '.php');
     $word_filters_enabled = true;
@@ -1944,16 +1945,23 @@ function emailencode( $str )
 
 function renderPostHtml($no, $in_thread, $sorted_replies = null, $reply_count = null, $shown_replies = null, $is_archived = false) {
 	global $log, $board_flags_array;
-	
+
 	extract($log[$no]);
-	
+
 	$namestyle = '';
 
 	if( JANITOR_BOARD == 1 ) {
 		$namestyle = broomcloset_style( $name );
 		$name = broomcloset_name( $name );
 	}
-	
+
+	if (word_filter_timing() === 'render') {
+		$com = word_filter_for_render($com, 'com');
+		if( $sub )
+			$sub = word_filter_for_render($sub, 'sub');
+		$name = word_filter_poster_name_for_render($name, S_ANONAME);
+	}
+
 	$mname = $name;
 	$mname_truncated = '';
 	if( $capcode == 'none' && mb_strlen( $name ) > 30 ) {
@@ -4589,7 +4597,7 @@ function check_blacklist($post, $dest, $file_ext = '', $resto = 0, $pwd = null, 
 	if( $query->rowCount() == 0 ) return false;
 
 	$row       = $query->fetch(PDO::FETCH_ASSOC);
-	$prvreason = "Blacklisted ${row['field']} - " . htmlspecialchars( $row['contents'] );
+	$prvreason = "Blacklisted {$row['field']} - " . htmlspecialchars( $row['contents'] );
 	
 	if ($row['field'] == 'md5') {
 		$prvreason .= ' - Filename: ' . htmlspecialchars($post['filename']) . $file_ext;
@@ -5868,10 +5876,10 @@ function new_post( $name, $email, $sub, $com, $url, $pwd, $upfile, $upfile_name,
     error(S_NOTEXT, $dest);
   }
   
-	if( WORD_FILT && $word_filters_enabled ) {
-		$com = word_filter( $com, "com" );
+	if (word_filter_timing() === 'store') {
+		$com = word_filter_for_store($com, 'com');
 		if( $sub )
-			$sub = word_filter( $sub, "sub" );
+			$sub = word_filter_for_store($sub, 'sub');
 		$namearr = explode( '</span> <span class="postertrip">', $name );
 		if( strstr( $name, '</span> <span class="postertrip">' ) ) {
 			$nametrip = '</span> <span class="postertrip">' . $namearr[1];
@@ -5879,7 +5887,7 @@ function new_post( $name, $email, $sub, $com, $url, $pwd, $upfile, $upfile_name,
 			$nametrip = "";
 		}
 		if( $namearr[0] != S_ANONAME )
-			$name = word_filter( $namearr[0], "name" ) . $nametrip;
+			$name = word_filter_for_store($namearr[0], 'name') . $nametrip;
 	}
 
 	/*if( $html != 1 || ( !has_level('manager') ) ) {

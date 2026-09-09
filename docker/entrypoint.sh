@@ -472,6 +472,7 @@ PHPEOF
 # ---------------------------------------------------------------------------
 mkdir -p "$BOARDS_ROOT/_serve"
 ln -sf "$SRC/serve_image.php" "$BOARDS_ROOT/_serve/serve_image.php"
+ln -sf "$SRC/serve_source.php" "$BOARDS_ROOT/_serve/serve_source.php"
 ln -sf "$SRC/tagboard.php" "$BOARDS_ROOT/_serve/tagboard.php"
 
 for board_conf in "$SRC/config/boards/"*.config.ini; do

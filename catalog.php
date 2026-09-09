@@ -50,7 +50,12 @@ function catalog_thread($res, &$json, $pos)
   global $log;
 
   $reps = $res['replycount'];
-  $sub  = $res['sub'];
+  $sub = function_exists('word_filter_for_render')
+    ? word_filter_for_render($res['sub'], 'sub')
+    : $res['sub'];
+  $display_name = function_exists('word_filter_poster_name_for_render')
+    ? word_filter_poster_name_for_render($res['name'], S_ANONAME)
+    : $res['name'];
 
   $imgs = $res['imgreplycount'];
   $last_reply_id = null;
@@ -81,6 +86,9 @@ function catalog_thread($res, &$json, $pos)
   }
   else {
     $lr_data = $log[$last_reply_id];
+    $lr_name = function_exists('word_filter_poster_name_for_render')
+      ? word_filter_poster_name_for_render($lr_data['name'], S_ANONAME)
+      : $lr_data['name'];
     
     $last_reply = array(
       'id'    => $last_reply_id,
@@ -90,12 +98,11 @@ function catalog_thread($res, &$json, $pos)
     if( $lr_data['capcode'] != 'none' ) $last_reply['capcode'] = $lr_data['capcode'];
     
     $force_anon = ( ( FORCED_ANON || META_BOARD ) && $lr_data['capcode'] != 'admin' && $lr_data['capcode'] != 'admin_highlight' );
-    
     if( !$force_anon ) {
-      if( strpos( $lr_data['name'], '</span> <span class="postertrip">' ) !== false ) {
-        list( $last_reply['author'], $last_reply['trip'] ) = explode( '</span> <span class="postertrip">', $lr_data['name'] );
+      if( strpos( $lr_name, '</span> <span class="postertrip">' ) !== false ) {
+        list( $last_reply['author'], $last_reply['trip'] ) = explode( '</span> <span class="postertrip">', $lr_name );
       } else {
-        $last_reply['author'] = $lr_data['name'];
+        $last_reply['author'] = $lr_name;
       }
     } else {
       $last_reply['author'] = S_ANONAME;
@@ -121,7 +128,9 @@ function catalog_thread($res, &$json, $pos)
     }
   }
   
-  $com = $res['com'];
+  $com = function_exists('word_filter_for_render')
+    ? word_filter_for_render($res['com'], 'com')
+    : $res['com'];
 
   if( strpos( $com, 'class="abbr"' ) !== false ) {
     $com = preg_replace( '#(<br>)+<span class="abbr">(.+)$#s', '', $com );
@@ -159,10 +168,10 @@ function catalog_thread($res, &$json, $pos)
   $force_anon = ( ( FORCED_ANON || META_BOARD ) && $res['capcode'] != 'admin' && $res['capcode'] != 'admin_highlight' );
   
   if( !$force_anon ) {
-    if( strpos( $res['name'], '</span> <span class="postertrip">' ) !== false ) {
-      list( $json[$res['no']]['author'], $json[$res['no']]['trip'] ) = explode( '</span> <span class="postertrip">', $res['name'] );
+    if( strpos( $display_name, '</span> <span class="postertrip">' ) !== false ) {
+      list( $json[$res['no']]['author'], $json[$res['no']]['trip'] ) = explode( '</span> <span class="postertrip">', $display_name );
     } else {
-      $json[$res['no']]['author'] = $res['name'];
+      $json[$res['no']]['author'] = $display_name;
     }
   } else {
     $json[$res['no']]['author'] = S_ANONAME;
@@ -176,9 +185,9 @@ function catalog_thread($res, &$json, $pos)
 
   if( $res['filedeleted'] == 1 ) $json[$res['no']]['imgdel'] = true;
 
-  if( strpos( $res['sub'], 'SPOILER<>' ) !== false ) {
+  if( strpos( $sub, 'SPOILER<>' ) !== false ) {
     $json[$res['no']]['imgspoiler'] = true;
-    $sub                            = substr( $res['sub'], 9 );
+    $sub                            = substr( $sub, 9 );
   }
 
   $json[$res['no']]['sub'] = $sub;

@@ -174,6 +174,10 @@ CREATE TABLE IF NOT EXISTS "posts" (
   "image_data" BYTEA,
   "thumb_data" BYTEA,
   "board_flag" VARCHAR(16) NOT NULL DEFAULT '',
+  "source_filename" VARCHAR(255) NOT NULL DEFAULT '',
+  "source_ext" VARCHAR(16) NOT NULL DEFAULT '',
+  "source_fsize" INTEGER NOT NULL DEFAULT 0,
+  "source_data" BYTEA,
   "upvotes" INTEGER NOT NULL DEFAULT 0,
   "downvotes" INTEGER NOT NULL DEFAULT 0,
   PRIMARY KEY ("board", "no")
@@ -231,10 +235,11 @@ BEGIN
     "clip_context_toxicity",
     "moderation_flag","moderation_reason",
     "clip_caption","clip_desc","clip_text_desc","clip_vector",
-    "image_data","thumb_data",
-    "board_flag","upvotes","downvotes")
+    "image_data","thumb_data","board_flag",
+    "source_filename","source_ext","source_fsize","source_data",
+    "upvotes","downvotes")
   VALUES (TG_TABLE_NAME,
-    nextval('posts_no_seq'), COALESCE(NEW."resto", 0), COALESCE(NEW."root", 0),
+    NEW."no", COALESCE(NEW."resto", 0), COALESCE(NEW."root", 0),
     COALESCE(NEW."now", ''), COALESCE(NEW."time", 0), COALESCE(NEW."last_modified", 0),
     COALESCE(NEW."name", ''), COALESCE(NEW."sub", ''), COALESCE(NEW."com", ''),
     COALESCE(NEW."host", ''), COALESCE(NEW."pwd", ''), COALESCE(NEW."4pass_id", ''),
@@ -253,8 +258,12 @@ BEGIN
     COALESCE(NEW."clip_context_toxicity", 0),
     COALESCE(NEW."moderation_flag", 0::smallint), COALESCE(NEW."moderation_reason", ''),
     COALESCE(NEW."clip_caption", ''), COALESCE(NEW."clip_desc", ''), COALESCE(NEW."clip_text_desc", ''), NEW."clip_vector",
-    NEW."image_data", NEW."thumb_data",
-    COALESCE(NEW."board_flag", ''), COALESCE(NEW."upvotes", 0), COALESCE(NEW."downvotes", 0));
+    NEW."image_data", NEW."thumb_data", COALESCE(NEW."board_flag", ''),
+    COALESCE(NEW."source_filename", ''), COALESCE(NEW."source_ext", ''),
+    COALESCE(NEW."source_fsize", 0), NEW."source_data",
+    COALESCE(NEW."upvotes", 0), COALESCE(NEW."downvotes", 0))
+  RETURNING "no" INTO NEW."no";
+  PERFORM set_config('yotsuba.last_post_no', NEW."no"::text, false);
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
@@ -279,7 +288,10 @@ BEGIN
     "moderation_flag"=NEW."moderation_flag", "moderation_reason"=NEW."moderation_reason",
     "clip_caption"=NEW."clip_caption", "clip_desc"=NEW."clip_desc", "clip_text_desc"=NEW."clip_text_desc", "clip_vector"=NEW."clip_vector",
     "image_data"=NEW."image_data", "thumb_data"=NEW."thumb_data",
-    "board_flag"=NEW."board_flag", "upvotes"=NEW."upvotes", "downvotes"=NEW."downvotes"
+    "board_flag"=NEW."board_flag",
+    "source_filename"=NEW."source_filename", "source_ext"=NEW."source_ext",
+    "source_fsize"=NEW."source_fsize", "source_data"=NEW."source_data",
+    "upvotes"=NEW."upvotes", "downvotes"=NEW."downvotes"
   WHERE "board" = TG_TABLE_NAME AND "no" = OLD."no";
   RETURN NEW;
 END;
@@ -296,7 +308,7 @@ $$ LANGUAGE plpgsql;
 DO $$
 DECLARE
   board_dir TEXT;
-  col_list TEXT := '"no","resto","root","now","time","last_modified","name","sub","com","host","pwd","4pass_id","email","filename","ext","w","h","tn_w","tn_h","tim","md5","tmd5","fsize","filedeleted","id","capcode","country","sticky","permasage","permaage","closed","archived","undead","since4pass","m_img","clip_nsfw","clip_anime","clip_toxicity","clip_ai_score","clip_severe_toxicity","clip_obscene","clip_threat","clip_insult","clip_identity_attack","clip_sexual_explicit","clip_context_toxicity","moderation_flag","moderation_reason","clip_caption","clip_desc","clip_text_desc","clip_vector","image_data","thumb_data","board_flag","upvotes","downvotes"';
+  col_list TEXT := '"no","resto","root","now","time","last_modified","name","sub","com","host","pwd","4pass_id","email","filename","ext","w","h","tn_w","tn_h","tim","md5","tmd5","fsize","filedeleted","id","capcode","country","sticky","permasage","permaage","closed","archived","undead","since4pass","m_img","clip_nsfw","clip_anime","clip_toxicity","clip_ai_score","clip_severe_toxicity","clip_obscene","clip_threat","clip_insult","clip_identity_attack","clip_sexual_explicit","clip_context_toxicity","moderation_flag","moderation_reason","clip_caption","clip_desc","clip_text_desc","clip_vector","image_data","thumb_data","board_flag","source_filename","source_ext","source_fsize","source_data","upvotes","downvotes"';
 BEGIN
   FOR board_dir IN SELECT dir FROM boardlist LOOP
     EXECUTE format('CREATE OR REPLACE VIEW %I AS SELECT %s FROM posts WHERE board = %L', board_dir, col_list, board_dir);
@@ -496,22 +508,22 @@ CREATE TABLE IF NOT EXISTS "ban_templates" (
 );
 
 -- Default ban templates
-INSERT INTO "ban_templates" ("no", "name", "rule", "global", "publicreason", "days", "bantype", "postban", "level") VALUES
-(1,  'GR1 - CP/Underage',      'global1',  1, 'Violating US law',                  0, 'global', 'delpost', 'janitor'),
-(2,  'GR2 - DMCA/Copyright',   'global2',  1, 'Copyright violation',               3, 'global', 'delpost', 'mod'),
-(3,  'GR3 - Dox/Personal Info', 'global3', 1, 'Posting personal information',       3, 'global', 'delpost', 'mod'),
-(4,  'GR4 - Racism (outside /b/)', 'global4', 1, 'Racism outside of /b/',          3, 'global', '',        'mod'),
-(5,  'GR5 - Advertising',      'global5',  1, 'Advertising',                       30, 'global', 'delpost', 'janitor'),
-(6,  'GR6 - Complaining about 4chan', 'global6', 1, 'Complaining about 4chan',       1, 'global', '',        'mod'),
-(7,  'Off-topic',               'local',   0, 'Posting off-topic content',          3, 'local',  'delpost', 'janitor'),
-(8,  'Troll/Flame/Bait',        'local',   0, 'Trolling/flaming',                   3, 'local',  '',        'janitor'),
-(9,  'NSFW on SFW board',       'local',   0, 'Posting NSFW content on a SFW board', 3, 'local', 'delpost', 'janitor'),
-(10, 'Spam/Flooding',           'local',   0, 'Spamming/flooding',                  7, 'local',  'delall',  'janitor'),
-(11, 'Ban Evasion',             'local',   0, 'Ban evasion',                         0, 'global', 'delall',  'mod')
+INSERT INTO "ban_templates" ("no", "name", "rule", "global", "publicreason", "privatereason", "days", "bantype", "postban", "level") VALUES
+(1,  'GR1 - CP/Underage',      'global1',  1, 'Violating US law',                    '', 0, 'global', 'delpost', 'janitor'),
+(2,  'GR2 - DMCA/Copyright',   'global2',  1, 'Copyright violation',                 '', 3, 'global', 'delpost', 'mod'),
+(3,  'GR3 - Dox/Personal Info', 'global3', 1, 'Posting personal information',         '', 3, 'global', 'delpost', 'mod'),
+(4,  'GR4 - Racism (outside /b/)', 'global4', 1, 'Racism outside of /b/',            '', 3, 'global', '',        'mod'),
+(5,  'GR5 - Advertising',      'global5',  1, 'Advertising',                         '', 30, 'global', 'delpost', 'janitor'),
+(6,  'GR6 - Complaining about 4chan', 'global6', 1, 'Complaining about 4chan',         '', 1, 'global', '',        'mod'),
+(7,  'Off-topic',               'local',   0, 'Posting off-topic content',            '', 3, 'local',  'delpost', 'janitor'),
+(8,  'Troll/Flame/Bait',        'local',   0, 'Trolling/flaming',                     '', 3, 'local',  '',        'janitor'),
+(9,  'NSFW on SFW board',       'local',   0, 'Posting NSFW content on a SFW board',  '', 3, 'local', 'delpost', 'janitor'),
+(10, 'Spam/Flooding',           'local',   0, 'Spamming/flooding',                    '', 7, 'local',  'delall',  'janitor'),
+(11, 'Ban Evasion',             'local',   0, 'Ban evasion',                          '', 0, 'global', 'delall',  'mod')
 ON CONFLICT DO NOTHING;
-INSERT INTO "ban_templates" ("no", "name", "rule", "global", "publicreason", "days", "bantype", "postban", "level", "banlen") VALUES
-(123, 'Warn - Off-topic',       'local',   0, 'Off-topic posting',                  0, 'local',  '',        'janitor', ''),
-(213, 'Warn - Low quality',     'local',   0, 'Low quality posting',                0, 'local',  '',        'janitor', '')
+INSERT INTO "ban_templates" ("no", "name", "rule", "global", "publicreason", "privatereason", "days", "bantype", "postban", "level", "banlen") VALUES
+(123, 'Warn - Off-topic',       'local',   0, 'Off-topic posting',                  '', 0, 'local',  '',        'janitor', ''),
+(213, 'Warn - Low quality',     'local',   0, 'Low quality posting',                '', 0, 'local',  '',        'janitor', '')
 ON CONFLICT DO NOTHING;
 
 -- Ban requests (pre-ban screening)
@@ -545,6 +557,18 @@ CREATE TABLE IF NOT EXISTS "halloween_votes" (
 );
 CREATE INDEX IF NOT EXISTS "halloween_votes_long_ip" ON "halloween_votes" ("long_ip");
 CREATE INDEX IF NOT EXISTS "halloween_votes_board_post" ON "halloween_votes" ("board", "post_id");
+
+-- One current vote per anonymous voter and post
+CREATE TABLE IF NOT EXISTS "post_votes" (
+  "board" VARCHAR(10) NOT NULL,
+  "post_id" INTEGER NOT NULL,
+  "voter_hash" CHAR(64) NOT NULL,
+  "direction" VARCHAR(4) NOT NULL CHECK ("direction" IN ('up', 'down')),
+  "created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updated_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY ("board", "post_id", "voter_hash")
+);
+CREATE INDEX IF NOT EXISTS "post_votes_updated" ON "post_votes" ("updated_at");
 
 -- Like system scores
 CREATE TABLE IF NOT EXISTS "like_user_scores" (

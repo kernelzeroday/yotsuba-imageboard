@@ -3214,7 +3214,7 @@ function trans_similar_to_ascii(&$str, $char) {
 		case 0xFE68:
 			$str .= chr(0x5C);		/* Backslash */
 			break;
-		case 0x0430; // CYRILLIC SMALL LETTER A
+		case 0x0430: // CYRILLIC SMALL LETTER A
 		case 0x2124:
 		case 0x2128:
 		case 0xFF3A:

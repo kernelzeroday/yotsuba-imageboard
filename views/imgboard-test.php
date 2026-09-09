@@ -183,6 +183,13 @@ function form( &$dat, $resno, $admin = '', $isreptemp = false, $stripm = false )
 			  </tr>';
 			}
 		}
+
+		if (ENABLE_SOURCE && defined('SOURCE_ATTACHMENTS_IMPLEMENTED') && $_GET['mode'] != 'oe_finish') {
+			$dat .= '<tr data-type="Source">
+			<td>Source Code</td>
+			<td><input id="postSource" name="upfile2" type="file" tabindex="9"></td>
+			</tr>';
+		}
     
     if ($resno && SHOW_THREAD_UNIQUES) {
       $unique = $thread_unique_ips;

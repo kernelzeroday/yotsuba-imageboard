@@ -155,6 +155,10 @@ CREATE TABLE IF NOT EXISTS `a` (
   `clip_nsfw` float NOT NULL DEFAULT 0,
   `clip_desc` varchar(500) NOT NULL DEFAULT '',
   `board_flag` varchar(16) NOT NULL DEFAULT '',
+  `source_filename` varchar(255) NOT NULL DEFAULT '',
+  `source_ext` varchar(16) NOT NULL DEFAULT '',
+  `source_fsize` int(11) NOT NULL DEFAULT 0,
+  `source_data` mediumblob,
   `upvotes` int(11) NOT NULL DEFAULT 0,
   `downvotes` int(11) NOT NULL DEFAULT 0,
   PRIMARY KEY (`no`),
@@ -587,21 +591,21 @@ CREATE TABLE IF NOT EXISTS `ban_templates` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Default ban templates
-INSERT IGNORE INTO `ban_templates` (`no`, `name`, `rule`, `global`, `publicreason`, `days`, `bantype`, `postban`, `level`) VALUES
-(1,  'GR1 - CP/Underage',      'global1',  1, 'Violating US law',                  0, 'global', 'delpost', 'janitor'),
-(2,  'GR2 - DMCA/Copyright',   'global2',  1, 'Copyright violation',               3, 'global', 'delpost', 'mod'),
-(3,  'GR3 - Dox/Personal Info', 'global3', 1, 'Posting personal information',       3, 'global', 'delpost', 'mod'),
-(4,  'GR4 - Racism (outside /b/)', 'global4', 1, 'Racism outside of /b/',          3, 'global', '',        'mod'),
-(5,  'GR5 - Advertising',      'global5',  1, 'Advertising',                       30, 'global', 'delpost', 'janitor'),
-(6,  'GR6 - Complaining about 4chan', 'global6', 1, 'Complaining about 4chan',       1, 'global', '',        'mod'),
-(7,  'Off-topic',               'local',   0, 'Posting off-topic content',          3, 'local',  'delpost', 'janitor'),
-(8,  'Troll/Flame/Bait',        'local',   0, 'Trolling/flaming',                   3, 'local',  '',        'janitor'),
-(9,  'NSFW on SFW board',       'local',   0, 'Posting NSFW content on a SFW board', 3, 'local', 'delpost', 'janitor'),
-(10, 'Spam/Flooding',           'local',   0, 'Spamming/flooding',                  7, 'local',  'delall',  'janitor'),
-(11, 'Ban Evasion',             'local',   0, 'Ban evasion',                         0, 'global', 'delall',  'mod');
-INSERT IGNORE INTO `ban_templates` (`no`, `name`, `rule`, `global`, `publicreason`, `days`, `bantype`, `postban`, `level`, `banlen`) VALUES
-(123, 'Warn - Off-topic',       'local',   0, 'Off-topic posting',                  0, 'local',  '',        'janitor', ''),
-(213, 'Warn - Low quality',     'local',   0, 'Low quality posting',                0, 'local',  '',        'janitor', '');
+INSERT IGNORE INTO `ban_templates` (`no`, `name`, `rule`, `global`, `publicreason`, `privatereason`, `days`, `bantype`, `postban`, `level`) VALUES
+(1,  'GR1 - CP/Underage',      'global1',  1, 'Violating US law',                    '', 0, 'global', 'delpost', 'janitor'),
+(2,  'GR2 - DMCA/Copyright',   'global2',  1, 'Copyright violation',                 '', 3, 'global', 'delpost', 'mod'),
+(3,  'GR3 - Dox/Personal Info', 'global3', 1, 'Posting personal information',         '', 3, 'global', 'delpost', 'mod'),
+(4,  'GR4 - Racism (outside /b/)', 'global4', 1, 'Racism outside of /b/',            '', 3, 'global', '',        'mod'),
+(5,  'GR5 - Advertising',      'global5',  1, 'Advertising',                         '', 30, 'global', 'delpost', 'janitor'),
+(6,  'GR6 - Complaining about 4chan', 'global6', 1, 'Complaining about 4chan',         '', 1, 'global', '',        'mod'),
+(7,  'Off-topic',               'local',   0, 'Posting off-topic content',            '', 3, 'local',  'delpost', 'janitor'),
+(8,  'Troll/Flame/Bait',        'local',   0, 'Trolling/flaming',                     '', 3, 'local',  '',        'janitor'),
+(9,  'NSFW on SFW board',       'local',   0, 'Posting NSFW content on a SFW board',  '', 3, 'local', 'delpost', 'janitor'),
+(10, 'Spam/Flooding',           'local',   0, 'Spamming/flooding',                    '', 7, 'local',  'delall',  'janitor'),
+(11, 'Ban Evasion',             'local',   0, 'Ban evasion',                          '', 0, 'global', 'delall',  'mod');
+INSERT IGNORE INTO `ban_templates` (`no`, `name`, `rule`, `global`, `publicreason`, `privatereason`, `days`, `bantype`, `postban`, `level`, `banlen`) VALUES
+(123, 'Warn - Off-topic',       'local',   0, 'Off-topic posting',                  '', 0, 'local',  '',        'janitor', ''),
+(213, 'Warn - Low quality',     'local',   0, 'Low quality posting',                '', 0, 'local',  '',        'janitor', '');
 
 -- Ban requests (pre-ban screening)
 CREATE TABLE IF NOT EXISTS `ban_requests` (
@@ -635,6 +639,18 @@ CREATE TABLE IF NOT EXISTS `halloween_votes` (
   PRIMARY KEY (`id`),
   KEY `long_ip` (`long_ip`),
   KEY `board_post` (`board`, `post_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- One current vote per anonymous voter and post
+CREATE TABLE IF NOT EXISTS `post_votes` (
+  `board` varchar(10) NOT NULL,
+  `post_id` int(11) NOT NULL,
+  `voter_hash` char(64) NOT NULL,
+  `direction` varchar(4) NOT NULL,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`board`, `post_id`, `voter_hash`),
+  KEY `post_votes_updated` (`updated_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Like system scores
